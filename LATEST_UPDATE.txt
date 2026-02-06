@@ -1,0 +1,14 @@
+ACCOUNTING DASHBOARD UPDATES
+============================
+
+1. Added Date Filtering
+   - You can now filter Profit & Loss by "This Month", "Last Month", or "All Time".
+   - This fixes the issue of seeing only lifetime totals.
+
+2. Updated Logic
+   - The Income and Expense calculations now dynamically respect the selected date range.
+
+3. Server Update
+   - The development server is now running on http://localhost:5175/accounting (Port 5174 was busy).
+
+Please verify the changes in the browser.

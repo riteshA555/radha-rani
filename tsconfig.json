@@ -5,8 +5,7 @@
         "lib": [
             "DOM",
             "DOM.Iterable",
-            "ESNext",
-            "WebWorker"
+            "ESNext"
         ],
         "allowJs": false,
         "skipLibCheck": true,
@@ -32,10 +31,5 @@
     ],
     "exclude": [
         "node_modules"
-    ],
-    "references": [
-        {
-            "path": "./tsconfig.node.json"
-        }
     ]
 }

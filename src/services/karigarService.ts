@@ -4,10 +4,13 @@ import { cacheStore } from './cacheStore'
 export interface Karigar {
     id: string;
     name: string;
-    work_type: 'Cutting' | 'Choti' | 'Half Belt' | 'General';
+    work_type: string;
     rate_type: 'Per KG' | 'Per Piece' | 'Fixed';
     default_rate: number;
     status: 'ACTIVE' | 'INACTIVE';
+    contact_number?: string;
+    specialization?: string;
+    address?: string;
 }
 
 const KARIGARS_CACHE_KEY = 'karigars_list'
@@ -156,20 +159,60 @@ export const deleteKarigar = async (id: string) => {
 }
 
 export const getKarigarBalances = async () => {
-    // Fetch all work records to calculate pending balances
     const { data, error } = await supabase
-        .from('karigar_work_records')
-        .select('karigar_id, amount, payment_status')
+        .from('karigars')
+        .select('id, current_balance, current_metal_balance')
 
     if (error) throw error
 
-    const balances: { [key: string]: number } = {}
-    data?.forEach((r: any) => {
-        if (r.payment_status === 'PENDING') {
-            balances[r.karigar_id] = (balances[r.karigar_id] || 0) + Number(r.amount)
+    const balances: { [key: string]: { cash: number, metal: number } } = {}
+    data?.forEach((k: any) => {
+        balances[k.id] = {
+            cash: Number(k.current_balance) || 0,
+            metal: Number(k.current_metal_balance) || 0
         }
     })
     return balances
+}
+
+export const issueMetalToKarigar = async (karigarId: string, weight: number, date: string, note: string) => {
+    const { data, error } = await supabase.rpc('issue_metal_to_karigar', {
+        p_karigar_id: karigarId,
+        p_weight: weight,
+        p_date: date,
+        p_note: note
+    })
+    if (error) throw error
+    cacheStore.invalidatePattern('stock_')
+    cacheStore.invalidate(KARIGARS_CACHE_KEY)
+    return data
+}
+
+export const receiveProductionFromKarigar = async (
+    karigarId: string,
+    productId: string,
+    quantity: number,
+    weight: number,
+    wastageWeight: number,
+    laborRate: number,
+    date: string,
+    note: string
+) => {
+    const { data, error } = await supabase.rpc('receive_production_from_karigar', {
+        p_karigar_id: karigarId,
+        p_product_id: productId,
+        p_quantity: quantity,
+        p_weight: weight,
+        p_wastage: wastageWeight,
+        p_labor_rate: laborRate,
+        p_date: date,
+        p_note: note
+    })
+    if (error) throw error
+    cacheStore.invalidatePattern('stock_')
+    cacheStore.invalidate(KARIGARS_CACHE_KEY)
+    cacheStore.invalidate('pl_report')
+    return data
 }
 
 export const recordKarigarPayment = async (karigarId: string, amount: number, mode: string, date: string, notes: string = '') => {
@@ -219,7 +262,8 @@ export const getKarigarStats = async (karigarId: string) => {
     if (kError) throw kError
 
     return {
-        pendingWork,
-        advance: Number(kData.current_balance) || 0
+        pendingWork: 0, // In this new model, balance logic is handled by current_balance directly
+        cashBalance: Number(kData.current_balance) || 0,
+        metalBalance: Number(kData.current_metal_balance) || 0
     }
 }

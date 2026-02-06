@@ -17,18 +17,35 @@ export interface PLData {
     netProfit: number;
 }
 
+export interface CustomerLedger {
+    id: string;
+    date: string;
+    description: string;
+    debit: number;
+    credit: number;
+    ledger_id: string;
+    balance?: number;
+}
+
 const CACHE_KEYS = {
     PL_REPORT: 'pl_report',
     CUSTOMER_STATEMENT_PREFIX: 'customer_statement_'
 }
 
-export const getPLReport = async () => {
-    return cacheStore.getOrFetch(CACHE_KEYS.PL_REPORT, async () => {
-        // 1. Get Incomes from system ledgers
-        const { data: incomeData, error: incomeError } = await supabase
+export const getPLReport = async (startDate?: string, endDate?: string) => {
+    const cacheKey = `${CACHE_KEYS.PL_REPORT}_${startDate || 'all'}_${endDate || 'all'}`;
+
+    return cacheStore.getOrFetch(cacheKey, async () => {
+        // 1. Get Incomes from system ledgers (transactions)
+        let incomeQuery = supabase
             .from('transactions')
-            .select('ledgers!inner(name), credit')
+            .select('ledgers!inner(name), credit, date')
             .in('ledgers.name', ['Job Work Income', 'Product Sales Income'])
+
+        if (startDate) incomeQuery = incomeQuery.gte('date', startDate)
+        if (endDate) incomeQuery = incomeQuery.lte('date', endDate)
+
+        const { data: incomeData, error: incomeError } = await incomeQuery
 
         if (incomeError) throw incomeError
 
@@ -40,10 +57,15 @@ export const getPLReport = async () => {
             .filter((t: any) => (t.ledgers as any).name === 'Product Sales Income')
             .reduce((sum: number, t: any) => sum + Number(t.credit), 0)
 
-        // 2. Get Expenses and separate Karigar vs General
-        const { data: expenseData, error: expenseError } = await supabase
+        // 2. Get Expenses (from expenses table)
+        let expenseQuery = supabase
             .from('expenses')
-            .select('head, amount, gst_amount, gst_enabled')
+            .select('head, amount, gst_amount, gst_enabled, date')
+
+        if (startDate) expenseQuery = expenseQuery.gte('date', startDate)
+        if (endDate) expenseQuery = expenseQuery.lte('date', endDate)
+
+        const { data: expenseData, error: expenseError } = await expenseQuery
 
         if (expenseError) throw expenseError
 
@@ -55,7 +77,6 @@ export const getPLReport = async () => {
             .filter((e: any) => !e.head.startsWith('Karigar Payment'))
             .reduce((sum: number, e: any) => {
                 // For P&L, we should count the Net Expense (excluding GST if it's recorded)
-                // If GST is enabled, specific gst_amount is usually ITC (Asset), not Expense.
                 const netAmount = (e.gst_enabled && e.gst_amount)
                     ? (Number(e.amount) - Number(e.gst_amount))
                     : Number(e.amount)
@@ -76,7 +97,6 @@ export const getPLReport = async () => {
 }
 
 export const getCustomerStatement = async (customerName: string, startDate?: string, endDate?: string) => {
-    // Generate cache key with date params to ensure uniqueness
     const cacheKey = `${CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX}${customerName}_${startDate || 'all'}_${endDate || 'all'}`;
 
     return cacheStore.getOrFetch(cacheKey, async () => {
@@ -88,27 +108,46 @@ export const getCustomerStatement = async (customerName: string, startDate?: str
             .limit(1)
 
         if (ledgerError || !ledgers.length) throw new Error("Customer not found or invalid name")
-
         const ledgerId = ledgers[0].id
 
-        // 2. Fetch Transactions for this Ledger
-        let query = supabase
+        // 2. Fetch ALL transactions for this ledger to calculate running balance correctly
+        // We cannot just fetch a date range because we need the opening balance
+        const { data: allTransactions, error } = await supabase
             .from('transactions')
             .select('*')
             .eq('ledger_id', ledgerId)
-            .order('date', { ascending: false })
-
-        if (startDate) {
-            query = query.gte('date', startDate)
-        }
-        if (endDate) {
-            query = query.lte('date', endDate)
-        }
-
-        const { data, error } = await query
+            .order('date', { ascending: true }) // Ascending to calculate running balance
+            .order('created_at', { ascending: true })
 
         if (error) throw error
-        return data || []
+
+        // 3. Calculate Running Balances
+        let runningBalance = 0;
+        const processedTransactions = (allTransactions || []).map((t: any) => {
+            const debit = Number(t.debit) || 0;
+            const credit = Number(t.credit) || 0;
+            // For Assets (Customers): Debit increases balance (receivable), Credit decreases it.
+            runningBalance += (debit - credit);
+            return { ...t, balance: runningBalance };
+        });
+
+        // 4. Filter by Date Range if provided
+        // We filter AFTER calculating running balance so the balance column is correct
+        let result = processedTransactions;
+        if (startDate) {
+            result = result.filter(t => t.date >= startDate);
+        }
+        if (endDate) {
+            result = result.filter(t => t.date <= endDate);
+        }
+
+        // Return in descending order (newest first) for UI, but with correct closing balances
+        return result.sort((a, b) => {
+            const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
+            if (dateCompare !== 0) return dateCompare;
+            // If same date, use created_at (descending)
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
     })
 }
 
@@ -183,6 +222,17 @@ export const createLedger = async (data: { name: string, type: 'ASSET' | 'LIABIL
     const { data: res, error } = await supabase
         .from('ledgers')
         .insert(data)
+        .select()
+
+    if (error) throw error
+    return res[0]
+}
+
+export const updateLedger = async (id: string, data: { name?: string, contact_info?: string, address?: string, gst_number?: string }) => {
+    const { data: res, error } = await supabase
+        .from('ledgers')
+        .update(data)
+        .eq('id', id)
         .select()
 
     if (error) throw error

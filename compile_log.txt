@@ -1,0 +1,16 @@
+src/app/pages/Catalog.tsx(5,10): error TS2724: '"../../services/rateService"' has no exported member named 'getLatestRate'. Did you mean 'getLatestRates'?
+src/app/pages/Catalog.tsx(64,15): error TS7006: Parameter 'prev' implicitly has an 'any' type.
+src/app/pages/Dashboard.tsx(21,10): error TS2724: '"../../services/rateService"' has no exported member named 'getLatestRate'. Did you mean 'getLatestRates'?
+src/app/pages/Dashboard.tsx(21,41): error TS2305: Module '"../../services/rateService"' has no exported member 'SilverRate'.
+src/app/pages/OrderCreate.tsx(9,10): error TS2724: '"../../services/rateService"' has no exported member named 'getLatestRate'. Did you mean 'getLatestRates'?
+src/app/pages/OrderCreate.tsx(9,25): error TS2305: Module '"../../services/rateService"' has no exported member 'SilverRate'.
+src/app/pages/Stock.tsx(4,10): error TS2724: '"../../services/rateService"' has no exported member named 'getLatestRate'. Did you mean 'getLatestRates'?
+src/app/pages/Stock.tsx(11,22): error TS1261: Already included file name 'C:/Users/rites/Downloads/kkp/redesign_v2/src/app/components/ui/Tabs.tsx' differs from file name 'C:/Users/rites/Downloads/kkp/redesign_v2/src/app/components/ui/tabs.tsx' only in casing.
+  The file is in the program because:
+    Imported via '../components/ui/Tabs' from file 'C:/Users/rites/Downloads/kkp/redesign_v2/src/app/pages/Stock.tsx'
+    Imported via '../components/ui/Tabs' from file 'C:/Users/rites/Downloads/kkp/redesign_v2/src/app/pages/GSTReports.tsx'
+    Matched by include pattern 'src' in 'C:/Users/rites/Downloads/kkp/redesign_v2/tsconfig.json'
+src/app/pages/Stock.tsx(413,24): error TS2686: 'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+src/main.tsx(3,19): error TS5097: An import path can only end with a '.tsx' extension when 'allowImportingTsExtensions' is enabled.
+src/services/contactService.ts(56,44): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/services/contactService.ts(56,49): error TS7006: Parameter 'o' implicitly has an 'any' type.

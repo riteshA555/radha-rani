@@ -1,0 +1,11 @@
+[CRITICAL UPDATE]
+SERVER RESTARTED ON PORT 5174.
+
+The changes weren't visible because the server was running on a different port (5176).
+I have killed all previous servers and restarted a fresh one on standard 5174.
+
+PLEASE OPEN: http://localhost:5174
+
+Updates you should see:
+1. Expenses Tab -> Title is "Expenses Manager" with Payment Mode tags.
+2. Ledger Tab -> Table has a new "Balance" column with running totals.

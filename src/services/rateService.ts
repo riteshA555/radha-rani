@@ -1,84 +1,96 @@
 import { supabase } from '../supabaseClient'
 import { cacheStore } from './cacheStore'
 
-export interface SilverRate {
+export type MetalType = 'GOLD' | 'SILVER';
+
+export interface MetalRate {
     id: string;
     rate_date: string;
-    source: 'MCX' | 'Local Dealer';
-    rate_10g: number;
-    rate_1g: number;
+    metal_type: MetalType;
+    purity: string;
+    selling_rate: number;
+    buying_rate?: number;
+    source: string;
     notes?: string;
+    created_at: string;
 }
 
 const CACHE_KEYS = {
-    LATEST_RATE: 'latest_rate',
-    RATE_HISTORY: 'rate_history',
-    RATE_HISTORY_PREFIX: 'rate_history_'
+    LATEST_RATES: 'latest_metal_rates',
+    RATE_HISTORY: 'metal_rate_history',
+    RATE_HISTORY_PREFIX: 'metal_rate_history_'
 }
 
-const RATE_TTL = 1000 * 60 * 5; // 5 minutes for rates
+const RATE_TTL = 1000 * 60 * 5; // 5 minutes
 
-export const getLatestRate = async () => {
-    return cacheStore.getOrFetch(CACHE_KEYS.LATEST_RATE, async () => {
+export const getLatestRates = async (): Promise<MetalRate[]> => {
+    return cacheStore.getOrFetch(CACHE_KEYS.LATEST_RATES, async () => {
+        // Fetch the latest entry for each distinct metal/purity combination
         const { data, error } = await supabase
-            .from('silver_rates')
+            .from('metal_rates')
             .select('*')
             .order('rate_date', { ascending: false })
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single()
-        if (error && error.code !== 'PGRST116') throw error
-        return data as SilverRate | null
-    }, RATE_TTL)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Group by metal_type and purity to get only the latest for each
+        const latestMap = new Map<string, MetalRate>();
+        data?.forEach((rate: MetalRate) => {
+            const key = `${rate.metal_type}_${rate.purity}`;
+            if (!latestMap.has(key)) {
+                latestMap.set(key, rate);
+            }
+        });
+
+        return Array.from(latestMap.values());
+    }, RATE_TTL);
 }
 
-export const getRateHistory = async (source?: string) => {
-    const cacheKey = source
-        ? `${CACHE_KEYS.RATE_HISTORY_PREFIX}${source}`
-        : CACHE_KEYS.RATE_HISTORY;
+export const getRateHistory = async (metal?: MetalType, purity?: string): Promise<MetalRate[]> => {
+    const cacheKey = `${CACHE_KEYS.RATE_HISTORY_PREFIX}${metal || 'all'}_${purity || 'all'}`;
 
     return cacheStore.getOrFetch(cacheKey, async () => {
         let query = supabase
-            .from('silver_rates')
+            .from('metal_rates')
             .select('*')
-            .order('rate_date', { ascending: true })
+            .order('rate_date', { ascending: true });
 
-        if (source) query = query.eq('source', source)
+        if (metal) query = query.eq('metal_type', metal);
+        if (purity) query = query.eq('purity', purity);
 
-        const { data, error } = await query
-        if (error) throw error
-        return data as SilverRate[]
-    }, RATE_TTL)
+        const { data, error } = await query;
+        if (error) throw error;
+        return data as MetalRate[];
+    }, RATE_TTL);
 }
 
-export const addSilverRate = async (rate: Omit<SilverRate, 'id' | 'rate_1g'>) => {
-    const rate_1g = rate.rate_10g / 10
+export const addMetalRate = async (rate: Omit<MetalRate, 'id' | 'created_at'>) => {
     const { data, error } = await supabase
-        .from('silver_rates')
-        .upsert(
-            { ...rate, rate_1g },
-            { onConflict: 'rate_date,source' }
-        )
+        .from('metal_rates')
+        .upsert(rate, { onConflict: 'rate_date,metal_type,purity,source' })
         .select()
-        .single()
-    if (error) throw error
+        .single();
 
-    // Invalidate all rate caches
-    cacheStore.invalidate(CACHE_KEYS.LATEST_RATE)
-    cacheStore.invalidatePattern(CACHE_KEYS.RATE_HISTORY)
-    cacheStore.invalidatePattern('stock_summary') // Stock summary depends on rates
+    if (error) throw error;
 
-    return data as SilverRate
+    // Invalidate caches
+    cacheStore.invalidate(CACHE_KEYS.LATEST_RATES);
+    cacheStore.invalidatePattern(CACHE_KEYS.RATE_HISTORY);
+    cacheStore.invalidatePattern('stock_summary');
+
+    return data as MetalRate;
 }
-export const deleteSilverRate = async (id: string) => {
-    const { error } = await supabase
-        .from('silver_rates')
-        .delete()
-        .eq('id', id)
-    if (error) throw error
 
-    // Invalidate all rate caches
-    cacheStore.invalidate(CACHE_KEYS.LATEST_RATE)
-    cacheStore.invalidatePattern(CACHE_KEYS.RATE_HISTORY)
-    cacheStore.invalidatePattern('stock_summary')
+export const deleteMetalRate = async (id: string) => {
+    const { error } = await supabase
+        .from('metal_rates')
+        .delete()
+        .eq('id', id);
+
+    if (error) throw error;
+
+    cacheStore.invalidate(CACHE_KEYS.LATEST_RATES);
+    cacheStore.invalidatePattern(CACHE_KEYS.RATE_HISTORY);
+    cacheStore.invalidatePattern('stock_summary');
 }

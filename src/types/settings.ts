@@ -113,6 +113,7 @@ export type SettingsCategory =
     | 'karigar_settings'
     | 'customer_settings'
     | 'system_settings'
+    | 'gst_filings'
 
 export interface Setting {
     id: string

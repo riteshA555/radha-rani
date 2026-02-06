@@ -28,6 +28,9 @@ export interface OrderItem {
     amount: number;
     // Phase 2: Product link
     product_id?: string;
+    // Phase 6: Service Link / Hybrid Order
+    service_id?: string;
+    item_type?: 'PRODUCT' | 'SERVICE';
     weight?: number;
     wastage_percent?: number;
     labour_cost?: number;
@@ -43,6 +46,7 @@ export interface JobWorkItem {
     unit: string;
     default_rate: number;
     is_active: boolean;
+    image_url?: string;
 }
 
 export interface Product {
@@ -56,6 +60,7 @@ export interface Product {
     current_stock: number;
     gst_rate?: number;
     is_active: boolean;
+    image_url?: string;
 }
 
 export type StockType = 'RAW_IN' | 'RAW_OUT' | 'PRODUCTION' | 'WASTAGE' | 'ORDER_DEDUCTION' | 'ADJUSTMENT';
@@ -85,3 +90,31 @@ export interface StockSummary {
     finished_goods_weight: number;
     total_value: number;
 }
+
+export type ClientMaterialType = 'White Metal' | 'Alloy' | 'Ghattak' | 'Other';
+export type ClientTransactionType = 'RECEIPT' | 'CONSUMPTION' | 'LOSS';
+
+export interface ClientMaterialTransaction {
+    id: string;
+    client_name: string;
+    client_id?: string;
+    material_type: ClientMaterialType;
+    transaction_type: ClientTransactionType;
+    quantity: number;
+    transaction_date: string;
+    job_work_order_id?: string;
+    reason?: string;
+    remarks?: string;
+    user_id: string;
+    created_at: string;
+}
+
+export interface ClientMaterialBalance {
+    client_name: string;
+    client_id?: string;
+    received: number;
+    consumed: number;
+    loss: number;
+    balance: number;
+}
+

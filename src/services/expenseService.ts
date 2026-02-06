@@ -7,6 +7,7 @@ export interface Expense {
     head: string;
     amount: number;
     notes?: string;
+    payment_mode?: 'CASH' | 'ONLINE' | 'UPI';
     gst_enabled?: boolean;
     gst_rate?: number;
     gst_amount?: number;
@@ -19,12 +20,19 @@ const CACHE_KEYS = {
     EXPENSES: 'expenses_list'
 }
 
-export const getExpenses = async () => {
-    return cacheStore.getOrFetch(CACHE_KEYS.EXPENSES, async () => {
-        const { data, error } = await supabase
+export const getExpenses = async (startDate?: string, endDate?: string) => {
+    const cacheKey = `${CACHE_KEYS.EXPENSES}_${startDate || 'all'}_${endDate || 'all'}`;
+
+    return cacheStore.getOrFetch(cacheKey, async () => {
+        let query = supabase
             .from('expenses')
             .select('*')
             .order('date', { ascending: false })
+
+        if (startDate) query = query.gte('date', startDate)
+        if (endDate) query = query.lte('date', endDate)
+
+        const { data, error } = await query
 
         if (error) throw error
         return data as Expense[]

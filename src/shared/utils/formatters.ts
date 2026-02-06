@@ -1,6 +1,7 @@
 // Utility function to format numbers in Indian numbering system
 // Example: 1234567 => 12,34,567 (12 lakhs 34 thousand 567)
 export const formatIndianRupees = (amount: number): string => {
+    if (amount === undefined || amount === null || isNaN(amount)) return '0.00'
     const amountStr = Math.abs(amount).toFixed(2)
     const [integerPart, decimalPart] = amountStr.split('.')
 
@@ -19,6 +20,7 @@ export const formatIndianRupees = (amount: number): string => {
 
 // Format without decimal places
 export const formatIndianRupeesWhole = (amount: number): string => {
+    if (amount === undefined || amount === null || isNaN(amount)) return '0'
     const amountStr = Math.abs(amount).toString()
 
     let lastThree = amountStr.substring(amountStr.length - 3)

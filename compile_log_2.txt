@@ -1,0 +1,16 @@
+src/app/pages/Catalog.tsx(67,15): error TS7006: Parameter 'prev' implicitly has an 'any' type.
+src/app/pages/Dashboard.tsx(81,26): error TS2345: Argument of type '{ [key: string]: { cash: number; metal: number; }; }' is not assignable to parameter of type 'SetStateAction<{ [key: string]: number; }>'.
+  Type '{ [key: string]: { cash: number; metal: number; }; }' is not assignable to type '{ [key: string]: number; }'.
+    'string' index signatures are incompatible.
+      Type '{ cash: number; metal: number; }' is not assignable to type 'number'.
+src/app/pages/Dashboard.tsx(419,87): error TS2339: Property 'rate_10g' does not exist on type 'MetalRate'.
+src/app/pages/Dashboard.tsx(421,79): error TS2339: Property 'rate_10g' does not exist on type 'MetalRate'.
+src/app/pages/GSTReports.tsx(9,22): error TS1149: File name 'C:/Users/rites/Downloads/kkp/redesign_v2/src/app/components/ui/Tabs.tsx' differs from already included file name 'C:/Users/rites/Downloads/kkp/redesign_v2/src/app/components/ui/tabs.tsx' only in casing.
+  The file is in the program because:
+    Imported via '../components/ui/tabs' from file 'C:/Users/rites/Downloads/kkp/redesign_v2/src/app/pages/Stock.tsx'
+    Imported via '../components/ui/Tabs' from file 'C:/Users/rites/Downloads/kkp/redesign_v2/src/app/pages/GSTReports.tsx'
+    Matched by include pattern 'src' in 'C:/Users/rites/Downloads/kkp/redesign_v2/tsconfig.json'
+src/app/pages/OrderCreate.tsx(109,50): error TS2304: Cannot find name 'SilverRate'.
+src/app/pages/Stock.tsx(68,52): error TS2339: Property 'rate_1g' does not exist on type 'MetalRate'.
+src/services/contactService.ts(56,44): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/services/contactService.ts(56,49): error TS7006: Parameter 'o' implicitly has an 'any' type.

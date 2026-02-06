@@ -19,7 +19,19 @@ export const getOrders = async () => {
     })
 }
 
-export const createOrder = async (order: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_number' | 'user_id' | 'gst_enabled' | 'gst_rate' | 'gst_amount' | 'subtotal' | 'total_amount'>, items: Omit<OrderItem, 'id' | 'order_id' | 'amount'>[], gstEnabled: boolean = false, gstRate: number = 3) => {
+// Updated type definition implicitly via the arguments
+export const createOrder = async (
+    order: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_number' | 'user_id' | 'gst_enabled' | 'gst_rate' | 'gst_amount' | 'subtotal' | 'total_amount'> & {
+        discount_amount?: number,
+        delivery_date?: string,
+        notes?: string
+    },
+    items: Omit<OrderItem, 'id' | 'order_id' | 'amount'>[],
+    gstEnabled: boolean = false,
+    gstRate: number = 3,
+    advanceAmount: number = 0,
+    paymentMode: string = 'CASH'
+) => {
     // Input validation
     const customerName = sanitizeString(order.customer_name, 100)
     if (!customerName) throw new Error('Invalid customer name')
@@ -44,7 +56,13 @@ export const createOrder = async (order: Omit<Order, 'id' | 'created_at' | 'upda
         p_material_type: order.material_type,
         p_items: validatedItems,
         p_gst_enabled: gstEnabled,
-        p_gst_rate: validatedGstRate
+        p_gst_rate: validatedGstRate,
+        // New Parameters
+        p_discount_amount: order.discount_amount || 0,
+        p_delivery_date: order.delivery_date || null,
+        p_notes: order.notes || '',
+        p_advance_amount: advanceAmount,
+        p_payment_mode: paymentMode
     })
 
     if (error) {
@@ -61,6 +79,7 @@ export const createOrder = async (order: Omit<Order, 'id' | 'created_at' | 'upda
     cacheStore.invalidate(CACHE_KEYS.ORDERS)
     cacheStore.invalidate('dashboard_stats')
     cacheStore.invalidatePattern('stock_') // Orders affect stock
+    cacheStore.invalidatePattern('ledger_') // Payments affect ledgers
 
     return data
 }
