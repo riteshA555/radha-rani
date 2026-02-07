@@ -161,7 +161,7 @@ export function Rates() {
                     <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mt-4 italic">Syncing with bullion servers...</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                     {/* Left & Middle Columns: Live Rates & Calculator */}
                     <div className="lg:col-span-2 space-y-6">
                         {/* Live Rates Cards */}
@@ -232,8 +232,8 @@ export function Rates() {
                         </div>
 
                         {/* Price Calculator */}
-                        <div className="bg-white p-6 rounded-2xl text-gray-900 border border-gray-100 shadow-sm relative overflow-hidden h-full flex flex-col justify-center">
-                            <div className="absolute bottom-0 right-0 opacity-5 -mb-12 -mr-12 text-indigo-900">
+                        <div className="bg-white p-6 rounded-2xl text-gray-900 border border-gray-100 shadow-sm relative overflow-hidden flex flex-col justify-center">
+                            <div className="absolute bottom-0 right-0 opacity-5 -mb-12 -mr-12 text-indigo-900 hidden md:block">
                                 <Calculator size={200} />
                             </div>
                             <div className="relative z-10">

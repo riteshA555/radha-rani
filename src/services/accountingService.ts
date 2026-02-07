@@ -33,6 +33,9 @@ const CACHE_KEYS = {
 }
 
 export const getPLReport = async (startDate?: string, endDate?: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const cacheKey = `${CACHE_KEYS.PL_REPORT}_${startDate || 'all'}_${endDate || 'all'}`;
 
     return cacheStore.getOrFetch(cacheKey, async () => {
@@ -40,6 +43,7 @@ export const getPLReport = async (startDate?: string, endDate?: string) => {
         let incomeQuery = supabase
             .from('transactions')
             .select('ledgers!inner(name), credit, date')
+            .eq('user_id', user.id)
             .in('ledgers.name', ['Job Work Income', 'Product Sales Income'])
 
         if (startDate) incomeQuery = incomeQuery.gte('date', startDate)
@@ -61,6 +65,7 @@ export const getPLReport = async (startDate?: string, endDate?: string) => {
         let expenseQuery = supabase
             .from('expenses')
             .select('head, amount, gst_amount, gst_enabled, date')
+            .eq('user_id', user.id)
 
         if (startDate) expenseQuery = expenseQuery.gte('date', startDate)
         if (endDate) expenseQuery = expenseQuery.lte('date', endDate)
@@ -97,6 +102,9 @@ export const getPLReport = async (startDate?: string, endDate?: string) => {
 }
 
 export const getCustomerStatement = async (customerName: string, startDate?: string, endDate?: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const cacheKey = `${CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX}${customerName}_${startDate || 'all'}_${endDate || 'all'}`;
 
     return cacheStore.getOrFetch(cacheKey, async () => {
@@ -105,6 +113,7 @@ export const getCustomerStatement = async (customerName: string, startDate?: str
             .from('ledgers')
             .select('id')
             .eq('name', customerName)
+            .eq('user_id', user.id)
             .limit(1)
 
         if (ledgerError || !ledgers.length) throw new Error("Customer not found or invalid name")
@@ -116,6 +125,7 @@ export const getCustomerStatement = async (customerName: string, startDate?: str
             .from('transactions')
             .select('*')
             .eq('ledger_id', ledgerId)
+            .eq('user_id', user.id)
             .order('date', { ascending: true }) // Ascending to calculate running balance
             .order('created_at', { ascending: true })
 
@@ -152,11 +162,15 @@ export const getCustomerStatement = async (customerName: string, startDate?: str
 }
 
 export const getAssetLedgers = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     // Fetches Customers (Assets) for the dropdown
     const { data, error } = await supabase
         .from('ledgers')
         .select('id, name, contact_info, address, gst_number, credit_limit, payment_terms')
         .eq('type', 'ASSET')
+        .eq('user_id', user.id)
         .order('name')
 
     if (error) throw error
@@ -164,6 +178,9 @@ export const getAssetLedgers = async () => {
 }
 
 export const recordPayment = async (ledgerId: string, amount: number, mode: string, note: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const date = new Date().toISOString().split('T')[0]
 
     // Use atomic RPC to handle double-entry (Customer Credit / Cash Debit)
@@ -185,6 +202,9 @@ export const recordPayment = async (ledgerId: string, amount: number, mode: stri
 }
 
 export const recordPaymentOut = async (ledgerId: string, amount: number, mode: string, note: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const date = new Date().toISOString().split('T')[0]
 
     // Use atomic RPC for Vendor Payment (Vendor Debit / Cash Credit)
@@ -207,11 +227,15 @@ export const recordPaymentOut = async (ledgerId: string, amount: number, mode: s
 
 
 export const getLiabilityLedgers = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     // Fetches Vendors (Liabilities)
     const { data, error } = await supabase
         .from('ledgers')
         .select('id, name, contact_info, address, gst_number')
         .eq('type', 'LIABILITY')
+        .eq('user_id', user.id)
         .order('name')
 
     if (error) throw error
@@ -219,9 +243,12 @@ export const getLiabilityLedgers = async () => {
 }
 
 export const createLedger = async (data: { name: string, type: 'ASSET' | 'LIABILITY' | 'EXPENSE' | 'INCOME', contact_info?: string, address?: string, gst_number?: string, credit_limit?: number, payment_terms?: string }) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const { data: res, error } = await supabase
         .from('ledgers')
-        .insert(data)
+        .insert([{ ...data, user_id: user.id }])
         .select()
 
     if (error) throw error
@@ -229,10 +256,14 @@ export const createLedger = async (data: { name: string, type: 'ASSET' | 'LIABIL
 }
 
 export const updateLedger = async (id: string, data: { name?: string, contact_info?: string, address?: string, gst_number?: string }) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const { data: res, error } = await supabase
         .from('ledgers')
         .update(data)
         .eq('id', id)
+        .eq('user_id', user.id)
         .select()
 
     if (error) throw error
@@ -241,11 +272,15 @@ export const updateLedger = async (id: string, data: { name?: string, contact_in
 
 
 export const deleteLedger = async (id: string, force: boolean = false) => {
-    // 1. Check for transactions
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // 1. Check for transactions (with ownership check)
     const { data: transactions, count, error: countError } = await supabase
         .from('transactions')
         .select('*', { count: 'exact' })
         .eq('ledger_id', id)
+        .eq('user_id', user.id)
 
     if (countError) throw countError
 
@@ -267,11 +302,12 @@ export const deleteLedger = async (id: string, force: boolean = false) => {
             )
         }
 
-        // Force delete: Delete all transactions first
+        // Force delete: Delete all transactions first (with ownership check)
         const { error: txnDeleteError } = await supabase
             .from('transactions')
             .delete()
             .eq('ledger_id', id)
+            .eq('user_id', user.id)
 
         if (txnDeleteError) throw txnDeleteError
     }
@@ -281,6 +317,7 @@ export const deleteLedger = async (id: string, force: boolean = false) => {
         .from('ledgers')
         .delete()
         .eq('id', id)
+        .eq('user_id', user.id)
 
     if (error) throw error
     cacheStore.invalidate(CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX)

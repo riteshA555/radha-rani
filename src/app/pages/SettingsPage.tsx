@@ -10,7 +10,14 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { ReAuthModal } from '../components/shared/ReAuthModal';
 import { ImageUpload } from '../../components/shared/ImageUpload';
-import { factoryReset, exportSettings, importSettings } from '../../services/settingsService';
+import {
+  exportFullData,
+  importFullData,
+  factoryReset,
+  getSettings,
+  updateSettings as updateSetting,
+  clearSettingsCache
+} from '../../services/settingsService';
 import { formatIndianRupees } from '../../shared/utils/formatters';
 
 const TABS = [
@@ -63,33 +70,33 @@ export function SettingsPage() {
 
   const handleExport = async () => {
     try {
-      const data = await exportSettings();
+      const data = await exportFullData();
       const blob = new Blob([data], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `sterlingflow_backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `sterlingflow_full_system_backup_${new Date().toISOString().split('T')[0]}.json`;
       a.click();
     } catch (err) {
-      alert("Export failed");
+      alert("Full Backup failed");
     }
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!window.confirm("Importing settings will overwrite current configuration. Continue?")) return;
+    if (!window.confirm("CRITICAL: Importing a full backup will overwrite ALL current data and settings. This cannot be undone. Continue?")) return;
 
     setImporting(true);
     try {
       const reader = new FileReader();
       reader.onload = async (event) => {
         try {
-          await importSettings(event.target?.result as string);
-          alert("Settings imported successfully. Refreshing page...");
+          await importFullData(event.target?.result as string);
+          alert("Full System data restored successfully. Refreshing page...");
           window.location.reload();
-        } catch (err) {
-          alert("Import failed: JSON might be invalid.");
+        } catch (err: any) {
+          alert("Restore failed: " + err.message);
         }
       };
       reader.readAsText(file);
@@ -310,23 +317,24 @@ export function SettingsPage() {
         {activeTab === 'advanced' && (
           <div className="space-y-6">
             <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm">
-              <h4 className="font-bold text-[11px] text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                <Database size={14} /> Data Portability & Backup
+              <h4 className="font-bold text-[11px] text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                <Database size={14} /> Full System Backup & Portability
               </h4>
+              <p className="text-xs text-gray-400 mb-6 font-medium">Backup includes all Orders, Inventory, Contacts, Karigar ledgers, and Application Settings.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button onClick={handleExport} className="flex items-center justify-center gap-3 p-6 bg-gray-50 rounded-2xl border border-gray-200 hover:bg-white hover:border-indigo-300 transition-all font-bold group">
                   <Download size={20} className="text-gray-400 group-hover:text-indigo-600" />
                   <div className="text-left">
-                    <div className="text-sm">Download Backup</div>
-                    <div className="text-[10px] text-gray-400 uppercase tracking-wider">JSON Format</div>
+                    <div className="text-sm">Download Full Backup</div>
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wider">Complete System Image</div>
                   </div>
                 </button>
                 <label className="flex items-center justify-center gap-3 p-6 bg-gray-50 rounded-2xl border border-gray-200 hover:bg-white hover:border-indigo-300 transition-all font-bold group cursor-pointer">
                   <input type="file" className="hidden" accept=".json" onChange={handleImport} disabled={importing} />
                   {importing ? <Loader2 className="animate-spin text-indigo-600" /> : <Upload size={20} className="text-gray-400 group-hover:text-indigo-600" />}
                   <div className="text-left">
-                    <div className="text-sm">Restore Data</div>
-                    <div className="text-[10px] text-gray-400 uppercase tracking-wider">Upload JSON File</div>
+                    <div className="text-sm">Restore Full System</div>
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wider">Upload Backup File</div>
                   </div>
                 </label>
               </div>
@@ -360,14 +368,14 @@ export function SettingsPage() {
         )}
 
         {activeTab !== 'advanced' && (
-          <div className="pt-4">
+          <div className="pt-8 pb-24">
             <button
               onClick={handleSave}
               disabled={saving}
-              className="w-full sm:w-auto px-12 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-70"
+              className="w-full sm:w-auto px-12 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-70"
             >
-              {saving ? <Loader2 className="animate-spin w-5 h-5" /> : <Save size={20} />}
-              Apply Settings
+              {saving ? <Loader2 className="animate-spin w-5 h-5" /> : <Save size={18} />}
+              Apply & Save All Changes
             </button>
           </div>
         )}
@@ -384,7 +392,7 @@ export function SettingsPage() {
           <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-[0.2em]">Configuration Panel v2.0</p>
         </div>
 
-        <nav className="flex lg:flex-col overflow-x-auto lg:overflow-y-auto no-scrollbar px-6 lg:px-4 py-6 gap-3 lg:gap-1">
+        <nav className="flex lg:flex-col overflow-x-auto lg:overflow-y-auto custom-scrollbar px-6 lg:px-4 py-6 gap-3 lg:gap-1">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -412,17 +420,11 @@ export function SettingsPage() {
             )
           })}
         </nav>
-
-        <div className="mt-auto p-4 border-t border-gray-50">
-          <button onClick={() => signOut()} className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 font-bold text-[11px] uppercase tracking-widest rounded-xl hover:bg-red-50 hover:text-red-600 transition-all active:scale-95 group">
-            <LogOut size={16} className="text-gray-400 group-hover:text-red-500" /> Sign Out
-          </button>
-        </div>
       </div>
 
       {/* Main Panel */}
-      <div className="flex-1 p-6 lg:p-12 lg:overflow-y-auto pb-48 lg:pb-12 h-screen">
-        <div className="max-w-4xl mx-auto">
+      <div className="flex-1 p-4 sm:p-6 lg:p-12 lg:overflow-y-auto custom-scrollbar min-h-screen lg:h-screen flex flex-col overflow-x-hidden">
+        <div className="max-w-4xl mx-auto w-full flex-1">
           {renderTabContent()}
         </div>
       </div>

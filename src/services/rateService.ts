@@ -24,11 +24,16 @@ const CACHE_KEYS = {
 const RATE_TTL = 1000 * 60 * 5; // 5 minutes
 
 export const getLatestRates = async (): Promise<MetalRate[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     return cacheStore.getOrFetch(CACHE_KEYS.LATEST_RATES, async () => {
         // Fetch the latest entry for each distinct metal/purity combination
         const { data, error } = await supabase
             .from('metal_rates')
             .select('*')
+            // RLS will handle user_id filtering for Select, but we add it for safety
+            .eq('user_id', user.id)
             .order('rate_date', { ascending: false })
             .order('created_at', { ascending: false });
 
@@ -48,12 +53,16 @@ export const getLatestRates = async (): Promise<MetalRate[]> => {
 }
 
 export const getRateHistory = async (metal?: MetalType, purity?: string): Promise<MetalRate[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     const cacheKey = `${CACHE_KEYS.RATE_HISTORY_PREFIX}${metal || 'all'}_${purity || 'all'}`;
 
     return cacheStore.getOrFetch(cacheKey, async () => {
         let query = supabase
             .from('metal_rates')
             .select('*')
+            .eq('user_id', user.id) // Filter by user
             .order('rate_date', { ascending: true });
 
         if (metal) query = query.eq('metal_type', metal);
@@ -66,9 +75,15 @@ export const getRateHistory = async (metal?: MetalType, purity?: string): Promis
 }
 
 export const addMetalRate = async (rate: Omit<MetalRate, 'id' | 'created_at'>) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const { data, error } = await supabase
         .from('metal_rates')
-        .upsert(rate, { onConflict: 'rate_date,metal_type,purity,source' })
+        .upsert(
+            { ...rate, user_id: user.id },
+            { onConflict: 'user_id,rate_date,metal_type,purity,source' } // Explicitly include user_id in conflict check
+        )
         .select()
         .single();
 
@@ -83,10 +98,14 @@ export const addMetalRate = async (rate: Omit<MetalRate, 'id' | 'created_at'>) =
 }
 
 export const deleteMetalRate = async (id: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const { error } = await supabase
         .from('metal_rates')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', user.id); // Ensure ownership
 
     if (error) throw error;
 

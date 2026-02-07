@@ -130,8 +130,18 @@ export function clearSettingsCache(category?: SettingsCategory): void {
     }
 }
 
-// Get all settings
-export async function getAllSettings(): Promise<Record<SettingsCategory, any>> {
+// Get all settings in a single efficient query
+export async function getAllSettings(): Promise<Record<string, any>> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const { data, error } = await supabase
+        .from('settings')
+        .select('category, settings')
+        .eq('user_id', user.id)
+
+    if (error) throw error
+
     const categories: SettingsCategory[] = [
         'business_profile',
         'invoice_settings',
@@ -147,25 +157,115 @@ export async function getAllSettings(): Promise<Record<SettingsCategory, any>> {
 
     const allSettings: any = {}
 
-    for (const category of categories) {
-        allSettings[category] = await getSettings(category)
-    }
+    // Initialize with defaults
+    categories.forEach(cat => {
+        allSettings[cat] = getDefaultSettings(cat)
+    })
+
+    // Override with database values
+    data?.forEach((item: any) => {
+        if (item.category && item.settings) {
+            allSettings[item.category] = item.settings
+            // Also update the individual cache
+            settingsCache.set(`settings_${item.category}`, item.settings)
+        }
+    })
 
     return allSettings
 }
 
-// Export settings as JSON
-export async function exportSettings(): Promise<string> {
-    const allSettings = await getAllSettings()
-    return JSON.stringify(allSettings, null, 2)
+// Export all settings and data as a single JSON
+export async function exportFullData(): Promise<string> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
+
+    const tables = [
+        'settings',
+        'orders',
+        'order_items',
+        'products',
+        'stock_transactions',
+        'transactions',
+        'karigars',
+        'karigar_work_records',
+        'contacts',
+        'expenses',
+        'base_material_types',
+        'client_raw_material_ledger'
+    ]
+
+    const fullBackup: any = {
+        meta: {
+            version: '2.0',
+            exported_at: new Date().toISOString(),
+            user_id: user.id
+        },
+        data: {}
+    }
+
+    for (const table of tables) {
+        const { data, error } = await supabase
+            .from(table)
+            .select('*')
+            .eq('user_id', user.id)
+
+        if (error) {
+            console.warn(`Backup: Failed to fetch ${table}`, error)
+            fullBackup.data[table] = []
+        } else {
+            fullBackup.data[table] = data
+        }
+    }
+
+    return JSON.stringify(fullBackup, null, 2)
 }
 
-// Import settings from JSON
-export async function importSettings(jsonData: string): Promise<void> {
-    const settings = JSON.parse(jsonData)
+// Import all settings and data from JSON
+export async function importFullData(jsonData: string): Promise<void> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('User not authenticated')
 
-    for (const [category, data] of Object.entries(settings)) {
-        await updateSettings(category as SettingsCategory, data as any)
+    const backup = JSON.parse(jsonData)
+    if (!backup.data || typeof backup.data !== 'object') {
+        throw new Error('Invalid backup file format')
+    }
+
+    // Sequence matters for foreign keys (e.g., Karigars before Work Records, Orders before Items)
+    const tablesInOrder = [
+        'settings',
+        'contacts',
+        'karigars',
+        'products',
+        'base_material_types',
+        'orders',
+        'order_items',
+        'stock_transactions',
+        'transactions',
+        'karigar_work_records',
+        'expenses',
+        'client_raw_material_ledger'
+    ]
+
+    for (const table of tablesInOrder) {
+        const tableData = backup.data[table]
+        if (!tableData || !Array.isArray(tableData) || tableData.length === 0) continue
+
+        // Remove ID and created_at if you want to regenerate them, 
+        // but for a perfect clone, we keep IDs and use upsert. 
+        // We MUST ensure user_id is set to the CURRENT user to prevent cross-account injection.
+        const cleanedData = tableData.map(row => ({
+            ...row,
+            user_id: user.id
+        }))
+
+        const { error } = await supabase
+            .from(table)
+            .upsert(cleanedData, { onConflict: 'id' })
+
+        if (error) {
+            console.error(`Import: Failed for ${table}`, error)
+            throw new Error(`Failed to restore ${table}: ${error.message}`)
+        }
     }
 }
 

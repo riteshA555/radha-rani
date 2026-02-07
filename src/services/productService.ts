@@ -6,10 +6,14 @@ import { sanitizeString, validateNumber } from '../shared/utils/validation'
 const PRODUCTS_CACHE_KEY = 'products_list'
 
 export const getProducts = async (): Promise<Product[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     return cacheStore.getOrFetch(PRODUCTS_CACHE_KEY, async () => {
         const { data, error } = await supabase
             .from('products')
             .select('*')
+            .eq('user_id', user.id)
             .eq('is_active', true)
             .order('name');
 
@@ -19,6 +23,9 @@ export const getProducts = async (): Promise<Product[]> => {
 }
 
 export const updateProduct = async (id: string, updates: Partial<Product>) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     // Sanitize string inputs
     const sanitized: Partial<Product> = { ...updates }
     if (updates.name) sanitized.name = sanitizeString(updates.name, 100)
@@ -36,25 +43,35 @@ export const updateProduct = async (id: string, updates: Partial<Product>) => {
         .from('products')
         .update(sanitized)
         .eq('id', id)
+        .eq('user_id', user.id); // Explicit ownership check
+
     if (error) throw error
     cacheStore.invalidate(PRODUCTS_CACHE_KEY)
 }
 
 export const deleteProduct = async (id: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const { error } = await supabase
         .from('products')
         .update({ is_active: false })
         .eq('id', id)
+        .eq('user_id', user.id); // Explicit ownership check
+
     if (error) throw error
     cacheStore.invalidate(PRODUCTS_CACHE_KEY)
 }
 
-export const addProduct = async (product: Omit<Product, 'id' | 'created_at'>) => {
+export const addProduct = async (product: Omit<Product, 'id' | 'created_at' | 'user_id'>) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     // 1. Create the product first with stock 0 to ensure we have an ID
     const initialStock = product.current_stock || 0
     const { data: productData, error: productError } = await supabase
         .from('products')
-        .insert([{ ...product, current_stock: 0 }])
+        .insert([{ ...product, current_stock: 0, user_id: user.id }])
         .select()
 
     if (productError) throw productError

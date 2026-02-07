@@ -16,16 +16,22 @@ const CACHE_KEYS = {
 }
 
 export const getStockSummary = async (currentSilverRate: number): Promise<StockSummary> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return {
+        raw_silver: 0, wastage: 0, finished_goods_count: 0, finished_goods_weight: 0, total_value: 0
+    };
+
     const cacheKey = `${CACHE_KEYS.STOCK_SUMMARY}_${currentSilverRate}`;
 
     return cacheStore.getOrFetch(cacheKey, async () => {
-        // Use RPC or a more optimized query to get aggregated totals
-        // SELECT item_type, type, SUM(quantity) as qty, SUM(weight_gm) as weight FROM stock_transactions GROUP BY item_type, type
+        // Fetch all transactions for this user
         const { data, error } = await supabase
             .from('stock_transactions')
             .select('item_type, type, quantity, weight_gm')
+            .eq('user_id', user.id)
 
         if (error) throw error
+        // ... logic continues ...
 
         let raw = 0
         let wastage = 0
@@ -105,6 +111,9 @@ export const addStockTransaction = async (
 }
 
 export const getStockTransactions = async (itemType?: StockItemType) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     const cacheKey = itemType
         ? `${CACHE_KEYS.STOCK_TRANSACTIONS_PREFIX}${itemType}`
         : CACHE_KEYS.STOCK_TRANSACTIONS;
@@ -113,6 +122,7 @@ export const getStockTransactions = async (itemType?: StockItemType) => {
         let query = supabase
             .from('stock_transactions')
             .select('*')
+            .eq('user_id', user.id)
             .order('created_at', { ascending: false })
             .limit(50)
 
@@ -128,10 +138,14 @@ export const getStockTransactions = async (itemType?: StockItemType) => {
 }
 
 export const getFinishedGoodsInventory = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     return cacheStore.getOrFetch(CACHE_KEYS.FINISHED_GOODS, async () => {
         const { data, error } = await supabase
             .from('products')
             .select('*')
+            .eq('user_id', user.id)
             .eq('is_active', true)
             .order('name')
 

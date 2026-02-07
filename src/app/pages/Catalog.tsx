@@ -397,49 +397,107 @@ export function Catalog() {
             )
           )}
 
-          {/* SERVICES LIST */}
+          {/* SERVICES GRID/LIST */}
           {activeTab === 'Services' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredItems.map((item: any) => (
-                <div key={item.id} className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-all flex items-center gap-5 group hover:border-indigo-100">
-                  <div className="w-20 h-20 bg-gray-50/50 rounded-xl flex-shrink-0 overflow-hidden flex items-center justify-center border border-gray-50 p-2">
-                    {item.image_url ? (
-                      <img src={item.image_url} alt="" className="w-full h-full object-contain group-hover:scale-110 transition-transform" />
-                    ) : (
-                      <Hammer className="w-8 h-8 text-gray-200" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-gray-900 text-sm truncate mb-3">{item.name}</h3>
-                    <div className="flex justify-between items-end">
-                      <div>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Service Rate</p>
-                        <div className="text-base font-bold text-indigo-600">₹{item.default_rate}</div>
-                        <div className="text-[10px] text-gray-400 font-bold uppercase italic mt-0.5">per {item.unit}</div>
-                      </div>
+            viewMode === 'grid' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredItems.map((item: any) => (
+                  <div key={item.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden hover:shadow-md transition-all group relative hover:border-indigo-100">
+                    <div className="h-44 bg-gray-50/50 flex items-center justify-center relative border-b border-gray-50">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.name} className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <Hammer className="w-12 h-12 text-gray-200" />
+                      )}
 
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => handleEdit(item)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleEdit(item)} className="p-2 bg-white text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white border border-gray-100 shadow-sm transition-all">
                           <Edit2 size={14} />
                         </button>
-                        <button onClick={() => handleDelete(item.id, item.name)} className="p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors">
+                        <button onClick={() => handleDelete(item.id, item.name)} className="p-2 bg-white text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white border border-gray-100 shadow-sm transition-all">
                           <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
+                    <div className="p-5">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className='overflow-hidden'>
+                          <h3 className="font-bold text-gray-900 truncate pr-2 text-sm">{item.name}</h3>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Service</p>
+                        </div>
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          Active
+                        </span>
+                      </div>
+                      <div className="space-y-1.5 mt-4 text-[11px] text-gray-600">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400 font-bold uppercase tracking-tighter">Unit</span>
+                          <span className="font-bold text-gray-900">Per {item.unit}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-3 border-t border-gray-50 mt-3">
+                          <span className="text-gray-400 font-bold uppercase tracking-tight">Rate</span>
+                          <span className="font-bold text-indigo-600 text-base">
+                            ₹{formatIndianRupees(item.default_rate)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-50/50 text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
+                    <tr>
+                      <th className="px-6 py-4">Service</th>
+                      <th className="px-6 py-4">Unit</th>
+                      <th className="px-6 py-4 text-right">Rate</th>
+                      <th className="px-6 py-4 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filteredItems.map((item: any) => (
+                      <tr key={item.id} className="hover:bg-gray-50/30 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            {item.image_url ? (
+                              <img src={item.image_url} alt="" className="w-9 h-9 rounded-lg object-contain p-1 border border-gray-100 bg-white" />
+                            ) : (
+                              <div className="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center text-gray-300">
+                                <Hammer size={14} />
+                              </div>
+                            )}
+                            <span className="font-bold text-gray-900">{item.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{item.unit}</td>
+                        <td className="px-6 py-4 text-right font-bold text-indigo-600 text-base">₹{formatIndianRupees(item.default_rate)}</td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                              <Edit2 size={14} />
+                            </button>
+                            <button onClick={() => handleDelete(item.id, item.name)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           )}
         </>
       )}
 
       {/* Add Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-gray-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
+        <div className="fixed inset-0 bg-gray-900/60 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-xl max-w-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in duration-300 flex flex-col">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white shrink-0 pt-safe sm:pt-6">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">{editingId ? 'Edit' : 'Add New'} {activeTab === 'Products' ? 'Product' : 'Service'}</h2>
                 <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-0.5">Catalog management</p>
@@ -447,126 +505,127 @@ export function Catalog() {
               <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"><X size={20} /></button>
             </div>
 
-            <form onSubmit={handleCreate} className="p-6 space-y-6">
-
-              <div className="flex flex-col sm:flex-row gap-6">
-                {/* Left Column: Image */}
-                <div className="w-full sm:w-1/3">
-                  <ImageUpload
-                    currentImageUrl={form.image_url}
-                    onImageUploaded={(url) => setForm({ ...form, image_url: url })}
-                    bucketName="product-images"
-                  />
-                </div>
-
-                {/* Right Column: Basic Info */}
-                <div className="flex-1 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                    <input
-                      required
-                      type="text"
-                      value={form.name}
-                      onChange={e => setForm({ ...form, name: e.target.value })}
-                      className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                      placeholder={activeTab === 'Products' ? "e.g. Silver Ring" : "e.g. Polishing"}
+            <form onSubmit={handleCreate} className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row gap-6">
+                  {/* Left Column: Image */}
+                  <div className="w-full sm:w-1/3 shrink-0">
+                    <ImageUpload
+                      currentImageUrl={form.image_url}
+                      onImageUploaded={(url) => setForm({ ...form, image_url: url })}
+                      bucketName="product-images"
                     />
                   </div>
 
-                  {activeTab === 'Products' ? (
-                    <>
+                  {/* Right Column: Basic Info */}
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Name</label>
+                      <input
+                        required
+                        type="text"
+                        value={form.name}
+                        onChange={e => setForm({ ...form, name: e.target.value })}
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm"
+                        placeholder={activeTab === 'Products' ? "e.g. Silver Ring" : "e.g. Polishing"}
+                      />
+                    </div>
+
+                    {activeTab === 'Products' ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Category</label>
+                            <input required type="text" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" placeholder="e.g. Ring" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Size</label>
+                            <input type="text" value={form.size} onChange={e => setForm({ ...form, size: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" placeholder='Optional' />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                          <input required type="text" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Ring" />
+                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Unit</label>
+                          <select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm">
+                            <option value="Gram">Per Gram</option>
+                            <option value="Piece">Per Piece</option>
+                            <option value="Fixed">Fixed Cost</option>
+                          </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Size (Optional)</label>
-                          <input type="text" value={form.size} onChange={e => setForm({ ...form, size: e.target.value })} className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder='e.g. 10"' />
+                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Rate (₹)</label>
+                          <input required type="number" value={form.default_rate} onChange={e => setForm({ ...form, default_rate: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
                         </div>
                       </div>
-                    </>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-4">
+                    )}
+                  </div>
+                </div>
+
+                {activeTab === 'Products' && (
+                  <>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                        <select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-                          <option value="Gram">Per Gram</option>
-                          <option value="Piece">Per Piece</option>
-                          <option value="Fixed">Fixed Cost</option>
-                        </select>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Weight (g)</label>
+                        <input required type="number" step="any" value={form.default_weight} onChange={e => setForm({ ...form, default_weight: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Rate (₹)</label>
-                        <input required type="number" value={form.default_rate} onChange={e => setForm({ ...form, default_rate: e.target.value })} className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Wastage %</label>
+                        <input required type="number" step="any" value={form.wastage_percent} onChange={e => setForm({ ...form, wastage_percent: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Making (₹)</label>
+                        <input required type="number" value={form.labour_cost} onChange={e => setForm({ ...form, labour_cost: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">GST %</label>
+                        <input type="number" step="any" value={form.gst_rate} onChange={e => setForm({ ...form, gst_rate: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
                       </div>
                     </div>
-                  )}
-                </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Opening Stock Qty</label>
+                        <input type="number" value={form.current_stock} onChange={e => setForm({ ...form, current_stock: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
+                      </div>
+                    </div>
+
+                    {/* Price Estimator (Live) */}
+                    <div className="mt-4 p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+                      <div className="flex items-center gap-2 mb-4 text-indigo-700 font-bold text-xs uppercase tracking-widest">
+                        <Calculator size={16} /> Price Estimator (Live)
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div>
+                          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">Silver Value</div>
+                          <div className="text-sm font-black text-gray-900">₹{formatIndianRupees((Number(form.default_weight) || 0) * silverRate)}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">Labour</div>
+                          <div className="text-sm font-black text-gray-900">₹{formatIndianRupees(Number(form.labour_cost || 0))}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">GST ({form.gst_rate}%)</div>
+                          <div className="text-sm font-black text-gray-900">
+                            ₹{formatIndianRupees(((Number(form.default_weight) || 0) * silverRate + (Number(form.labour_cost) || 0)) * (Number(form.gst_rate) || 3) / 100)}
+                          </div>
+                        </div>
+                        <div className="sm:border-l sm:border-indigo-100 sm:pl-4">
+                          <div className="text-[10px] text-indigo-400 font-bold uppercase tracking-tight mb-1">Approx Price</div>
+                          <div className="text-lg font-black text-indigo-600">
+                            ₹{formatIndianRupees(((Number(form.default_weight) || 0) * silverRate + (Number(form.labour_cost) || 0)) * (1 + (Number(form.gst_rate) || 3) / 100))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
-              {activeTab === 'Products' && (
-                <>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Weight (g)</label>
-                      <input required type="number" step="any" value={form.default_weight} onChange={e => setForm({ ...form, default_weight: e.target.value })} className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Wastage %</label>
-                      <input required type="number" step="any" value={form.wastage_percent} onChange={e => setForm({ ...form, wastage_percent: e.target.value })} className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Making Charge (₹)</label>
-                      <input required type="number" value={form.labour_cost} onChange={e => setForm({ ...form, labour_cost: e.target.value })} className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">GST %</label>
-                      <input type="number" step="any" value={form.gst_rate} onChange={e => setForm({ ...form, gst_rate: e.target.value })} className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Opening Stock Qty</label>
-                      <input type="number" value={form.current_stock} onChange={e => setForm({ ...form, current_stock: e.target.value })} className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                  </div>
-
-                  {/* Price Estimator (Live) */}
-                  <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-                    <div className="flex items-center gap-2 mb-3 text-gray-700 font-semibold">
-                      <Calculator size={18} /> Price Estimator (Live)
-                    </div>
-                    <div className="flex flex-wrap gap-6">
-                      <div>
-                        <div className="text-xs text-gray-500">Silver Value ({silverRate}/g)</div>
-                        <div className="text-lg font-bold text-gray-900">₹{formatIndianRupees((Number(form.default_weight) || 0) * silverRate)}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500">Labour</div>
-                        <div className="text-lg font-bold text-gray-900">₹{formatIndianRupees(Number(form.labour_cost || 0))}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500">GST ({form.gst_rate}%)</div>
-                        <div className="text-lg font-bold text-gray-900">
-                          ₹{formatIndianRupees(((Number(form.default_weight) || 0) * silverRate + (Number(form.labour_cost) || 0)) * (Number(form.gst_rate) || 3) / 100)}
-                        </div>
-                      </div>
-                      <div className="pl-6 border-l-2 border-gray-300">
-                        <div className="text-xs text-gray-500">Approx Selling Price</div>
-                        <div className="text-2xl font-extrabold text-indigo-600">
-                          ₹{formatIndianRupees(((Number(form.default_weight) || 0) * silverRate + (Number(form.labour_cost) || 0)) * (1 + (Number(form.gst_rate) || 3) / 100))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <div className="flex gap-3 pt-6 border-t border-gray-100">
+              <div className="p-6 border-t border-gray-100 bg-white shrink-0 flex gap-3 pb-safe sm:pb-6">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 bg-gray-50 hover:bg-gray-100 text-gray-500 font-bold text-xs uppercase tracking-widest rounded-xl transition-all">Cancel</button>
-                <button type="submit" disabled={submitting} className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm shadow-indigo-100">
+                <button type="submit" disabled={submitting} className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm shadow-indigo-100">
                   {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <Check size={16} />}
                   Save Item
                 </button>

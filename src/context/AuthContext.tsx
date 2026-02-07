@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
+import { cacheStore } from '../services/cacheStore'
 import { Session, User, AuthChangeEvent } from '@supabase/supabase-js'
 
 interface AuthContextType {
@@ -33,12 +34,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
             setSession(session)
             setUser(session?.user ?? null)
+            if (session?.user?.id) {
+                cacheStore.setUserId(session.user.id)
+            }
             setLoading(false)
         })
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
             setSession(session)
             setUser(session?.user ?? null)
+            if (session?.user?.id) {
+                cacheStore.setUserId(session.user.id)
+            } else {
+                cacheStore.setUserId(null)
+            }
             setLoading(false)
         })
 
@@ -70,6 +79,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const signOut = async () => {
         setLoading(true)
+        cacheStore.clear()
+        cacheStore.setUserId(null)
         await supabase.auth.signOut()
         setLoading(false)
     }

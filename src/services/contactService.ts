@@ -32,10 +32,14 @@ export interface Vendor {
 }
 
 export const getCustomerList = async (): Promise<{ id: string, name: string }[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     const { data, error } = await supabase
         .from('ledgers')
         .select('id, name')
         .eq('type', 'ASSET')
+        .eq('user_id', user.id)
         .order('name');
 
     if (error) throw error;
@@ -43,11 +47,15 @@ export const getCustomerList = async (): Promise<{ id: string, name: string }[]>
 };
 
 export const getCustomers = async (): Promise<Customer[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     // 1. Get Asset Ledgers (Customers)
     const { data: ledgers, error } = await supabase
         .from('ledgers')
         .select('id, name, contact_info, address, gst_number')
         .eq('type', 'ASSET')
+        .eq('user_id', user.id)
         .order('name');
 
     if (error) throw error;
@@ -59,13 +67,15 @@ export const getCustomers = async (): Promise<Customer[]> => {
             .from('orders')
             .select('total_amount, order_date')
             .eq('customer_id', l.id)
+            .eq('user_id', user.id)
             .order('order_date', { ascending: false });
 
         // Fetch Ledger Balance
         const { data: transactions } = await supabase
             .from('transactions')
             .select('debit, credit')
-            .eq('ledger_id', l.id);
+            .eq('ledger_id', l.id)
+            .eq('user_id', user.id);
 
         const totalDebit = transactions?.reduce((sum: number, t: any) => sum + Number(t.debit || 0), 0) || 0;
         const totalCredit = transactions?.reduce((sum: number, t: any) => sum + Number(t.credit || 0), 0) || 0;
@@ -94,11 +104,15 @@ export const getCustomers = async (): Promise<Customer[]> => {
 };
 
 export const getVendors = async (): Promise<Vendor[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     // 1. Get Liability Ledgers (Vendors)
     const { data: ledgers, error } = await supabase
         .from('ledgers')
         .select('id, name, contact_info, address, gst_number')
         .eq('type', 'LIABILITY')
+        .eq('user_id', user.id)
         .order('name');
 
     if (error) throw error;
@@ -109,7 +123,8 @@ export const getVendors = async (): Promise<Vendor[]> => {
         const { data: transactions } = await supabase
             .from('transactions')
             .select('debit, credit')
-            .eq('ledger_id', l.id);
+            .eq('ledger_id', l.id)
+            .eq('user_id', user.id);
 
         const totalDebit = transactions?.reduce((sum: number, t: any) => sum + Number(t.debit || 0), 0) || 0;
         const totalCredit = transactions?.reduce((sum: number, t: any) => sum + Number(t.credit || 0), 0) || 0;

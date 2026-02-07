@@ -31,20 +31,27 @@ export interface KarigarWorkRecord {
 }
 
 export const getKarigars = async (): Promise<Karigar[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     return cacheStore.getOrFetch(KARIGARS_CACHE_KEY, async () => {
         const { data, error } = await supabase
             .from('karigars')
             .select('*')
+            .eq('user_id', user.id)
             .order('name');
         if (error) throw error;
         return data as Karigar[];
     }, 1000 * 60 * 60, true); // Persist for 1 hour
 }
 
-export const createKarigar = async (karigar: Omit<Karigar, 'id'>) => {
+export const createKarigar = async (karigar: Omit<Karigar, 'id' | 'user_id'>) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const { data, error } = await supabase
         .from('karigars')
-        .insert(karigar)
+        .insert([{ ...karigar, user_id: user.id }])
         .select()
         .single()
     if (error) throw error
@@ -53,9 +60,13 @@ export const createKarigar = async (karigar: Omit<Karigar, 'id'>) => {
 }
 
 export const getKarigarWorkHistory = async (karigarId?: string, month?: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     let query = supabase
         .from('karigar_work_records')
         .select('*, karigars(name)')
+        .eq('user_id', user.id)
         .order('work_date', { ascending: false })
 
     if (karigarId) query = query.eq('karigar_id', karigarId)
@@ -70,11 +81,15 @@ export const getKarigarWorkHistory = async (karigarId?: string, month?: string) 
 }
 
 export const settleKarigarPayments = async (ids: string[], paymentDate: string, paymentMode: string) => {
-    // 1. Fetch record details for accounting
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // 1. Fetch record details for accounting (with ownership check)
     const { data: records, error: fetchError } = await supabase
         .from('karigar_work_records')
         .select('karigar_id, amount, karigars(name)')
         .in('id', ids)
+        .eq('user_id', user.id)
 
     if (fetchError) throw fetchError
 
@@ -95,7 +110,8 @@ export const settleKarigarPayments = async (ids: string[], paymentDate: string, 
         head: `Karigar Payment - ${settlements[kId].name}`, // MUST start with "Karigar Payment" for P&L Service
         amount: settlements[kId].amount,
         notes: `Settlement via ${paymentMode} for ${ids.length} work records`,
-        gst_enabled: false
+        gst_enabled: false,
+        user_id: user.id
     }))
 
     if (expensesToAdd.length > 0) {
@@ -114,6 +130,7 @@ export const settleKarigarPayments = async (ids: string[], paymentDate: string, 
             payment_mode: paymentMode
         })
         .in('id', ids)
+        .eq('user_id', user.id)
 
     if (error) throw error
 
@@ -122,21 +139,29 @@ export const settleKarigarPayments = async (ids: string[], paymentDate: string, 
 }
 
 export const updateKarigar = async (id: string, updates: Partial<Karigar>) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const { error } = await supabase
         .from('karigars')
         .update(updates)
         .eq('id', id)
+        .eq('user_id', user.id)
 
     if (error) throw error
     cacheStore.invalidate(KARIGARS_CACHE_KEY)
 }
 
 export const deleteKarigar = async (id: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     // Check for work records first to prevent FK error
     const { count, error: countError } = await supabase
         .from('karigar_work_records')
         .select('*', { count: 'exact', head: true })
         .eq('karigar_id', id)
+        .eq('user_id', user.id)
 
     if (countError) throw countError
     if (count && count > 0) throw new Error("Cannot delete Karigar with existing work records. Deactivate instead.")
@@ -145,15 +170,20 @@ export const deleteKarigar = async (id: string) => {
         .from('karigars')
         .delete()
         .eq('id', id)
+        .eq('user_id', user.id)
 
     if (error) throw error
     cacheStore.invalidate(KARIGARS_CACHE_KEY)
 }
 
 export const getKarigarBalances = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return {};
+
     const { data, error } = await supabase
         .from('karigars')
         .select('id, current_balance, current_metal_balance')
+        .eq('user_id', user.id)
 
     if (error) throw error
 
@@ -168,6 +198,9 @@ export const getKarigarBalances = async () => {
 }
 
 export const issueMetalToKarigar = async (karigarId: string, weight: number, date: string, note: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const { data, error } = await supabase.rpc('issue_metal_to_karigar', {
         p_karigar_id: karigarId,
         p_weight: weight,
@@ -190,6 +223,9 @@ export const receiveProductionFromKarigar = async (
     date: string,
     note: string
 ) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const { data, error } = await supabase.rpc('receive_production_from_karigar', {
         p_karigar_id: karigarId,
         p_product_id: productId,
@@ -208,6 +244,8 @@ export const receiveProductionFromKarigar = async (
 }
 
 export const recordKarigarPayment = async (karigarId: string, amount: number, mode: string, date: string, notes: string = '') => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
 
     const params = {
         p_karigar_id: karigarId,
@@ -230,16 +268,27 @@ export const recordKarigarPayment = async (karigarId: string, amount: number, mo
 
 // Helper to get name
 const getKarigarName = async (id: string) => {
-    const { data } = await supabase.from('karigars').select('name').eq('id', id).single()
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 'Unknown';
+
+    const { data } = await supabase.from('karigars')
+        .select('name')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single()
     return data?.name || 'Unknown'
 }
 
 export const getKarigarStats = async (karigarId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     const { data: records, error: rError } = await supabase
         .from('karigar_work_records')
         .select('amount')
         .eq('karigar_id', karigarId)
         .eq('payment_status', 'PENDING')
+        .eq('user_id', user.id)
 
     if (rError) throw rError
 
@@ -247,8 +296,9 @@ export const getKarigarStats = async (karigarId: string) => {
 
     const { data: kData, error: kError } = await supabase
         .from('karigars')
-        .select('current_balance')
+        .select('current_balance, current_metal_balance')
         .eq('id', karigarId)
+        .eq('user_id', user.id)
         .single()
 
     if (kError) throw kError

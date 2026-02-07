@@ -45,31 +45,48 @@ export const useSettings = () => {
 
 export const SettingsProvider = ({ children }: { children: React.ReactNode }) => {
     const { user, loading: authLoading } = useAuth()
-    const [settings, setSettings] = useState<SettingsState>({
-        business_profile: null,
-        invoice_settings: null,
-        gst_settings: null,
-        user_settings: null,
-        inventory_settings: null,
-        pricing_settings: null,
-        notification_settings: null,
-        karigar_settings: null,
-        customer_settings: null,
-        system_settings: null
+    const [settings, setSettings] = useState<SettingsState>(() => {
+        // Try to load from localStorage for ultra-fast initial load
+        const cached = localStorage.getItem('app_settings_v2')
+        if (cached) {
+            try {
+                return JSON.parse(cached)
+            } catch (e) {
+                console.warn('Failed to parse cached settings', e)
+            }
+        }
+        return {
+            business_profile: null,
+            invoice_settings: null,
+            gst_settings: null,
+            user_settings: null,
+            inventory_settings: null,
+            pricing_settings: null,
+            notification_settings: null,
+            karigar_settings: null,
+            customer_settings: null,
+            system_settings: null
+        }
     })
-    const [loading, setLoading] = useState(true)
+    const [loading, setLoading] = useState(!localStorage.getItem('app_settings_v2'))
 
     const loadAllSettings = useCallback(async () => {
         try {
-            setLoading(true)
+            // If we have cached data, don't show the blocking loader
+            const hasData = !!settings.business_profile
+            if (!hasData) setLoading(true)
+
             const all = await getAllSettings()
             setSettings(all as any)
+
+            // Persist to localStorage
+            localStorage.setItem('app_settings_v2', JSON.stringify(all))
         } catch (error) {
             console.error('Failed to load global settings', error)
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [settings.business_profile])
 
     useEffect(() => {
         if (!authLoading) {
@@ -77,6 +94,7 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
                 loadAllSettings()
             } else {
                 setLoading(false)
+                localStorage.removeItem('app_settings_v2')
             }
         }
     }, [user, authLoading, loadAllSettings])

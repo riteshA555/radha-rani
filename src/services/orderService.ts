@@ -8,10 +8,14 @@ const CACHE_KEYS = {
 }
 
 export const getOrders = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
     return cacheStore.getOrFetch(CACHE_KEYS.ORDERS, async () => {
         const { data, error } = await supabase
             .from('orders')
             .select('*, items:order_items(*)')
+            .eq('user_id', user.id)
             .order('created_at', { ascending: false })
 
         if (error) throw error
@@ -32,6 +36,9 @@ export const createOrder = async (
     advanceAmount: number = 0,
     paymentMode: string = 'CASH'
 ) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     // Input validation
     const customerName = sanitizeString(order.customer_name, 100)
     if (!customerName) throw new Error('Invalid customer name')
@@ -85,6 +92,9 @@ export const createOrder = async (
 }
 
 export const updateOrderStatus = async (orderId: string, status: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
     // If cancelling, use atomic reversal RPC
     if (status.toLowerCase() === 'cancelled') {
         const { data, error } = await supabase.rpc('cancel_order_atomic', { p_order_id: orderId })
@@ -100,15 +110,25 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
         .from('orders')
         .update({ status })
         .eq('id', orderId)
+        .eq('user_id', user.id) // Ensure ownership
         .select()
 
     if (error) throw error
+    if (data.length === 0) throw new Error('Order not found or access denied')
+
     cacheStore.invalidate(CACHE_KEYS.ORDERS)
     cacheStore.invalidate('dashboard_stats')
     return data[0]
 }
 
 export const deleteOrder = async (orderId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Security check: Verify ownership before RPC call if RPC doesn't check it
+    const { data: order } = await supabase.from('orders').select('user_id').eq('id', orderId).single();
+    if (!order || order.user_id !== user.id) throw new Error('Access denied');
+
     // Use atomic deletion RPC which handles side-effect reversal
     const { data, error } = await supabase.rpc('delete_order_atomic', { p_order_id: orderId })
 
@@ -124,12 +144,15 @@ export const deleteOrder = async (orderId: string) => {
 
 export const deleteOrders = async (orderIds: string[]) => {
     if (orderIds.length === 0) return
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
 
     // 1. Delete Stock Transactions
     const { error: stockError } = await supabase
         .from('stock_transactions')
         .delete()
         .in('order_id', orderIds)
+        .eq('user_id', user.id)
     if (stockError) throw stockError
 
     // 2. Delete Accounting Transactions
@@ -137,6 +160,7 @@ export const deleteOrders = async (orderIds: string[]) => {
         .from('transactions')
         .delete()
         .in('order_id', orderIds)
+        .eq('user_id', user.id)
     if (transError) throw transError
 
     // 3. Delete Karigar Work Records
@@ -144,14 +168,14 @@ export const deleteOrders = async (orderIds: string[]) => {
         .from('karigar_work_records')
         .delete()
         .in('order_id', orderIds)
+        .eq('user_id', user.id)
     if (workError) throw workError
-
-
 
     const { error } = await supabase
         .from('orders')
         .delete()
         .in('id', orderIds)
+        .eq('user_id', user.id)
 
     if (error) throw error
 
