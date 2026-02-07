@@ -159,7 +159,9 @@ export function ClientMaterialLedger() {
                     if (formData.base_type) {
                         const exists = baseMaterialTypes.some(t => t.name.toLowerCase() === formData.base_type.toLowerCase());
                         if (!exists) {
-                            await createBaseMaterialType(formData.base_type);
+                            // Tag with the current transaction type for better future suggestions
+                            const usageType = formData.transaction_type === 'RECEIPT' ? 'RECEIPT' : 'CONSUMPTION';
+                            await createBaseMaterialType(formData.base_type, usageType);
                         }
                     }
 
@@ -234,9 +236,16 @@ export function ClientMaterialLedger() {
         setForm(prev => ({ ...prev, base_type: query, material_type_id: '' }));
 
         if (query.length > 0) {
-            const filtered = baseMaterialTypes.filter(m =>
-                m.name.toLowerCase().includes(query.toLowerCase())
-            );
+            const currentType = form.transaction_type;
+            const filtered = baseMaterialTypes.filter(m => {
+                const matchesSearch = m.name.toLowerCase().includes(query.toLowerCase());
+                // Filter by usage_type: Show if BOTH or matching the current transaction type
+                const matchesType = m.usage_type === 'BOTH' ||
+                    (currentType === 'RECEIPT' && m.usage_type === 'RECEIPT') ||
+                    (currentType !== 'RECEIPT' && m.usage_type === 'CONSUMPTION');
+
+                return matchesSearch && matchesType;
+            });
             setBaseResults(filtered);
             setShowBaseResults(true);
         } else {
