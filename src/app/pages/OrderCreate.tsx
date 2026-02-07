@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { createOrder } from '../../services/orderService'
 import { getAssetLedgers } from '../../services/accountingService'
 import { getJobWorkItems } from '../../services/jobWorkService'
@@ -37,10 +37,15 @@ type FormValues = {
         karigar_id?: string
         karigar_rate?: number
         karigar_quantity?: number
+        // Dual Quantity
+        base_quantity?: number
+        base_rate?: number
+        addon_service_id?: string
+        addon_quantity?: number
+        addon_rate?: number
     }[]
     gst_enabled: boolean
     custom_gst_rate?: number
-    // New Fields
     delivery_date?: string
     notes?: string
     discount_amount?: number
@@ -50,6 +55,7 @@ type FormValues = {
 
 export function CreateOrder() {
     const navigate = useNavigate()
+    const location = useLocation()
     const [submissionError, setSubmissionError] = useState('')
     const [jobWorkItems, setJobWorkItems] = useState<JobWorkItem[]>([])
     const [products, setProducts] = useState<Product[]>([])
@@ -86,7 +92,17 @@ export function CreateOrder() {
         karigar_id?: string
         karigar_rate?: number
         karigar_quantity?: number
-    }>({ description: '', quantity: 0, unit: 'KG', rate: 0, item_type: 'PRODUCT' })
+        // Dual Quantity
+        base_quantity: number
+        base_rate: number
+        has_addon: boolean
+        addon_service_id?: string
+        addon_quantity: number
+        addon_rate: number
+    }>({
+        description: '', quantity: 0, unit: 'KG', rate: 0, item_type: 'PRODUCT',
+        base_quantity: 0, base_rate: 0, has_addon: false, addon_quantity: 0, addon_rate: 0
+    })
 
     const [draftError, setDraftError] = useState('')
 
@@ -109,7 +125,7 @@ export function CreateOrder() {
         name: 'items'
     })
 
-    const [silverRate, setSilverRate] = useState<SilverRate | null>(null)
+    const [silverRate, setSilverRate] = useState<MetalRate | null>(null)
 
     // Initial Load
     useEffect(() => {
@@ -167,7 +183,12 @@ export function CreateOrder() {
     const customerName = watch('customer_name')
 
     // Totals
-    const subtotal = items.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.rate || 0)), 0)
+    // Totals - Sum of (base_q * base_r) + (addon_q * addon_r)
+    const subtotal = items.reduce((sum, item) => {
+        const base = (Number(item.base_quantity || 0) * Number(item.base_rate || 0)) || (Number(item.quantity || 0) * Number(item.rate || 0))
+        const addon = (Number(item.addon_quantity || 0) * Number(item.addon_rate || 0))
+        return sum + base + addon
+    }, 0)
 
     // GST Logic - Allow override
     const defaultGstRate = materialType === 'CLIENT'
@@ -193,10 +214,28 @@ export function CreateOrder() {
         if (materialType === 'CLIENT') setValue('gst_enabled', false)
         else if (materialType === 'OWN') setValue('gst_enabled', true)
 
-        setDraftItem({ description: '', quantity: 0, unit: 'KG', rate: 0, item_type: 'PRODUCT' })
+        setDraftItem({
+            description: '', quantity: 0, unit: 'KG', rate: 0, item_type: 'PRODUCT' as const,
+            base_quantity: 0, base_rate: 0, has_addon: false, addon_quantity: 0, addon_rate: 0
+        })
         setDraftError('')
         setKarigarSplits([])
     }, [materialType, setValue])
+
+    // Handle Prefilled State from Ledger
+    useEffect(() => {
+        const prefilled = (location.state as any)?.prefilled;
+        if (prefilled) {
+            if (prefilled.customer_name) setValue('customer_name', prefilled.customer_name);
+            if (prefilled.order_date) setValue('order_date', prefilled.order_date);
+            if (prefilled.material_type) setValue('material_type', prefilled.material_type);
+            if (prefilled.items && prefilled.items.length > 0) {
+                replace(prefilled.items);
+            }
+            // Clear location state to prevent re-fill on refresh if needed
+            // window.history.replaceState({}, document.title);
+        }
+    }, [location.state, setValue, replace]);
 
     // --- HANDLERS ---
     const handleDraftItemChange = (field: string, value: any) => {
@@ -253,7 +292,7 @@ export function CreateOrder() {
             const prod = products.find(p => p.id === value)
             if (prod) {
                 // AUTO-ESTIMATE PRICE based on Live Silver Rate
-                const currentSilverRate = silverRate ? (silverRate.rate_1g || (silverRate.rate_10g / 10)) : 0
+                const currentSilverRate = silverRate ? (silverRate.selling_rate) : 0
                 const weight = prod.default_weight || 0
                 const wastage = prod.wastage_percent || 0
                 const making = prod.labour_cost || 0
@@ -285,6 +324,27 @@ export function CreateOrder() {
         if (field === 'karigar_id') {
             const k = karigars.find(kg => kg.id === value)
             if (k) setDraftItem(prev => ({ ...prev, karigar_id: value, karigar_rate: k.default_rate, karigar_quantity: prev.quantity }))
+        }
+
+        // DUAL QUANTITY: Sync base fields
+        if (field === 'quantity') {
+            setDraftItem(prev => ({ ...prev, base_quantity: value }))
+        }
+        if (field === 'rate') {
+            setDraftItem(prev => ({ ...prev, base_rate: value }))
+        }
+
+        // ADDON SERVICE SELECTION
+        if (field === 'addon_service_id') {
+            const jw = jobWorkItems.find(j => j.id === value)
+            if (jw) {
+                setDraftItem(prev => ({
+                    ...prev,
+                    addon_service_id: jw.id,
+                    addon_rate: jw.default_rate,
+                    addon_quantity: prev.quantity // Default addon qty to base qty if it's PCS? user said (PCS)
+                }))
+            }
         }
     }
 
@@ -352,16 +412,37 @@ export function CreateOrder() {
             } else {
                 // SINGLE MODE
                 if (!draftItem.karigar_id) return setDraftError('Please select a Karigar.')
-                append({ ...draftItem })
+                append({
+                    ...draftItem,
+                    // Ensure base fields are definitely populated
+                    base_quantity: draftItem.base_quantity || draftItem.quantity,
+                    base_rate: draftItem.base_rate || draftItem.rate,
+                    addon_quantity: draftItem.has_addon ? draftItem.addon_quantity : undefined,
+                    addon_rate: draftItem.has_addon ? draftItem.addon_rate : undefined,
+                    addon_service_id: draftItem.has_addon ? draftItem.addon_service_id : undefined
+                })
             }
         } else {
             // NO KARIGAR
-            append({ ...draftItem })
+            append({
+                ...draftItem,
+                base_quantity: draftItem.base_quantity || draftItem.quantity,
+                base_rate: draftItem.base_rate || draftItem.rate,
+                addon_quantity: draftItem.has_addon ? draftItem.addon_quantity : undefined,
+                addon_rate: draftItem.has_addon ? draftItem.addon_rate : undefined,
+                addon_service_id: draftItem.has_addon ? draftItem.addon_service_id : undefined
+            })
         }
 
         const resetBase = materialType === 'CLIENT'
-            ? { description: '', quantity: 0, unit: 'KG', rate: 0, item_type: 'SERVICE' as const }
-            : { description: '', quantity: 0, unit: 'Piece', rate: 0, product_id: undefined, service_id: undefined, item_type: 'PRODUCT' as const }
+            ? {
+                description: '', quantity: 0, unit: 'KG', rate: 0, item_type: 'SERVICE' as const,
+                base_quantity: 0, base_rate: 0, has_addon: false, addon_quantity: 0, addon_rate: 0
+            }
+            : {
+                description: '', quantity: 0, unit: 'Piece', rate: 0, product_id: undefined, service_id: undefined, item_type: 'PRODUCT' as const,
+                base_quantity: 0, base_rate: 0, has_addon: false, addon_quantity: 0, addon_rate: 0
+            }
         setDraftItem(resetBase)
         setKarigarSplits([])
 
@@ -521,7 +602,7 @@ export function CreateOrder() {
                         Create New Order
                         {silverRate && (
                             <span className="text-sm font-semibold bg-amber-100 text-amber-800 px-2 py-1 rounded-md border border-amber-200">
-                                Live Rate: ₹{(silverRate.rate_10g * 100).toLocaleString()}/kg
+                                Live Rate: ₹{((silverRate.selling_rate || 0) * 1000).toLocaleString()}/kg
                             </span>
                         )}
                     </div>
@@ -571,7 +652,7 @@ export function CreateOrder() {
                                 <input
                                     {...register('customer_name', { required: true })}
                                     list="customer_options"
-                                    className={`w-full p-2.5 rounded-lg border ${errors.customer_name ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'} transition-all`}
+                                    className={`w-full p-2.5 rounded-lg border \${errors.customer_name ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'} transition-all text-gray-900 font-medium`}
                                     placeholder="Search or Type Customer Name"
                                     autoFocus
                                 />
@@ -584,7 +665,7 @@ export function CreateOrder() {
                                 <input
                                     type="date"
                                     {...register('order_date', { required: true })}
-                                    className="w-full p-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full p-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 text-gray-900 font-medium"
                                 />
                             </div>
                             <div>
@@ -592,14 +673,14 @@ export function CreateOrder() {
                                 <input
                                     type="date"
                                     {...register('delivery_date')}
-                                    className="w-full p-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full p-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 text-gray-900 font-medium"
                                 />
                             </div>
                         </div>
                         <div className="mt-3">
                             <input
                                 {...register('notes')}
-                                className="w-full p-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 text-sm"
+                                className="w-full p-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 text-sm text-gray-900"
                                 placeholder="Add notes (e.g. 'Urgent', 'Engraving details')..."
                             />
                         </div>
@@ -656,36 +737,36 @@ export function CreateOrder() {
                                                 (draftItem.item_type === 'PRODUCT' ? 'product_id' : 'service_id'),
                                             e.target.value
                                         )}
-                                        className="flex-1 p-3.5 rounded-lg border-2 border-gray-200 text-base bg-white focus:border-indigo-500 focus:ring-0 transition-colors"
+                                        className="flex-1 p-3.5 rounded-lg border-2 border-gray-200 text-base bg-white focus:border-indigo-500 focus:ring-0 transition-colors text-gray-900 font-bold"
                                     >
                                         <option value="">-- Select Item --</option>
                                         {/* CLIENT MODE (Always Service) */}
                                         {materialType === 'CLIENT' && jobWorkItems.map(j => (
-                                            <option key={j.id} value={j.name}>{j.name} (Service) - ₹{j.default_rate}</option>
+                                            <option key={j.id} value={j.name} className="text-gray-900">{j.name} (Service) - ₹{j.default_rate}</option>
                                         ))}
 
                                         {/* OWN MODE - PRODUCT */}
                                         {materialType === 'OWN' && draftItem.item_type === 'PRODUCT' && products.map(p => (
-                                            <option key={p.id} value={p.id} disabled={p.current_stock <= 0}>{p.name} - Stock: {p.current_stock}{p.current_stock <= 0 ? ' (OUT)' : ''}</option>
+                                            <option key={p.id} value={p.id} disabled={p.current_stock <= 0} className="text-gray-900">{p.name} - Stock: {p.current_stock}{p.current_stock <= 0 ? ' (OUT)' : ''}</option>
                                         ))}
 
                                         {/* OWN MODE - SERVICE */}
                                         {materialType === 'OWN' && draftItem.item_type === 'SERVICE' && jobWorkItems.map(j => (
-                                            <option key={j.id} value={j.id}>{j.name} (Service) - ₹{j.default_rate}</option>
+                                            <option key={j.id} value={j.id} className="text-gray-900">{j.name} (Service) - ₹{j.default_rate}</option>
                                         ))}
                                     </select>
                                 </div>
                             </div>
 
-                            {/* Qty & Rate Grid */}
+                            {/* Qty & Rate Grid (BASE) */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block font-semibold text-sm mb-2 text-gray-600">Quantity ({draftItem.unit})</label>
+                                    <label className="block font-semibold text-sm mb-2 text-gray-600">Base Quantity ({draftItem.unit})</label>
                                     <input
                                         type="number" step="any"
                                         value={draftItem.quantity || ''}
                                         onChange={(e) => handleDraftItemChange('quantity', Number(e.target.value))}
-                                        className="w-full p-3.5 rounded-lg border-2 border-gray-200 text-xl font-bold focus:border-indigo-500 focus:ring-0 transition-colors"
+                                        className="w-full p-3.5 rounded-lg border-2 border-gray-200 text-xl font-bold focus:border-indigo-500 focus:ring-0 transition-colors text-gray-900"
                                         placeholder="0"
                                     />
                                     {/* LIVE STOCK INDICATOR */}
@@ -698,14 +779,69 @@ export function CreateOrder() {
                                     )}
                                 </div>
                                 <div>
-                                    <label className="block font-semibold text-sm mb-2 text-gray-600">Rate (₹)</label>
+                                    <label className="block font-semibold text-sm mb-2 text-gray-600">Base Rate (₹)</label>
                                     <input
                                         type="number" step="any"
                                         value={draftItem.rate || ''}
                                         onChange={(e) => handleDraftItemChange('rate', Number(e.target.value))}
-                                        className="w-full p-3.5 rounded-lg border-2 border-gray-200 text-xl font-bold focus:border-indigo-500 focus:ring-0 transition-colors"
+                                        className="w-full p-3.5 rounded-lg border-2 border-gray-200 text-xl font-bold focus:border-indigo-500 focus:ring-0 transition-colors text-gray-900"
                                     />
                                 </div>
+                            </div>
+
+                            {/* ADDON SECTION */}
+                            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
+                                <label className="flex items-center gap-3 cursor-pointer font-bold text-amber-900 select-none mb-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={draftItem.has_addon || false}
+                                        onChange={(e) => handleDraftItemChange('has_addon', e.target.checked)}
+                                        className="w-5 h-5 accent-amber-600 rounded"
+                                    />
+                                    Add Diamond Cutting / Chalai?
+                                </label>
+
+                                {draftItem.has_addon && (
+                                    <div className="animate-fade-in mt-3 space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-amber-700 uppercase mb-1">Select Addon Service</label>
+                                            <select
+                                                value={draftItem.addon_service_id || ''}
+                                                onChange={(e) => handleDraftItemChange('addon_service_id', e.target.value)}
+                                                className="w-full p-2.5 rounded-lg border border-amber-300 text-sm bg-white focus:ring-2 focus:ring-amber-500 text-amber-900 font-bold"
+                                            >
+                                                <option value="">-- Select Addon --</option>
+                                                {jobWorkItems.map(j => (
+                                                    <option key={j.id} value={j.id} className="text-gray-900">{j.name} (₹{j.default_rate}/pc)</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-xs font-bold text-amber-700 uppercase mb-1">PCS</label>
+                                                <input
+                                                    type="number"
+                                                    value={draftItem.addon_quantity || ''}
+                                                    onChange={(e) => handleDraftItemChange('addon_quantity', Number(e.target.value))}
+                                                    className="w-full p-2.5 rounded-lg border border-amber-300 text-sm font-bold bg-white focus:ring-2 focus:ring-amber-500 text-amber-900"
+                                                    placeholder="PCS"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-amber-700 uppercase mb-1">Rate</label>
+                                                <input
+                                                    type="number"
+                                                    value={draftItem.addon_rate || ''}
+                                                    onChange={(e) => handleDraftItemChange('addon_rate', Number(e.target.value))}
+                                                    className="w-full p-2.5 rounded-lg border border-amber-300 text-sm font-bold bg-white focus:ring-2 focus:ring-amber-500 text-amber-900"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="text-right text-xs font-bold text-amber-800">
+                                            Addon Total: ₹{((draftItem.addon_quantity || 0) * (draftItem.addon_rate || 0)).toLocaleString()}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* KARIGAR SELECTION */}
@@ -747,7 +883,7 @@ export function CreateOrder() {
                                             <select
                                                 value={splitKarigarId}
                                                 onChange={(e) => setSplitKarigarId(e.target.value)}
-                                                className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                                className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-gray-900 font-medium"
                                             >
                                                 <option value="">-- Karigar --</option>
                                                 {karigars.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
@@ -758,7 +894,7 @@ export function CreateOrder() {
                                                 placeholder="Qty"
                                                 value={splitQty}
                                                 onChange={(e) => setSplitQty(Number(e.target.value) || '')}
-                                                className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                                className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-gray-900 font-bold"
                                             />
 
                                             <button
@@ -831,9 +967,34 @@ export function CreateOrder() {
                                             {item.description}
                                             {item.item_type === 'SERVICE' && <span className="ml-2 text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">Service</span>}
                                         </div>
-                                        <div className="flex justify-between items-center mt-1 text-sm text-gray-600">
-                                            <span>{item.quantity} {item.unit} x ₹{item.rate}</span>
-                                            <span className="font-bold text-gray-900 text-lg">₹{formatIndianRupees(item.quantity * item.rate)}</span>
+
+                                        <div className="space-y-1 mt-2">
+                                            {/* Base Row */}
+                                            <div className="flex justify-between items-center text-sm text-gray-600">
+                                                <span>Base: {item.base_quantity || item.quantity} {item.unit} x ₹{item.base_rate || item.rate}</span>
+                                                <span className="font-medium text-gray-700">₹{formatIndianRupees((item.base_quantity || item.quantity) * (item.base_rate || item.rate))}</span>
+                                            </div>
+
+                                            {/* Addon Row */}
+                                            {item.addon_service_id && (
+                                                <div className="flex justify-between items-center text-xs text-amber-600 bg-amber-50/50 p-1 rounded">
+                                                    <span className="flex items-center gap-1 font-medium">
+                                                        <CheckCircle2 size={10} />
+                                                        Addon: {jobWorkItems.find(j => j.id === item.addon_service_id)?.name} - {item.addon_quantity} PCS x ₹{item.addon_rate}
+                                                    </span>
+                                                    <span className="font-bold">₹{formatIndianRupees((item.addon_quantity || 0) * (item.addon_rate || 0))}</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex justify-between items-center mt-3 pt-2 border-t border-gray-100">
+                                            <span className="text-xs text-gray-400 font-bold uppercase tracking-widest">Total</span>
+                                            <span className="font-black text-gray-900 text-lg">
+                                                ₹{formatIndianRupees(
+                                                    ((item.base_quantity || item.quantity) * (item.base_rate || item.rate)) +
+                                                    ((item.addon_quantity || 0) * (item.addon_rate || 0))
+                                                )}
+                                            </span>
                                         </div>
                                         <button
                                             type="button"
@@ -966,6 +1127,6 @@ export function CreateOrder() {
 
             </div>
 
-        </div>
+        </div >
     )
 }

@@ -14,6 +14,7 @@ export function OrderPrint() {
     const business = settings.business_profile;
     const [loading, setLoading] = useState(true);
     const [updatingStatus, setUpdatingStatus] = useState(false);
+    const [jobWorkItems, setJobWorkItems] = useState<any[]>([]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -29,6 +30,10 @@ export function OrderPrint() {
                 if (orderError) throw orderError;
 
                 setOrder(orderData);
+
+                // Fetch Job Work Items for names
+                const { data: jwData } = await supabase.from('job_work_items').select('*');
+                setJobWorkItems(jwData || []);
             } catch (err) {
                 console.error("Error loading invoice:", err);
             } finally {
@@ -177,11 +182,44 @@ export function OrderPrint() {
                                     <td style={{ padding: '16px 20px', color: '#64748b', fontSize: '13px' }}>{String(idx + 1).padStart(2, '0')}</td>
                                     <td style={{ padding: '16px 20px' }}>
                                         <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '14px' }}>{item.description}</div>
-                                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>ID: {item.id.slice(0, 8)}</div>
+
+                                        <div style={{ marginTop: '8px', spaceY: '4px' }}>
+                                            {/* Base Breakdown */}
+                                            <div style={{ fontSize: '12px', color: '#475569', display: 'flex', gap: '8px' }}>
+                                                <span style={{ fontWeight: 600 }}>Base:</span>
+                                                <span>{item.base_quantity || item.quantity} {item.unit} × ₹{item.base_rate || item.rate} = ₹{formatIndianRupees((item.base_quantity || item.quantity) * (item.base_rate || item.rate))}</span>
+                                            </div>
+
+                                            {/* Addon Breakdown */}
+                                            {item.addon_service_id && (
+                                                <div style={{ fontSize: '12px', color: '#b45309', display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                                    <span style={{ fontWeight: 600 }}>
+                                                        {jobWorkItems.find(j => j.id === item.addon_service_id)?.name || 'Addon'}:
+                                                    </span>
+                                                    <span>{item.addon_quantity} PCS × ₹{item.addon_rate} = ₹{formatIndianRupees(item.addon_quantity * item.addon_rate)}</span>
+                                                </div>
+                                            )}
+                                        </div>
                                     </td>
-                                    <td style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 700, color: '#334155' }}>{item.quantity} <span style={{ fontSize: '10px', color: '#94a3b8' }}>{item.unit}</span></td>
-                                    <td style={{ padding: '16px 20px', textAlign: 'right', fontWeight: 700, color: '#334155' }}>{formatIndianRupees(item.rate)}</td>
-                                    <td style={{ padding: '16px 20px', textAlign: 'right', fontWeight: 900, color: '#111827' }}>{formatIndianRupees(item.amount)}</td>
+                                    <td style={{ padding: '16px 20px', textAlign: 'center', fontWeight: 700, color: '#334155' }}>
+                                        {item.addon_service_id ? (
+                                            <div style={{ fontSize: '11px' }}>
+                                                <div>{item.base_quantity || item.quantity} {item.unit}</div>
+                                                <div style={{ color: '#b45309' }}>+ {item.addon_quantity} PCS</div>
+                                            </div>
+                                        ) : (
+                                            <>{item.quantity} <span style={{ fontSize: '10px', color: '#94a3b8' }}>{item.unit}</span></>
+                                        )}
+                                    </td>
+                                    <td style={{ padding: '16px 20px', textAlign: 'right', fontWeight: 700, color: '#334155' }}>
+                                        {item.addon_service_id ? '-' : formatIndianRupees(item.rate)}
+                                    </td>
+                                    <td style={{ padding: '16px 20px', textAlign: 'right', fontWeight: 900, color: '#111827' }}>
+                                        {formatIndianRupees(item.amount || (
+                                            ((item.base_quantity || item.quantity) * (item.base_rate || item.rate)) +
+                                            ((item.addon_quantity || 0) * (item.addon_rate || 0))
+                                        ))}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>

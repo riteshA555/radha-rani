@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus, Search, Grid3x3, List, Gem, Eye, Edit2, Trash2, Hammer, Package, Calculator, X, Check, Loader2 } from 'lucide-react';
+import { Plus, Search, Grid3x3, List, Gem, Eye, Edit2, Trash2, Hammer, Package, Calculator, X, Check, Loader2, RefreshCw } from 'lucide-react';
 import { getProducts, updateProduct, deleteProduct, addProduct } from '../../services/productService';
 import { getJobWorkItems, updateJobWorkItem, deleteJobWorkItem, addJobWorkItem } from '../../services/jobWorkService';
 import { getLatestRates } from '../../services/rateService';
@@ -9,6 +9,7 @@ import { Product, JobWorkItem } from '../../types';
 import { formatIndianRupees } from '../../shared/utils/formatters';
 import { ImageUpload } from '../../components/shared/ImageUpload';
 import { supabase } from '../../supabaseClient';
+import { cacheStore } from '../../services/cacheStore';
 
 export function Catalog() {
   // Data State
@@ -143,6 +144,20 @@ export function Catalog() {
     }
   };
 
+  const handleRefresh = async () => {
+    setLoading(true);
+    try {
+      // Invalidate caches
+      cacheStore.invalidate('products_list');
+      cacheStore.invalidate('job_work_items');
+      await loadData(true);
+    } catch (err) {
+      console.error('Refresh failed', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEdit = (item: any) => {
     setEditingId(item.id);
     if (activeTab === 'Products') {
@@ -223,12 +238,21 @@ export function Catalog() {
             Manage products and service rates
           </p>
         </div>
-        <button
-          onClick={() => { resetForm(); setShowModal(true); }}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm text-sm font-bold"
-        >
-          <Plus className="w-4 h-4" /> Add New {activeTab === 'Products' ? 'Product' : 'Service'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+            title="Refresh Catalog Data"
+          >
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={() => { resetForm(); setShowModal(true); }}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm text-sm font-bold"
+          >
+            <Plus className="w-4 h-4" /> Add New {activeTab === 'Products' ? 'Product' : 'Service'}
+          </button>
+        </div>
       </div>
 
       {/* Controls */}

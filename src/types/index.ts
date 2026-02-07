@@ -34,10 +34,15 @@ export interface OrderItem {
     weight?: number;
     wastage_percent?: number;
     labour_cost?: number;
-    // Phase 5: Karigar link
     karigar_id?: string;
     karigar_rate?: number;
     karigar_quantity?: number;
+    // Phase 8: Dual Quantity
+    base_quantity?: number;
+    base_rate?: number;
+    addon_service_id?: string;
+    addon_quantity?: number;
+    addon_rate?: number;
 }
 
 export interface JobWorkItem {
@@ -105,6 +110,7 @@ export interface ClientMaterialTransaction {
     job_work_order_id?: string;
     reason?: string;
     remarks?: string;
+    product_id?: string;
     user_id: string;
     created_at: string;
 }
