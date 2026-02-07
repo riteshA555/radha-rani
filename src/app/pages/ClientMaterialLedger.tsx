@@ -287,16 +287,20 @@ export function ClientMaterialLedger() {
     const handleQuantityBlur = () => {
         if (!form.quantity) return;
 
-        let cleanStr = form.quantity.toString().replace(/,/g, '.');
-        const parts = cleanStr.split('.');
-        if (parts.length > 2) {
-            cleanStr = parts[0] + '.' + parts.slice(parts.length - 1).join('');
-        }
+        let rawVal = form.quantity.toString().trim();
+        let cleanStr = rawVal.replace(/,/g, '.');
 
         const val = parseFloat(cleanStr);
         if (isNaN(val)) return;
 
-        setForm(prev => ({ ...prev, quantity: val.toFixed(3) }));
+        // Smart Auto-Detection:
+        // If it's a whole number (no decimal point in original input) AND >= 50,
+        // we assume it's Grams and convert to KG.
+        if (!rawVal.includes('.') && !rawVal.includes(',') && val >= 50) {
+            setForm(prev => ({ ...prev, quantity: (val / 1000).toFixed(3) }));
+        } else {
+            setForm(prev => ({ ...prev, quantity: val.toFixed(3) }));
+        }
     };
 
     // Helper for manual gram conversion
@@ -882,7 +886,10 @@ export function ClientMaterialLedger() {
                                 {/* Quantity Entry with Manual Unit Toggles */}
                                 <div className="sm:col-span-2 bg-indigo-50/40 p-5 rounded-2xl border border-indigo-100/50">
                                     <div className="flex justify-between items-end mb-2 px-1">
-                                        <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest">Quantity Entry (Final KG)</label>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest">Quantity Entry (Final KG)</label>
+                                            <p className="text-[9px] text-indigo-300 font-bold uppercase mt-0.5">Auto-Detect: Whole numbers &ge; 50 become Grams</p>
+                                        </div>
                                         <div className="flex gap-2">
                                             <button
                                                 type="button"
@@ -890,19 +897,20 @@ export function ClientMaterialLedger() {
                                                 className="text-[10px] font-bold text-indigo-100 bg-indigo-600 hover:bg-indigo-700 px-3 py-1 rounded-full shadow-sm transition-all"
                                                 title="Divide by 1000"
                                             >
-                                                Convert Grams to KG
+                                                Convert to KG
                                             </button>
                                         </div>
                                     </div>
                                     <div className="relative group">
+                                        <Database className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-400 z-10 pointer-events-none" />
                                         <input
                                             type="text"
                                             required
                                             value={form.quantity}
                                             onChange={(e) => setForm({ ...form, quantity: e.target.value })}
                                             onBlur={handleQuantityBlur}
-                                            className="w-full h-16 pl-6 pr-16 bg-white border-2 border-indigo-100 rounded-2xl text-3xl font-black text-indigo-900 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner"
-                                            placeholder="0.000"
+                                            className="w-full h-14 pl-11 pr-4 bg-white border border-indigo-200 rounded-xl text-lg font-black text-gray-900 focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+                                            placeholder="Ex: 750 (Grams) or 1.5 (KG)"
                                         />
                                         <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-end">
                                             <span className="text-[12px] font-black text-indigo-500 uppercase">KG</span>
@@ -910,7 +918,7 @@ export function ClientMaterialLedger() {
                                     </div>
                                     <p className="text-[10px] text-indigo-400/80 mt-3 font-bold flex items-center gap-1.5 bg-white/50 w-fit px-3 py-1 rounded-lg">
                                         <AlertTriangle size={12} className="text-indigo-400" />
-                                        <span>Typing 850? Click <b>Convert Grams</b> to make it 0.850 KG</span>
+                                        <span>Typing 850? Click <b>Convert to KG</b> to make it 0.850 KG</span>
                                     </p>
                                 </div>
 
