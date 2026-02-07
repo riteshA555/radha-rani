@@ -233,70 +233,89 @@ export function Ledger() {
         </>
       )}
 
-      {/* Payment Modal */}
+      {/* Payment Modal - Full Screen on Mobile, Centered on Desktop */}
       {showPayModal && (
-        <div className="fixed inset-0 bg-gray-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden border border-gray-100 animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0">
+        <div className="fixed inset-0 bg-gray-900/60 z-[60] flex items-center justify-center sm:p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-none sm:rounded-2xl shadow-xl w-full max-w-sm h-[100dvh] sm:h-auto overflow-hidden flex flex-col border border-gray-100 animate-in slide-in-from-bottom sm:zoom-in duration-300">
+            {/* Header - Fixed on top */}
+            <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Payment</h2>
-                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Record incoming funds</p>
+                <h2 className="text-xl font-bold text-gray-900">Receive Payment</h2>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Record incoming funds for {selectedCustomer}</p>
               </div>
               <button onClick={() => setShowPayModal(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handlePaymentSubmit} className="p-6 space-y-5">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Amount (₹)</label>
-                <input
-                  type="number"
-                  required
-                  autoFocus
-                  value={payForm.amount}
-                  onChange={e => setPayForm({ ...payForm, amount: e.target.value })}
-                  className="w-full p-3 border border-gray-200 rounded-xl text-2xl font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                  placeholder="0.00"
-                />
+            {/* Scrollable Form Body */}
+            <form id="payment-form" onSubmit={handlePaymentSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
+              <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+                <label className="block text-[10px] font-bold text-emerald-700 uppercase tracking-widest mb-1.5 ml-1">Amount to Receive (₹)</label>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">₹</div>
+                  <input
+                    type="number"
+                    required
+                    autoFocus
+                    value={payForm.amount}
+                    onChange={e => setPayForm({ ...payForm, amount: e.target.value })}
+                    className="w-full pl-8 pr-4 py-4 bg-white border border-emerald-200 rounded-xl text-3xl font-black text-emerald-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Payment Mode</label>
-                <select
-                  value={payForm.mode}
-                  onChange={e => setPayForm({ ...payForm, mode: e.target.value })}
-                  className="w-full p-3 border border-gray-200 rounded-xl bg-white text-sm font-bold text-gray-700 focus:ring-1 focus:ring-indigo-500 outline-none"
-                >
-                  <option>Cash</option>
-                  <option>Online / UPI</option>
-                  <option>Bank Transfer</option>
-                  <option>Cheque</option>
-                </select>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Payment Method</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Cash', 'Online / UPI', 'Bank Transfer', 'Cheque'].map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setPayForm({ ...payForm, mode })}
+                      className={`py-3 px-4 rounded-xl text-xs font-bold transition-all border ${payForm.mode === mode
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
+                        }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Notes</label>
-                <input
-                  type="text"
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Notes / Remarks</label>
+                <textarea
                   value={payForm.note}
                   onChange={e => setPayForm({ ...payForm, note: e.target.value })}
-                  className="w-full p-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 focus:ring-1 focus:ring-indigo-500 outline-none"
-                  placeholder="Payment remarks..."
+                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 focus:ring-1 focus:ring-indigo-500 outline-none focus:bg-white transition-all"
+                  rows={3}
+                  placeholder="Record source or purpose..."
                 />
               </div>
-
-              <div className="pt-3">
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm shadow-indigo-100"
-                >
-                  {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <IndianRupee size={16} />}
-                  Confirm Payment
-                </button>
-              </div>
             </form>
+
+            {/* Footer for Buttons - Anchored at the bottom of the flex-col */}
+            <div className="p-6 border-t border-gray-100 bg-white flex gap-3 z-10 safe-pb">
+              <button
+                type="button"
+                onClick={() => setShowPayModal(false)}
+                className="flex-1 h-14 text-gray-500 font-bold bg-gray-100 hover:bg-gray-200 rounded-2xl transition-all text-sm uppercase tracking-widest"
+              >
+                Cancel
+              </button>
+              <button
+                form="payment-form"
+                type="submit"
+                disabled={submitting}
+                className="flex-[2] h-14 text-white font-bold bg-indigo-600 hover:bg-indigo-700 rounded-2xl transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest shadow-lg shadow-indigo-100 disabled:opacity-50"
+              >
+                {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <IndianRupee size={18} />}
+                Confirm Payment
+              </button>
+            </div>
           </div>
         </div>
       )}

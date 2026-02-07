@@ -64,7 +64,10 @@ export async function getSettings<T>(category: SettingsCategory): Promise<T> {
     }
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
+    if (!user) {
+        // Return defaults gracefully if not authenticated
+        return getDefaultSettings(category) as T
+    }
 
     const { data, error } = await supabase
         .from('settings')
@@ -133,15 +136,6 @@ export function clearSettingsCache(category?: SettingsCategory): void {
 // Get all settings in a single efficient query
 export async function getAllSettings(): Promise<Record<string, any>> {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('User not authenticated')
-
-    const { data, error } = await supabase
-        .from('settings')
-        .select('category, settings')
-        .eq('user_id', user.id)
-
-    if (error) throw error
-
     const categories: SettingsCategory[] = [
         'business_profile',
         'invoice_settings',
@@ -161,6 +155,18 @@ export async function getAllSettings(): Promise<Record<string, any>> {
     categories.forEach(cat => {
         allSettings[cat] = getDefaultSettings(cat)
     })
+
+    if (!user) {
+        // Return defaults if not authenticated
+        return allSettings
+    }
+
+    const { data, error } = await supabase
+        .from('settings')
+        .select('category, settings')
+        .eq('user_id', user.id)
+
+    if (error) throw error
 
     // Override with database values
     data?.forEach((item: any) => {

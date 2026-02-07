@@ -8,10 +8,14 @@ const CACHE_KEYS = {
 }
 
 export const getClientMaterialTransactions = async (): Promise<ClientMaterialTransaction[]> => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+
     return cacheStore.getOrFetch(CACHE_KEYS.TRANSACTIONS, async () => {
         const { data, error } = await supabase
             .from('client_raw_material_ledger')
             .select('*')
+            .eq('user_id', user.id)
             .order('transaction_date', { ascending: false })
             .order('created_at', { ascending: false });
 
@@ -23,9 +27,12 @@ export const getClientMaterialTransactions = async (): Promise<ClientMaterialTra
 export const addClientMaterialTransaction = async (
     transaction: Omit<ClientMaterialTransaction, 'id' | 'created_at' | 'user_id'>
 ): Promise<ClientMaterialTransaction> => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
     const { data, error } = await supabase
         .from('client_raw_material_ledger')
-        .insert(transaction)
+        .insert({ ...transaction, user_id: user.id })
         .select()
         .single();
 
@@ -42,10 +49,14 @@ export const updateClientMaterialTransaction = async (
     id: string,
     updates: Partial<Omit<ClientMaterialTransaction, 'id' | 'created_at' | 'user_id'>>
 ): Promise<ClientMaterialTransaction> => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
     const { data, error } = await supabase
         .from('client_raw_material_ledger')
         .update(updates)
         .eq('id', id)
+        .eq('user_id', user.id)
         .select()
         .single();
 
@@ -59,10 +70,14 @@ export const updateClientMaterialTransaction = async (
 };
 
 export const deleteClientMaterialTransaction = async (id: string) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Not authenticated')
+
     const { error } = await supabase
         .from('client_raw_material_ledger')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', user.id);
 
     if (error) throw error;
 
@@ -72,10 +87,14 @@ export const deleteClientMaterialTransaction = async (id: string) => {
 };
 
 export const getClientMaterialBalances = async (): Promise<ClientMaterialBalance[]> => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+
     return cacheStore.getOrFetch(CACHE_KEYS.STATEMENT, async () => {
         const { data: transactions, error: txError } = await supabase
             .from('client_raw_material_ledger')
-            .select('client_name, client_id, transaction_type, quantity');
+            .select('client_name, client_id, transaction_type, quantity')
+            .eq('user_id', user.id);
 
         if (txError) throw txError;
 
@@ -107,10 +126,14 @@ export const getClientMaterialBalances = async (): Promise<ClientMaterialBalance
 };
 
 export const getClientMaterialDetailStatement = async (clientName: string): Promise<ClientMaterialTransaction[]> => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+
     const { data, error } = await supabase
         .from('client_raw_material_ledger')
         .select('*')
         .eq('client_name', clientName)
+        .eq('user_id', user.id)
         .order('transaction_date', { ascending: true })
         .order('created_at', { ascending: true });
 

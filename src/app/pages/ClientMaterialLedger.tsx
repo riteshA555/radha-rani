@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Database, Search, History, Loader2, X, Download, Filter, User, ArrowRightLeft, AlertTriangle, Save, Pencil } from 'lucide-react';
+import { Plus, Database, Search, History, Loader2, X, Download, Filter, User, ArrowRightLeft, AlertTriangle, Save, Pencil, Calendar } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Tabs } from '../components/ui/tabs';
 import {
@@ -58,6 +58,11 @@ export function ClientMaterialLedger() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
 
+    // Filter states for Customer Search
+    const [customerSearch, setCustomerSearch] = useState('');
+    const [customerResults, setCustomerResults] = useState<{ id: string, name: string, phone: string }[]>([]);
+    const [showCustomerResults, setShowCustomerResults] = useState(false);
+
     const [form, setForm] = useState({
         client_name: '',
         client_id: '',
@@ -70,11 +75,16 @@ export function ClientMaterialLedger() {
         specification: '',
         reason: '',
         job_work_order_id: generateJobId(),
-        manual_client_entry: false
+        manual_client_entry: false,
+        material_type_id: ''
     });
 
-    const loadData = useCallback(async () => {
-        setLoading(true);
+    const [baseSearch, setBaseSearch] = useState('');
+    const [baseResults, setBaseResults] = useState<BaseMaterialType[]>([]);
+    const [showBaseResults, setShowBaseResults] = useState(false);
+
+    const loadData = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
         // Load each independently so one failure doesn't block the whole page
         const safeFetch = async (fn: () => Promise<any>, setter: (data: any) => void, name: string) => {
             try {
@@ -85,68 +95,76 @@ export function ClientMaterialLedger() {
             }
         };
 
-        await Promise.all([
+        const promises = [
             safeFetch(getClientMaterialTransactions, setTransactions, 'Transactions'),
             safeFetch(getClientMaterialBalances, setBalances, 'Balances'),
-            safeFetch(getBaseMaterialTypes, (types) => setBaseMaterialTypes(types.filter((t: any) => t.status === 'ACTIVE')), 'Material Types'),
+            safeFetch(getBaseMaterialTypes, setBaseMaterialTypes, 'Base Materials'),
             safeFetch(getCustomerList, setCustomers, 'Customers')
-        ]);
-        setLoading(false);
+        ];
+
+        await Promise.all(promises);
+        if (!silent) setLoading(false);
     }, []);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
 
+    // Close autocomplete on click outside
+    useEffect(() => {
+        const handleClickOutside = () => {
+            setShowCustomerResults(false);
+            setShowBaseResults(false);
+        };
+        window.addEventListener('click', handleClickOutside);
+        return () => window.removeEventListener('click', handleClickOutside);
+    }, []);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitting(true);
+
+        // Capture data for background processing
+        const formData = { ...form };
+        const editing = editingId;
+
         try {
-            // Auto-Add Base Material Type if it's new
-            if (form.base_type) {
-                const exists = baseMaterialTypes.some(t => t.name.toLowerCase() === form.base_type.toLowerCase());
-                if (!exists) {
-                    try {
-                        const newType = await createBaseMaterialType(form.base_type);
-                        // Optimistically update list so it's available immediately
-                        setBaseMaterialTypes(prev => [...prev, newType]);
-                    } catch (err) {
-                        console.error("Failed to auto-create base type:", err);
-                        // Convert to toast error in production
-                    }
-                }
-            }
-
+            // 1. Prepare payload (Sync logic)
             const finalRemarksParts = [];
-            if (form.base_type) finalRemarksParts.push(form.base_type);
-            if (form.specification) finalRemarksParts.push(form.specification);
-            if (form.manual_remarks) finalRemarksParts.push(form.manual_remarks);
-
-            const finalRemarks = finalRemarksParts.join(' - ') || (form.transaction_type === 'LOSS' ? form.reason : '');
+            if (formData.base_type) finalRemarksParts.push(formData.base_type);
+            if (formData.specification) finalRemarksParts.push(formData.specification);
+            if (formData.manual_remarks) finalRemarksParts.push(formData.manual_remarks);
+            const finalRemarks = finalRemarksParts.join(' - ') || (formData.transaction_type === 'LOSS' ? formData.reason : '');
 
             const payload = {
-                client_name: form.client_name,
-                client_id: form.client_id || undefined,
-                material_type: form.material_type,
-                transaction_type: form.transaction_type,
-                quantity: Number(form.quantity),
-                transaction_date: form.transaction_date,
+                client_name: formData.client_name,
+                client_id: formData.client_id || undefined,
+                material_type: formData.material_type,
+                transaction_type: formData.transaction_type,
+                quantity: Number(formData.quantity),
+                transaction_date: formData.transaction_date,
                 remarks: finalRemarks,
-                reason: form.transaction_type === 'LOSS' ? form.reason : undefined,
-                job_work_order_id: form.job_work_order_id || undefined
+                reason: formData.transaction_type === 'LOSS' ? formData.reason : undefined,
+                job_work_order_id: formData.job_work_order_id || undefined
             };
 
-            if (editingId) {
-                await updateClientMaterialTransaction(editingId, payload);
+            // 2. CLOSE MODAL IMMEDIATELY - "Na ke barabar" loading feel
+            setShowModal(false);
+            resetForm();
+
+            // 3. Perform network operations in background
+            if (editing) {
+                await updateClientMaterialTransaction(editing, payload);
             } else {
                 await addClientMaterialTransaction(payload);
             }
 
-            setShowModal(false);
-            resetForm();
-            loadData();
+            // 4. Silent refresh in background
+            loadData(true);
         } catch (err: any) {
-            alert('Error adding entry: ' + err.message);
+            console.error('Background save failed:', err);
+            // In a real app, we might reopen the modal or show a retry toast
+            alert('Error saving: ' + err.message);
         } finally {
             setSubmitting(false);
         }
@@ -165,44 +183,84 @@ export function ClientMaterialLedger() {
             specification: '',
             reason: '',
             job_work_order_id: generateJobId(),
-            manual_client_entry: false
+            manual_client_entry: false,
+            material_type_id: ''
         });
         setEditingId(null);
+        setCustomerSearch('');
+        setShowCustomerResults(false);
+        setBaseSearch('');
+        setShowBaseResults(false);
     };
 
-    // NEW: Handle Quantity Blur with stricter parsing and lower threshold
+    const handleCustomerSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const query = e.target.value;
+        setCustomerSearch(query);
+        setForm(prev => ({ ...prev, client_name: query, client_id: '' })); // Reset ID if typing manually
+
+        if (query.length > 0) {
+            const filtered = (customers as any[]).filter(c =>
+                c.name.toLowerCase().includes(query.toLowerCase()) ||
+                (c.phone && c.phone.includes(query))
+            );
+            setCustomerResults(filtered);
+            setShowCustomerResults(true);
+        } else {
+            setCustomerResults([]);
+            setShowCustomerResults(false);
+        }
+    };
+
+    const handleBaseSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const query = e.target.value;
+        setBaseSearch(query);
+        setForm(prev => ({ ...prev, base_type: query, material_type_id: '' }));
+
+        if (query.length > 0) {
+            const filtered = baseMaterialTypes.filter(m =>
+                m.name.toLowerCase().includes(query.toLowerCase())
+            );
+            setBaseResults(filtered);
+            setShowBaseResults(true);
+        } else {
+            setBaseResults([]);
+            setShowBaseResults(false);
+        }
+    };
+
+    // Simplified Quantity Blur: Only cleanup and format, no auto-guessing
     const handleQuantityBlur = () => {
         if (!form.quantity) return;
 
-        // 1. Sanitize input: replace comma with dot, remove non-numeric chars (except dot)
         let cleanStr = form.quantity.toString().replace(/,/g, '.');
-        // Remove multiple dots if any (keep first)
         const parts = cleanStr.split('.');
         if (parts.length > 2) {
-            cleanStr = parts[0] + '.' + parts.slice(1).join('');
+            cleanStr = parts[0] + '.' + parts.slice(parts.length - 1).join('');
         }
 
         const val = parseFloat(cleanStr);
         if (isNaN(val)) return;
 
-        let finalVal = val;
+        setForm(prev => ({ ...prev, quantity: val.toFixed(3) }));
+    };
 
-        // 2. Logic Update: Lower threshold to 50.
-        // Reason: 850 (grams) was mistaken for 850 KG. 
-        // Realistically, >50 KG transaction is rare. >50 Grams is common.
-        // So: If val >= 50, we assume Grams and convert.
-        // Exception: Unless checks prove otherwise, this catches the user's "850" error.
-        if (val >= 50) {
-            finalVal = val / 1000;
-        }
-
-        // 3. Update state with formatted value
-        setForm(prev => ({ ...prev, quantity: finalVal.toFixed(3) }));
+    // Helper for manual gram conversion
+    const convertToKg = () => {
+        const val = parseFloat(form.quantity);
+        if (isNaN(val)) return;
+        setForm(prev => ({ ...prev, quantity: (val / 1000).toFixed(3) }));
     };
 
     const handleEdit = (transaction: ClientMaterialTransaction) => {
-        // Parse remarks back into components if possible (This is a simplified approach)
-        // Ideally we store components separately, but for now we just put full remarks into manual_remarks
+        // Parse remarks back into components: "Base - Spec - Manual"
+        const parts = (transaction.remarks || '').split(' - ');
+        const baseType = parts[0] || '';
+        const spec = parts[1] || '';
+        const manual = parts.slice(2).join(' - ') || '';
+
+        // Try to find material_type_id from baseMaterialTypes
+        const materialMatch = baseMaterialTypes.find(m => m.name.toLowerCase() === baseType.toLowerCase());
+
         setForm({
             client_name: transaction.client_name,
             client_id: transaction.client_id || '',
@@ -210,15 +268,28 @@ export function ClientMaterialLedger() {
             transaction_type: transaction.transaction_type,
             quantity: transaction.quantity.toString(),
             transaction_date: format(new Date(transaction.transaction_date), 'yyyy-MM-dd'),
-            manual_remarks: transaction.remarks || '', // Fill full remarks here for editing
-            base_type: '', // Cannot easily extract
-            specification: '', // Cannot easily extract
+            manual_remarks: manual,
+            base_type: baseType,
+            specification: spec,
             reason: transaction.reason || '',
             job_work_order_id: transaction.job_work_order_id || generateJobId(),
             manual_client_entry: false,
+            material_type_id: materialMatch?.id || ''
         });
+        setCustomerSearch(transaction.client_name);
+        setBaseSearch(baseType);
         setEditingId(transaction.id);
         setShowModal(true);
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this entry?")) return;
+        try {
+            await deleteClientMaterialTransaction(id);
+            loadData();
+        } catch (err: any) {
+            alert("Delete failed: " + err.message);
+        }
     };
 
     const totals = useMemo(() => {
@@ -307,10 +378,10 @@ export function ClientMaterialLedger() {
                                 ${filteredBalances.map(b => `
                                     <tr>
                                         <td><strong>${b.client_name}</strong></td>
-                                        <th class="text-right">${b.received.toFixed(3)} KG</th>
-                                        <th class="text-right">${b.consumed.toFixed(3)} KG</th>
-                                        <th class="text-right">${b.loss.toFixed(3)} KG</th>
-                                        <th class="text-right"><strong>${b.balance.toFixed(3)} KG</strong></th>
+                                        <td class="text-right">${b.received.toFixed(3)} KG</td>
+                                        <td class="text-right">${b.consumed.toFixed(3)} KG</td>
+                                        <td class="text-right">${b.loss.toFixed(3)} KG</td>
+                                        <td class="text-right"><strong>${b.balance.toFixed(3)} KG</strong></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -511,7 +582,8 @@ export function ClientMaterialLedger() {
                                                 <th className="px-6 py-4">Date</th>
                                                 <th className="px-6 py-4">Client</th>
                                                 <th className="px-6 py-4">Type</th>
-                                                <th className="px-6 py-4">Material</th>
+                                                <th className="px-6 py-4">Category</th>
+                                                <th className="px-6 py-4">Base Material</th>
                                                 <th className="px-6 py-4 text-right">Quantity</th>
                                                 <th className="px-6 py-4">Remarks</th>
                                                 <th className="px-6 py-4 text-right">Actions</th>
@@ -533,18 +605,32 @@ export function ClientMaterialLedger() {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-5 text-gray-600 font-medium">{t.material_type}</td>
+                                                    <td className="px-6 py-5">
+                                                        <span className="text-xs font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">
+                                                            {(t.remarks || '').split(' - ')[0] || '—'}
+                                                        </span>
+                                                    </td>
                                                     <td className="px-6 py-5 text-right font-bold text-gray-900">{t.quantity.toFixed(3)} KG</td>
                                                     <td className="px-6 py-5">
-                                                        <div className="text-xs text-gray-500 max-w-xs">{t.remarks || t.reason || '—'}</div>
+                                                        <div className="text-xs text-gray-500 max-w-xs">{(t.remarks || '').split(' - ').slice(1).join(' - ') || t.reason || '—'}</div>
                                                     </td>
                                                     <td className="px-6 py-5 text-right">
-                                                        <button
-                                                            onClick={() => handleEdit(t)}
-                                                            className="text-gray-400 hover:text-indigo-600 p-1.5 hover:bg-indigo-50 rounded-lg transition"
-                                                            title="Edit Entry"
-                                                        >
-                                                            <Pencil size={16} />
-                                                        </button>
+                                                        <div className="flex justify-end gap-2">
+                                                            <button
+                                                                onClick={() => handleEdit(t)}
+                                                                className="text-gray-400 hover:text-indigo-600 p-1.5 hover:bg-indigo-50 rounded-lg transition"
+                                                                title="Edit Entry"
+                                                            >
+                                                                <Pencil size={16} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDelete(t.id)}
+                                                                className="text-gray-400 hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg transition"
+                                                                title="Delete Entry"
+                                                            >
+                                                                <X size={16} />
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -560,225 +646,281 @@ export function ClientMaterialLedger() {
                 </div>
             </div>
 
-            {/* Modal */}
-            {
-                showModal && (
-                    <div className="fixed inset-0 bg-gray-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
-                                <div>
-                                    <h2 className="text-xl font-bold text-gray-900">{editingId ? 'Edit Ledger Entry' : 'New Ledger Entry'}</h2>
-                                    <p className="text-sm text-gray-500 font-medium">
-                                        {editingId ? 'Update transaction details' : 'Add daily receipt, consumption or loss'}
-                                    </p>
-                                </div>
-                                <button onClick={() => { setShowModal(false); resetForm(); }} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                                    <X size={20} />
-                                </button>
+            {showModal && (
+                <div className="fixed inset-0 bg-gray-900/60 z-[70] flex items-center justify-center sm:p-4 backdrop-blur-sm overflow-hidden">
+                    <div className="bg-white rounded-none sm:rounded-2xl shadow-xl w-full max-w-lg h-full sm:h-auto overflow-hidden flex flex-col sm:max-h-[90vh] animate-in slide-in-from-bottom sm:zoom-in duration-300 overscroll-behavior-contain">
+                        {/* Header - Fixed on top */}
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30 sticky top-0 z-10 backdrop-blur-md">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900">
+                                    {editingId ? 'Edit Ledger Entry' : 'New Ledger Entry'}
+                                </h2>
+                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                                    Record and track client material transactions
+                                </p>
                             </div>
+                            <button
+                                onClick={() => { setShowModal(false); resetForm(); }}
+                                className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
 
-                            <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                                {/* 1. Client Selection (Consolidated) */}
-                                <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                                    <label className="block text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-2">Client / Party Selection</label>
-                                    <input
-                                        list="customer-list"
-                                        type="text"
-                                        placeholder="Search or Type Client Name..."
-                                        className="w-full h-10 px-3 bg-white border border-indigo-200 rounded-md font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        value={form.client_name}
-                                        onChange={(e) => {
-                                            const val = e.target.value;
-                                            const matched = customers.find(c => c.name.toLowerCase() === val.toLowerCase());
-                                            setForm({
-                                                ...form,
-                                                client_name: val,
-                                                client_id: matched ? matched.id : ''
-                                            });
-                                        }}
-                                    />
-                                    <datalist id="customer-list">
-                                        {customers?.length > 0 ? customers.map(c => (
-                                            <option key={c.id} value={c.name} />
-                                        )) : null}
-                                    </datalist>
-                                    <p className="text-[10px] text-indigo-400 mt-1 font-medium">
-                                        * Type to search from {customers?.length || 0} customers, or enter a new name manually.
-                                    </p>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    {/* 2. Core Transaction Details */}
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Action</label>
-                                        <select
-                                            value={form.transaction_type}
-                                            onChange={(e) => setForm({ ...form, transaction_type: e.target.value as any })}
-                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
-                                        >
-                                            <option value="RECEIPT">Material Receipt</option>
-                                            <option value="CONSUMPTION">Consumption</option>
-                                            <option value="LOSS">Work Loss</option>
-                                        </select>
+                        {/* Scrollable Form Body - flex-1 ensures it takes available space */}
+                        <form id="ledger-form" onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar scroll-smooth overscroll-contain pb-32">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                {/* Type & Date Section - Modern Grid */}
+                                <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {/* Transaction Type Card */}
+                                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100 space-y-2">
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Transaction Type</label>
+                                        <div className="grid grid-cols-3 gap-1.5">
+                                            {(['RECEIPT', 'CONSUMPTION', 'LOSS'] as const).map((type) => (
+                                                <button
+                                                    key={type}
+                                                    type="button"
+                                                    onClick={() => setForm({ ...form, transaction_type: type })}
+                                                    className={`py-2 px-1 rounded-lg text-[10px] font-bold transition-all border ${form.transaction_type === type
+                                                        ? type === 'RECEIPT' ? 'bg-emerald-600 text-white border-emerald-600' :
+                                                            type === 'LOSS' ? 'bg-rose-600 text-white border-rose-600' :
+                                                                'bg-indigo-600 text-white border-indigo-600'
+                                                        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                                                        }`}
+                                                >
+                                                    {type === 'RECEIPT' ? 'RECEIVE' : type === 'CONSUMPTION' ? 'CONSUME' : 'LOSS'}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
 
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Material</label>
-                                        <select
-                                            value={form.material_type}
-                                            onChange={(e) => setForm({ ...form, material_type: e.target.value as any })}
-                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
-                                        >
-                                            <option value="White Metal">White Metal</option>
-                                            <option value="Alloy">Alloy</option>
-                                            <option value="Ghattak">Ghattak</option>
-                                            <option value="Other">Other</option>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 flex justify-between">
-                                            <span>Quantity (KG)</span>
-                                            <span className="text-indigo-600 text-[9px]">Auto-Convert</span>
-                                        </label>
-                                        <input
-                                            type="text" inputMode="decimal" required
-                                            value={form.quantity}
-                                            onChange={(e) => {
-                                                // Allow only numbers, dots, and commas during typing
-                                                const val = e.target.value;
-                                                if (/^[0-9.,]*$/.test(val)) {
-                                                    setForm({ ...form, quantity: val });
-                                                }
-                                            }}
-                                            onBlur={handleQuantityBlur}
-                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
-                                            placeholder="0.000"
-                                        />
-                                        <p className="text-[9px] text-gray-400 mt-1 font-medium">Auto-Logic: Values &ge; 50 treated as Grams (e.g. 850 &rarr; 0.850 KG)</p>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Date</label>
-                                        <input
-                                            type="date" required
-                                            value={form.transaction_date}
-                                            onChange={(e) => setForm({ ...form, transaction_date: e.target.value })}
-                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
-                                        />
-                                    </div>
-
-                                    {/* 3. Hybrid Remark Fields */}
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Base Type</label>
-                                        <input
-                                            list="base-types-list"
-                                            type="text"
-                                            placeholder="Select or Type..."
-                                            className="w-full h-10 px-3 bg-white border border-gray-200 rounded-md font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                                            value={form.base_type}
-                                            onChange={(e) => setForm({ ...form, base_type: e.target.value })}
-                                        />
-                                        <datalist id="base-types-list">
-                                            {baseMaterialTypes
-                                                .filter(type => {
-                                                    // Filter logic:
-                                                    // Receipt -> Receipt + Both
-                                                    // Consumption -> Consumption + Both
-                                                    // Loss -> Receipt + Both (Assuming loss is on raw material usually)
-                                                    if (form.transaction_type === 'RECEIPT') return type.usage_type === 'RECEIPT' || type.usage_type === 'BOTH' || !type.usage_type;
-                                                    if (form.transaction_type === 'CONSUMPTION') return type.usage_type === 'CONSUMPTION' || type.usage_type === 'BOTH';
-                                                    return type.usage_type === 'RECEIPT' || type.usage_type === 'BOTH' || !type.usage_type;
-                                                })
-                                                .map(type => (
-                                                    <option key={type.id} value={type.name} />
-                                                ))}
-                                        </datalist>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Spec (Gauge/Size)</label>
-                                        <input
-                                            type="text"
-                                            value={form.specification}
-                                            onChange={(e) => setForm({ ...form, specification: e.target.value })}
-                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
-                                            placeholder="e.g. 28 Gauge"
-                                        />
-                                    </div>
-
-                                    {/* 4. Conditional/Additional Fields */}
-                                    {
-                                        form.transaction_type === 'LOSS' && (
-                                            <div className="col-span-2">
-                                                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Reason for Loss</label>
-                                                <input
-                                                    type="text" required
-                                                    value={form.reason}
-                                                    onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                                                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
-                                                    placeholder="e.g. Melting loss"
-                                                />
-                                            </div>
-                                        )
-                                    }
-
-                                    <div className="col-span-2">
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Manual Remarks (Optional)</label>
-                                        <textarea
-                                            value={form.manual_remarks}
-                                            onChange={(e) => setForm({ ...form, manual_remarks: e.target.value })}
-                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 outline-none"
-                                            rows={2}
-                                            placeholder="Add any extra notes here..."
-                                        />
-                                    </div>
-
-                                    <div className="col-span-2">
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Reference / Job Order #</label>
-                                        <div className="relative">
-                                            <input
-                                                type="text"
-                                                value={form.job_work_order_id}
-                                                onChange={(e) => setForm({ ...form, job_work_order_id: e.target.value })}
-                                                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 pr-10"
-                                                placeholder="Order UUID or number"
-                                            />
+                                    {/* Transaction Date Card */}
+                                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100 space-y-2">
+                                        <div className="flex justify-between items-center px-1">
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">Transaction Date</label>
                                             <button
                                                 type="button"
-                                                onClick={() => setForm({ ...form, job_work_order_id: generateJobId() })}
-                                                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded transition"
-                                                title="Generate New ID"
+                                                onClick={() => setForm({ ...form, transaction_date: format(new Date(), 'yyyy-MM-dd') })}
+                                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full"
                                             >
-                                                NEW
+                                                Today
                                             </button>
+                                        </div>
+                                        <div className="relative group">
+                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-500 z-10 pointer-events-none" />
+                                            <input
+                                                type="date"
+                                                required
+                                                value={form.transaction_date}
+                                                onChange={(e) => setForm({ ...form, transaction_date: e.target.value })}
+                                                className="w-full pl-11 pr-4 h-12 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* Customer Selection */}
+                                <div className="sm:col-span-2 relative">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Customer / Client</label>
+                                    <div className="relative group">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
+                                        <input
+                                            type="text"
+                                            required
+                                            value={customerSearch}
+                                            onChange={handleCustomerSearch}
+                                            onFocus={() => setShowCustomerResults(true)}
+                                            className="w-full pl-10 pr-4 h-12 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 focus:bg-white transition-all outline-none"
+                                            placeholder="Search by name or phone..."
+                                        />
+                                        {showCustomerResults && customerResults.length > 0 && (
+                                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-xl z-20 max-h-48 overflow-y-auto py-1 animate-in fade-in zoom-in duration-200">
+                                                {customerResults.map((c) => (
+                                                    <button
+                                                        key={c.id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setForm({ ...form, client_id: c.id, client_name: c.name });
+                                                            setCustomerSearch(c.name);
+                                                            setShowCustomerResults(false);
+                                                        }}
+                                                        className="w-full px-4 py-2 text-left hover:bg-indigo-50 text-sm font-medium text-gray-700 flex justify-between items-center"
+                                                    >
+                                                        <span>{c.name}</span>
+                                                        <span className="text-[10px] text-gray-400">{c.phone}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Material Details Section - Columnar Layout */}
+                                <div className="sm:col-span-2 bg-gray-50/50 p-5 rounded-2xl border border-gray-100 space-y-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="relative">
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Base Material</label>
+                                            <div className="relative group" onClick={(e) => e.stopPropagation()}>
+                                                <input
+                                                    type="text"
+                                                    value={baseSearch}
+                                                    onChange={handleBaseSearch}
+                                                    onFocus={() => setShowBaseResults(true)}
+                                                    className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 transition-all outline-none"
+                                                    placeholder="Search material (e.g. Patra, Patti)"
+                                                />
+                                                {showBaseResults && baseResults.length > 0 && (
+                                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-2xl z-[80] max-h-48 overflow-y-auto py-1 border-t-4 border-t-indigo-500">
+                                                        {baseResults.map((m) => (
+                                                            <button
+                                                                key={m.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setForm({ ...form, material_type_id: m.id, base_type: m.name });
+                                                                    setBaseSearch(m.name);
+                                                                    setShowBaseResults(false);
+                                                                }}
+                                                                className="w-full px-4 py-3 text-left hover:bg-indigo-50 text-sm font-bold text-gray-700 border-b border-gray-50 last:border-0 transition-colors"
+                                                            >
+                                                                {m.name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Material Category</label>
+                                            <select
+                                                value={form.material_type}
+                                                onChange={(e) => setForm({ ...form, material_type: e.target.value as any })}
+                                                className="w-full h-12 px-4 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                            >
+                                                <option value="White Metal">White Metal (Silver)</option>
+                                                <option value="Alloy">Alloy / Copper</option>
+                                                <option value="Ghattak">Ghattak / Scrap</option>
+                                                <option value="Other">Other Material</option>
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="flex gap-3 pt-4 border-t border-gray-100 mt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => { setShowModal(false); resetForm(); }}
-                                        className="flex-1 py-3 text-gray-500 font-bold bg-gray-50 hover:bg-gray-100 rounded-xl transition text-sm"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={submitting}
-                                        className="flex-[2] py-3 text-white font-bold bg-indigo-600 hover:bg-indigo-700 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-md shadow-indigo-200"
-                                    >
-                                        {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <Save size={16} />}
-                                        {editingId ? 'Update Entry' : 'Save Entry'}
-                                    </button>
+                                {/* Quantity Entry with Manual Unit Toggles */}
+                                <div className="sm:col-span-2 bg-indigo-50/40 p-5 rounded-2xl border border-indigo-100/50">
+                                    <div className="flex justify-between items-end mb-2 px-1">
+                                        <label className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest">Quantity Entry (Final KG)</label>
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={convertToKg}
+                                                className="text-[10px] font-bold text-indigo-100 bg-indigo-600 hover:bg-indigo-700 px-3 py-1 rounded-full shadow-sm transition-all"
+                                                title="Divide by 1000"
+                                            >
+                                                Convert Grams to KG
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="relative group">
+                                        <input
+                                            type="text"
+                                            required
+                                            value={form.quantity}
+                                            onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                                            onBlur={handleQuantityBlur}
+                                            className="w-full h-16 pl-6 pr-16 bg-white border-2 border-indigo-100 rounded-2xl text-3xl font-black text-indigo-900 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-inner"
+                                            placeholder="0.000"
+                                        />
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-end">
+                                            <span className="text-[12px] font-black text-indigo-500 uppercase">KG</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-indigo-400/80 mt-3 font-bold flex items-center gap-1.5 bg-white/50 w-fit px-3 py-1 rounded-lg">
+                                        <AlertTriangle size={12} className="text-indigo-400" />
+                                        <span>Typing 850? Click <b>Convert Grams</b> to make it 0.850 KG</span>
+                                    </p>
                                 </div>
-                            </form>
+
+                                <div className="col-span-1 sm:col-span-2">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Specification (e.g. Size/Gauge)</label>
+                                    <input
+                                        type="text"
+                                        value={form.specification}
+                                        onChange={(e) => setForm({ ...form, specification: e.target.value })}
+                                        className="w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                        placeholder="e.g. 28 Gauge"
+                                    />
+                                </div>
+
+                                {/* Conditional/Additional Fields */}
+                                {form.transaction_type === 'LOSS' && (
+                                    <div className="col-span-1 sm:col-span-2">
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1 text-rose-500">Reason for Loss</label>
+                                        <input
+                                            type="text" required
+                                            value={form.reason}
+                                            onChange={(e) => setForm({ ...form, reason: e.target.value })}
+                                            className="w-full h-11 px-3 bg-rose-50 border border-rose-100 rounded-xl text-sm font-bold text-rose-900 focus:ring-1 focus:ring-rose-500 outline-none"
+                                            placeholder="e.g. Melting loss"
+                                        />
+                                    </div>
+                                )}
+
+                                <div className="col-span-1 sm:col-span-2">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Reference / Job Order #</label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={form.job_work_order_id}
+                                            onChange={(e) => setForm({ ...form, job_work_order_id: e.target.value })}
+                                            className="w-full h-11 px-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 outline-none pr-12"
+                                            placeholder="Order UUID or number"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setForm({ ...form, job_work_order_id: generateJobId() })}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-[10px] font-black text-indigo-600 hover:bg-white bg-indigo-50 rounded-lg transition-all"
+                                            title="Generate New ID"
+                                        >
+                                            NEW
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="col-span-1 sm:col-span-2">
+                                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Manual Remarks</label>
+                                    <textarea
+                                        value={form.manual_remarks}
+                                        onChange={(e) => setForm({ ...form, manual_remarks: e.target.value })}
+                                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                        rows={2}
+                                        placeholder="Add any extra notes here..."
+                                    />
+                                </div>
+                            </div>
+                        </form>
+
+                        {/* Footer for Buttons - Fixed structure without tricky stickiness issues */}
+                        <div className="p-6 border-t border-gray-100 bg-white flex gap-3 z-10 safe-pb">
+                            <button
+                                type="button"
+                                onClick={() => { setShowModal(false); resetForm(); }}
+                                className="flex-1 h-14 text-gray-500 font-bold bg-gray-100 hover:bg-gray-200 rounded-2xl transition-all text-sm uppercase tracking-widest"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                form="ledger-form"
+                                type="submit"
+                                disabled={submitting}
+                                className="flex-[2] h-14 text-white font-bold bg-indigo-600 hover:bg-indigo-700 rounded-2xl transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest shadow-lg shadow-indigo-100 disabled:opacity-50"
+                            >
+                                {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <Save size={18} />}
+                                {editingId ? 'Update Entry' : 'Save Entry'}
+                            </button>
                         </div>
                     </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+        </div>
     );
 }
-

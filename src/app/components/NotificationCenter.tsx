@@ -3,7 +3,7 @@ import { Bell, Package, AlertTriangle, X, Check } from 'lucide-react';
 import { getFinishedGoodsInventory } from '../../services/inventoryService';
 import { getSettings } from '../../services/settingsService';
 import { InventorySettings } from '../../types/settings';
-import { Product } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../supabaseClient';
 
 interface Notification {
@@ -17,21 +17,29 @@ interface Notification {
 }
 
 export function NotificationCenter() {
+    const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        if (!user) {
+            setNotifications([]);
+            setUnreadCount(0);
+            return;
+        }
+
         fetchNotifications();
 
-        // Real-time Stock Monitoring
+        // Real-time Stock Monitoring - Only if user exists
         const channel = supabase
-            .channel('notification_stock_updates')
+            .channel(`notification_stock_${user.id}`)
             .on('postgres_changes', {
                 event: 'UPDATE',
                 schema: 'public',
-                table: 'products'
+                table: 'products',
+                filter: `user_id=eq.${user.id}`
             }, (payload: any) => {
                 // When stock changes, re-fetch to update the alerts
                 fetchNotifications();
@@ -45,7 +53,7 @@ export function NotificationCenter() {
             supabase.removeChannel(channel);
             clearInterval(interval);
         };
-    }, []);
+    }, [user]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
