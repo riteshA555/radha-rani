@@ -18,6 +18,33 @@ import { format } from 'date-fns';
 // Helper to generate simple random Job ID
 const generateJobId = () => `ORD-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
+const SummaryCard = ({ title, value, subTitle, icon, color }: any) => {
+    const colorMap: any = {
+        indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100' },
+        emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
+        rose: { bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100' },
+        blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100' }
+    };
+    const c = colorMap[color] || colorMap.indigo;
+
+    return (
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm group hover:shadow-md transition-all">
+            <div className="flex justify-between items-start mb-4">
+                <div className={`p-2.5 rounded-lg ${c.bg} ${c.text}`}>
+                    {icon}
+                </div>
+            </div>
+            <div>
+                <div className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">{title}</div>
+                <div className="text-2xl font-bold text-gray-900 mb-0.5 leading-none">{value}</div>
+                {subTitle && (
+                    <div className="text-[11px] text-gray-500 font-medium">{subTitle}</div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 export function ClientMaterialLedger() {
     const [transactions, setTransactions] = useState<ClientMaterialTransaction[]>([]);
     const [balances, setBalances] = useState<ClientMaterialBalance[]>([]);
@@ -25,6 +52,7 @@ export function ClientMaterialLedger() {
     const [customers, setCustomers] = useState<{ id: string, name: string }[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'STATEMENT' | 'HISTORY'>('STATEMENT');
+    const [historySubFilter, setHistorySubFilter] = useState<'ALL' | 'RECEIPT' | 'CONSUMPTION' | 'LOSS'>('ALL');
     const [searchQuery, setSearchQuery] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -46,23 +74,24 @@ export function ClientMaterialLedger() {
     });
 
     const loadData = useCallback(async () => {
-        try {
-            setLoading(true);
-            const [txs, bals, types, custs] = await Promise.all([
-                getClientMaterialTransactions(),
-                getClientMaterialBalances(),
-                getBaseMaterialTypes(),
-                getCustomerList()
-            ]);
-            setTransactions(txs);
-            setBalances(bals);
-            setBaseMaterialTypes(types.filter(t => t.status === 'ACTIVE'));
-            setCustomers(custs);
-        } catch (err) {
-            console.error('Failed to load client material data', err);
-        } finally {
-            setLoading(false);
-        }
+        setLoading(true);
+        // Load each independently so one failure doesn't block the whole page
+        const safeFetch = async (fn: () => Promise<any>, setter: (data: any) => void, name: string) => {
+            try {
+                const data = await fn();
+                setter(data);
+            } catch (err) {
+                console.warn(`Failed to load ${name}:`, err);
+            }
+        };
+
+        await Promise.all([
+            safeFetch(getClientMaterialTransactions, setTransactions, 'Transactions'),
+            safeFetch(getClientMaterialBalances, setBalances, 'Balances'),
+            safeFetch(getBaseMaterialTypes, (types) => setBaseMaterialTypes(types.filter((t: any) => t.status === 'ACTIVE')), 'Material Types'),
+            safeFetch(getCustomerList, setCustomers, 'Customers')
+        ]);
+        setLoading(false);
     }, []);
 
     useEffect(() => {
@@ -206,11 +235,128 @@ export function ClientMaterialLedger() {
         [balances, searchQuery]);
 
     const filteredTransactions = useMemo(() =>
-        transactions.filter(t =>
-            t.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            t.remarks?.toLowerCase().includes(searchQuery.toLowerCase())
-        ),
-        [transactions, searchQuery]);
+        transactions.filter(t => {
+            const matchesSearch = t.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                t.remarks?.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesFilter = historySubFilter === 'ALL' || t.transaction_type === historySubFilter;
+            return matchesSearch && matchesFilter;
+        }),
+        [transactions, searchQuery, historySubFilter]);
+
+    const historyTotals = useMemo(() => {
+        return filteredTransactions.reduce((acc, t) => {
+            if (t.transaction_type === 'RECEIPT') acc.received += t.quantity;
+            if (t.transaction_type === 'CONSUMPTION') acc.consumed += t.quantity;
+            if (t.transaction_type === 'LOSS') acc.loss += t.quantity;
+            return acc;
+        }, { received: 0, consumed: 0, loss: 0 });
+    }, [filteredTransactions]);
+
+    const handlePrint = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        const title = `Client Material Ledger - ${activeTab === 'STATEMENT' ? 'Balance Statement' : 'History Log'}`;
+        const filterText = searchQuery ? ` | Search: ${searchQuery}` : '';
+        const subFilterText = activeTab === 'HISTORY' && historySubFilter !== 'ALL' ? ` | Filter: ${historySubFilter}` : '';
+
+        const html = `
+            <html>
+                <head>
+                    <title>${title}</title>
+                    <style>
+                        body { font-family: sans-serif; padding: 20px; color: #333; }
+                        h1 { font-size: 24px; margin-bottom: 5px; }
+                        h2 { font-size: 16px; color: #666; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 12px; }
+                        th { bg-color: #f9f9f9; font-weight: bold; }
+                        .text-right { text-align: right; }
+                        .summary-grid { display: grid; grid-template-cols: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+                        .summary-box { border: 1px solid #eee; padding: 10px; border-radius: 8px; }
+                        .summary-label { font-size: 10px; text-transform: uppercase; color: #888; margin-bottom: 5px; }
+                        .summary-value { font-size: 16px; font-weight: bold; }
+                        .badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+                        .badge-receipt { background: #eff6ff; color: #1e40af; }
+                        .badge-consumption { background: #ecfdf5; color: #065f46; }
+                        .badge-loss { background: #fff1f2; color: #9f1239; }
+                    </style>
+                </head>
+                <body>
+                    <h1>${title}</h1>
+                    <h2>Generated on ${format(new Date(), 'dd MMM yyyy HH:mm')}${filterText}${subFilterText}</h2>
+                    
+                    ${activeTab === 'STATEMENT' ? `
+                        <div class="summary-grid">
+                            <div class="summary-box"><div class="summary-label">Total Received</div><div class="summary-value">${totals.received.toFixed(3)} KG</div></div>
+                            <div class="summary-box"><div class="summary-label">Total Consumed</div><div class="summary-value">${totals.consumed.toFixed(3)} KG</div></div>
+                            <div class="summary-box"><div class="summary-label">Total Loss</div><div class="summary-value">${totals.loss.toFixed(3)} KG</div></div>
+                            <div class="summary-box"><div class="summary-label">Net Balance</div><div class="summary-value">${totals.balance.toFixed(3)} KG</div></div>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Client Name</th>
+                                    <th class="text-right">Received</th>
+                                    <th class="text-right">Consumed</th>
+                                    <th class="text-right">Loss</th>
+                                    <th class="text-right">Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filteredBalances.map(b => `
+                                    <tr>
+                                        <td><strong>${b.client_name}</strong></td>
+                                        <th class="text-right">${b.received.toFixed(3)} KG</th>
+                                        <th class="text-right">${b.consumed.toFixed(3)} KG</th>
+                                        <th class="text-right">${b.loss.toFixed(3)} KG</th>
+                                        <th class="text-right"><strong>${b.balance.toFixed(3)} KG</strong></th>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    ` : `
+                        <div class="summary-grid">
+                            <div class="summary-box"><div class="summary-label">Filtered Received</div><div class="summary-value">${historyTotals.received.toFixed(3)} KG</div></div>
+                            <div class="summary-box"><div class="summary-label">Filtered Consumed</div><div class="summary-value">${historyTotals.consumed.toFixed(3)} KG</div></div>
+                            <div class="summary-box"><div class="summary-label">Filtered Loss</div><div class="summary-value">${historyTotals.loss.toFixed(3)} KG</div></div>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Client</th>
+                                    <th>Type</th>
+                                    <th>Material</th>
+                                    <th class="text-right">Quantity</th>
+                                    <th>Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filteredTransactions.map(t => `
+                                    <tr>
+                                        <td>${format(new Date(t.transaction_date), 'dd MMM yyyy')}</td>
+                                        <td><strong>${t.client_name}</strong></td>
+                                        <td><span class="badge badge-${t.transaction_type.toLowerCase()}">${t.transaction_type}</span></td>
+                                        <td>${t.material_type}</td>
+                                        <td class="text-right"><strong>${t.quantity.toFixed(3)} KG</strong></td>
+                                        <td>${t.remarks || t.reason || ''}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `}
+                    
+                    <script>
+                        window.onload = () => { window.print(); window.close(); };
+                    </script>
+                </body>
+            </html>
+        `;
+
+        printWindow.document.write(html);
+        printWindow.document.close();
+    };
 
     return (
         <div className="p-4 space-y-6 max-w-7xl mx-auto">
@@ -270,15 +416,37 @@ export function ClientMaterialLedger() {
                         <h3 className="text-lg font-bold text-gray-800">
                             {activeTab === 'STATEMENT' ? 'Client-wise Material Balance' : 'Complete Transaction History'}
                         </h3>
-                        <div className="relative w-full sm:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Search client name..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                            />
+                        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                            {activeTab === 'HISTORY' && (
+                                <div className="flex bg-gray-100 p-1 rounded-lg">
+                                    {(['ALL', 'RECEIPT', 'CONSUMPTION', 'LOSS'] as const).map((f) => (
+                                        <button
+                                            key={f}
+                                            onClick={() => setHistorySubFilter(f)}
+                                            className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase transition ${historySubFilter === f ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        >
+                                            {f}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            <div className="relative w-full sm:w-64">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search client name..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                                />
+                            </div>
+                            <button
+                                onClick={handlePrint}
+                                title="Print this view"
+                                className="flex items-center gap-2 bg-white text-gray-700 px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition shadow-sm font-medium text-sm"
+                            >
+                                <Download className="w-4 h-4" /> Print
+                            </button>
                         </div>
                     </div>
 
@@ -322,54 +490,70 @@ export function ClientMaterialLedger() {
                                     </tbody>
                                 </table>
                             ) : (
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-gray-50/50 text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
-                                        <tr>
-                                            <th className="px-6 py-4">Date</th>
-                                            <th className="px-6 py-4">Client</th>
-                                            <th className="px-6 py-4">Type</th>
-                                            <th className="px-6 py-4">Material</th>
-                                            <th className="px-6 py-4 text-right">Quantity</th>
-                                            <th className="px-6 py-4">Remarks</th>
-                                            <th className="px-6 py-4 text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {filteredTransactions.map((t) => (
-                                            <tr key={t.id} className="hover:bg-gray-50/30 transition-colors">
-                                                <td className="px-6 py-5 whitespace-nowrap">
-                                                    <div className="font-semibold text-gray-900">{format(new Date(t.transaction_date), 'dd MMM yyyy')}</div>
-                                                </td>
-                                                <td className="px-6 py-5 font-bold text-gray-800">{t.client_name}</td>
-                                                <td className="px-6 py-5">
-                                                    <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${t.transaction_type === 'RECEIPT' ? 'bg-blue-50 text-blue-700' :
-                                                        t.transaction_type === 'CONSUMPTION' ? 'bg-emerald-50 text-emerald-700' :
-                                                            'bg-rose-50 text-rose-700'
-                                                        }`}>
-                                                        {t.transaction_type}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-5 text-gray-600 font-medium">{t.material_type}</td>
-                                                <td className="px-6 py-5 text-right font-bold text-gray-900">{t.quantity.toFixed(3)} KG</td>
-                                                <td className="px-6 py-5">
-                                                    <div className="text-xs text-gray-500 max-w-xs">{t.remarks || t.reason || '—'}</div>
-                                                </td>
-                                                <td className="px-6 py-5 text-right">
-                                                    <button
-                                                        onClick={() => handleEdit(t)}
-                                                        className="text-gray-400 hover:text-indigo-600 p-1.5 hover:bg-indigo-50 rounded-lg transition"
-                                                        title="Edit Entry"
-                                                    >
-                                                        <Pencil size={16} />
-                                                    </button>
-                                                </td>
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                                        <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                                            <div className="text-[10px] font-bold text-blue-500 uppercase">Received (Filtered)</div>
+                                            <div className="text-xl font-bold text-blue-700">{historyTotals.received.toFixed(3)} KG</div>
+                                        </div>
+                                        <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100">
+                                            <div className="text-[10px] font-bold text-emerald-500 uppercase">Consumed (Filtered)</div>
+                                            <div className="text-xl font-bold text-emerald-700">{historyTotals.consumed.toFixed(3)} KG</div>
+                                        </div>
+                                        <div className="p-3 bg-rose-50/50 rounded-xl border border-rose-100">
+                                            <div className="text-[10px] font-bold text-rose-500 uppercase">Loss (Filtered)</div>
+                                            <div className="text-xl font-bold text-rose-700">{historyTotals.loss.toFixed(3)} KG</div>
+                                        </div>
+                                    </div>
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="bg-gray-50/50 text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
+                                            <tr>
+                                                <th className="px-6 py-4">Date</th>
+                                                <th className="px-6 py-4">Client</th>
+                                                <th className="px-6 py-4">Type</th>
+                                                <th className="px-6 py-4">Material</th>
+                                                <th className="px-6 py-4 text-right">Quantity</th>
+                                                <th className="px-6 py-4">Remarks</th>
+                                                <th className="px-6 py-4 text-right">Actions</th>
                                             </tr>
-                                        ))}
-                                        {filteredTransactions.length === 0 && (
-                                            <tr><td colSpan={7} className="py-20 text-center text-gray-400 italic">No transactions found.</td></tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {filteredTransactions.map((t) => (
+                                                <tr key={t.id} className="hover:bg-gray-50/30 transition-colors">
+                                                    <td className="px-6 py-5 whitespace-nowrap">
+                                                        <div className="font-semibold text-gray-900">{format(new Date(t.transaction_date), 'dd MMM yyyy')}</div>
+                                                    </td>
+                                                    <td className="px-6 py-5 font-bold text-gray-800">{t.client_name}</td>
+                                                    <td className="px-6 py-5">
+                                                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${t.transaction_type === 'RECEIPT' ? 'bg-blue-50 text-blue-700' :
+                                                            t.transaction_type === 'CONSUMPTION' ? 'bg-emerald-50 text-emerald-700' :
+                                                                'bg-rose-50 text-rose-700'
+                                                            }`}>
+                                                            {t.transaction_type}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-gray-600 font-medium">{t.material_type}</td>
+                                                    <td className="px-6 py-5 text-right font-bold text-gray-900">{t.quantity.toFixed(3)} KG</td>
+                                                    <td className="px-6 py-5">
+                                                        <div className="text-xs text-gray-500 max-w-xs">{t.remarks || t.reason || '—'}</div>
+                                                    </td>
+                                                    <td className="px-6 py-5 text-right">
+                                                        <button
+                                                            onClick={() => handleEdit(t)}
+                                                            className="text-gray-400 hover:text-indigo-600 p-1.5 hover:bg-indigo-50 rounded-lg transition"
+                                                            title="Edit Entry"
+                                                        >
+                                                            <Pencil size={16} />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {filteredTransactions.length === 0 && (
+                                                <tr><td colSpan={7} className="py-20 text-center text-gray-400 italic">No transactions found.</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             )}
                         </div>
                     )}
@@ -377,248 +561,224 @@ export function ClientMaterialLedger() {
             </div>
 
             {/* Modal */}
-            {showModal && (
-                <div className="fixed inset-0 bg-gray-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-900">{editingId ? 'Edit Ledger Entry' : 'New Ledger Entry'}</h2>
-                                <p className="text-sm text-gray-500 font-medium">
-                                    {editingId ? 'Update transaction details' : 'Add daily receipt, consumption or loss'}
-                                </p>
-                            </div>
-                            <button onClick={() => { setShowModal(false); resetForm(); }} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                            {/* 1. Client Selection (Consolidated) */}
-                            <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-                                <label className="block text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-2">Client / Party Selection</label>
-                                <input
-                                    list="customer-list"
-                                    type="text"
-                                    placeholder="Search or Type Client Name..."
-                                    className="w-full h-10 px-3 bg-white border border-indigo-200 rounded-md font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    value={form.client_name}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        const matched = customers.find(c => c.name.toLowerCase() === val.toLowerCase());
-                                        setForm({
-                                            ...form,
-                                            client_name: val,
-                                            client_id: matched ? matched.id : ''
-                                        });
-                                    }}
-                                />
-                                <datalist id="customer-list">
-                                    {customers?.length > 0 ? customers.map(c => (
-                                        <option key={c.id} value={c.name} />
-                                    )) : null}
-                                </datalist>
-                                <p className="text-[10px] text-indigo-400 mt-1 font-medium">
-                                    * Type to search from {customers?.length || 0} customers, or enter a new name manually.
-                                </p>
+            {
+                showModal && (
+                    <div className="fixed inset-0 bg-gray-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
+                                <div>
+                                    <h2 className="text-xl font-bold text-gray-900">{editingId ? 'Edit Ledger Entry' : 'New Ledger Entry'}</h2>
+                                    <p className="text-sm text-gray-500 font-medium">
+                                        {editingId ? 'Update transaction details' : 'Add daily receipt, consumption or loss'}
+                                    </p>
+                                </div>
+                                <button onClick={() => { setShowModal(false); resetForm(); }} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                                    <X size={20} />
+                                </button>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                {/* 2. Core Transaction Details */}
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Action</label>
-                                    <select
-                                        value={form.transaction_type}
-                                        onChange={(e) => setForm({ ...form, transaction_type: e.target.value as any })}
-                                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
-                                    >
-                                        <option value="RECEIPT">Material Receipt</option>
-                                        <option value="CONSUMPTION">Consumption</option>
-                                        <option value="LOSS">Work Loss</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Material</label>
-                                    <select
-                                        value={form.material_type}
-                                        onChange={(e) => setForm({ ...form, material_type: e.target.value as any })}
-                                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
-                                    >
-                                        <option value="White Metal">White Metal</option>
-                                        <option value="Alloy">Alloy</option>
-                                        <option value="Ghattak">Ghattak</option>
-                                        <option value="Other">Other</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 flex justify-between">
-                                        <span>Quantity (KG)</span>
-                                        <span className="text-indigo-600 text-[9px]">Auto-Convert</span>
-                                    </label>
+                            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                                {/* 1. Client Selection (Consolidated) */}
+                                <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+                                    <label className="block text-[10px] font-bold text-indigo-700 uppercase tracking-widest mb-2">Client / Party Selection</label>
                                     <input
-                                        type="text" inputMode="decimal" required
-                                        value={form.quantity}
+                                        list="customer-list"
+                                        type="text"
+                                        placeholder="Search or Type Client Name..."
+                                        className="w-full h-10 px-3 bg-white border border-indigo-200 rounded-md font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        value={form.client_name}
                                         onChange={(e) => {
-                                            // Allow only numbers, dots, and commas during typing
                                             const val = e.target.value;
-                                            if (/^[0-9.,]*$/.test(val)) {
-                                                setForm({ ...form, quantity: val });
-                                            }
+                                            const matched = customers.find(c => c.name.toLowerCase() === val.toLowerCase());
+                                            setForm({
+                                                ...form,
+                                                client_name: val,
+                                                client_id: matched ? matched.id : ''
+                                            });
                                         }}
-                                        onBlur={handleQuantityBlur}
-                                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
-                                        placeholder="0.000"
                                     />
-                                    <p className="text-[9px] text-gray-400 mt-1 font-medium">Auto-Logic: Values &ge; 50 treated as Grams (e.g. 850 &rarr; 0.850 KG)</p>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Date</label>
-                                    <input
-                                        type="date" required
-                                        value={form.transaction_date}
-                                        onChange={(e) => setForm({ ...form, transaction_date: e.target.value })}
-                                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
-                                    />
-                                </div>
-
-                                {/* 3. Hybrid Remark Fields */}
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Base Type</label>
-                                    <input
-                                        list="base-types-list"
-                                        type="text"
-                                        placeholder="Select or Type..."
-                                        className="w-full h-10 px-3 bg-white border border-gray-200 rounded-md font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                                        value={form.base_type}
-                                        onChange={(e) => setForm({ ...form, base_type: e.target.value })}
-                                    />
-                                    <datalist id="base-types-list">
-                                        {baseMaterialTypes
-                                            .filter(type => {
-                                                // Filter logic:
-                                                // Receipt -> Receipt + Both
-                                                // Consumption -> Consumption + Both
-                                                // Loss -> Receipt + Both (Assuming loss is on raw material usually)
-                                                if (form.transaction_type === 'RECEIPT') return type.usage_type === 'RECEIPT' || type.usage_type === 'BOTH' || !type.usage_type;
-                                                if (form.transaction_type === 'CONSUMPTION') return type.usage_type === 'CONSUMPTION' || type.usage_type === 'BOTH';
-                                                return type.usage_type === 'RECEIPT' || type.usage_type === 'BOTH' || !type.usage_type;
-                                            })
-                                            .map(type => (
-                                                <option key={type.id} value={type.name} />
-                                            ))}
+                                    <datalist id="customer-list">
+                                        {customers?.length > 0 ? customers.map(c => (
+                                            <option key={c.id} value={c.name} />
+                                        )) : null}
                                     </datalist>
+                                    <p className="text-[10px] text-indigo-400 mt-1 font-medium">
+                                        * Type to search from {customers?.length || 0} customers, or enter a new name manually.
+                                    </p>
                                 </div>
 
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Spec (Gauge/Size)</label>
-                                    <input
-                                        type="text"
-                                        value={form.specification}
-                                        onChange={(e) => setForm({ ...form, specification: e.target.value })}
-                                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
-                                        placeholder="e.g. 28 Gauge"
-                                    />
-                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* 2. Core Transaction Details */}
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Action</label>
+                                        <select
+                                            value={form.transaction_type}
+                                            onChange={(e) => setForm({ ...form, transaction_type: e.target.value as any })}
+                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
+                                        >
+                                            <option value="RECEIPT">Material Receipt</option>
+                                            <option value="CONSUMPTION">Consumption</option>
+                                            <option value="LOSS">Work Loss</option>
+                                        </select>
+                                    </div>
 
-                                {/* 4. Conditional/Additional Fields */}
-                                {
-                                    form.transaction_type === 'LOSS' && (
-                                        <div className="col-span-2">
-                                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Reason for Loss</label>
-                                            <input
-                                                type="text" required
-                                                value={form.reason}
-                                                onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                                                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
-                                                placeholder="e.g. Melting loss"
-                                            />
-                                        </div>
-                                    )
-                                }
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Material</label>
+                                        <select
+                                            value={form.material_type}
+                                            onChange={(e) => setForm({ ...form, material_type: e.target.value as any })}
+                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
+                                        >
+                                            <option value="White Metal">White Metal</option>
+                                            <option value="Alloy">Alloy</option>
+                                            <option value="Ghattak">Ghattak</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
 
-                                <div className="col-span-2">
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Manual Remarks (Optional)</label>
-                                    <textarea
-                                        value={form.manual_remarks}
-                                        onChange={(e) => setForm({ ...form, manual_remarks: e.target.value })}
-                                        className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 outline-none"
-                                        rows={2}
-                                        placeholder="Add any extra notes here..."
-                                    />
-                                </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 flex justify-between">
+                                            <span>Quantity (KG)</span>
+                                            <span className="text-indigo-600 text-[9px]">Auto-Convert</span>
+                                        </label>
+                                        <input
+                                            type="text" inputMode="decimal" required
+                                            value={form.quantity}
+                                            onChange={(e) => {
+                                                // Allow only numbers, dots, and commas during typing
+                                                const val = e.target.value;
+                                                if (/^[0-9.,]*$/.test(val)) {
+                                                    setForm({ ...form, quantity: val });
+                                                }
+                                            }}
+                                            onBlur={handleQuantityBlur}
+                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
+                                            placeholder="0.000"
+                                        />
+                                        <p className="text-[9px] text-gray-400 mt-1 font-medium">Auto-Logic: Values &ge; 50 treated as Grams (e.g. 850 &rarr; 0.850 KG)</p>
+                                    </div>
 
-                                <div className="col-span-2">
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Reference / Job Order #</label>
-                                    <div className="relative">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Date</label>
+                                        <input
+                                            type="date" required
+                                            value={form.transaction_date}
+                                            onChange={(e) => setForm({ ...form, transaction_date: e.target.value })}
+                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
+                                        />
+                                    </div>
+
+                                    {/* 3. Hybrid Remark Fields */}
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Base Type</label>
+                                        <input
+                                            list="base-types-list"
+                                            type="text"
+                                            placeholder="Select or Type..."
+                                            className="w-full h-10 px-3 bg-white border border-gray-200 rounded-md font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                                            value={form.base_type}
+                                            onChange={(e) => setForm({ ...form, base_type: e.target.value })}
+                                        />
+                                        <datalist id="base-types-list">
+                                            {baseMaterialTypes
+                                                .filter(type => {
+                                                    // Filter logic:
+                                                    // Receipt -> Receipt + Both
+                                                    // Consumption -> Consumption + Both
+                                                    // Loss -> Receipt + Both (Assuming loss is on raw material usually)
+                                                    if (form.transaction_type === 'RECEIPT') return type.usage_type === 'RECEIPT' || type.usage_type === 'BOTH' || !type.usage_type;
+                                                    if (form.transaction_type === 'CONSUMPTION') return type.usage_type === 'CONSUMPTION' || type.usage_type === 'BOTH';
+                                                    return type.usage_type === 'RECEIPT' || type.usage_type === 'BOTH' || !type.usage_type;
+                                                })
+                                                .map(type => (
+                                                    <option key={type.id} value={type.name} />
+                                                ))}
+                                        </datalist>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Spec (Gauge/Size)</label>
                                         <input
                                             type="text"
-                                            value={form.job_work_order_id}
-                                            onChange={(e) => setForm({ ...form, job_work_order_id: e.target.value })}
-                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 pr-10"
-                                            placeholder="Order UUID or number"
+                                            value={form.specification}
+                                            onChange={(e) => setForm({ ...form, specification: e.target.value })}
+                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
+                                            placeholder="e.g. 28 Gauge"
                                         />
-                                        <button
-                                            type="button"
-                                            onClick={() => setForm({ ...form, job_work_order_id: generateJobId() })}
-                                            className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded transition"
-                                            title="Generate New ID"
-                                        >
-                                            NEW
-                                        </button>
+                                    </div>
+
+                                    {/* 4. Conditional/Additional Fields */}
+                                    {
+                                        form.transaction_type === 'LOSS' && (
+                                            <div className="col-span-2">
+                                                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Reason for Loss</label>
+                                                <input
+                                                    type="text" required
+                                                    value={form.reason}
+                                                    onChange={(e) => setForm({ ...form, reason: e.target.value })}
+                                                    className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500"
+                                                    placeholder="e.g. Melting loss"
+                                                />
+                                            </div>
+                                        )
+                                    }
+
+                                    <div className="col-span-2">
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Manual Remarks (Optional)</label>
+                                        <textarea
+                                            value={form.manual_remarks}
+                                            onChange={(e) => setForm({ ...form, manual_remarks: e.target.value })}
+                                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                            rows={2}
+                                            placeholder="Add any extra notes here..."
+                                        />
+                                    </div>
+
+                                    <div className="col-span-2">
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Reference / Job Order #</label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                value={form.job_work_order_id}
+                                                onChange={(e) => setForm({ ...form, job_work_order_id: e.target.value })}
+                                                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 pr-10"
+                                                placeholder="Order UUID or number"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setForm({ ...form, job_work_order_id: generateJobId() })}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded transition"
+                                                title="Generate New ID"
+                                            >
+                                                NEW
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="flex gap-3 pt-4 border-t border-gray-100 mt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => { setShowModal(false); resetForm(); }}
-                                    className="flex-1 py-3 text-gray-500 font-bold bg-gray-50 hover:bg-gray-100 rounded-xl transition text-sm"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={submitting}
-                                    className="flex-[2] py-3 text-white font-bold bg-indigo-600 hover:bg-indigo-700 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-md shadow-indigo-200"
-                                >
-                                    {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <Save size={16} />}
-                                    {editingId ? 'Update Entry' : 'Save Entry'}
-                                </button>
-                            </div>
-                        </form>
+                                <div className="flex gap-3 pt-4 border-t border-gray-100 mt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowModal(false); resetForm(); }}
+                                        className="flex-1 py-3 text-gray-500 font-bold bg-gray-50 hover:bg-gray-100 rounded-xl transition text-sm"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={submitting}
+                                        className="flex-[2] py-3 text-white font-bold bg-indigo-600 hover:bg-indigo-700 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-md shadow-indigo-200"
+                                    >
+                                        {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <Save size={16} />}
+                                        {editingId ? 'Update Entry' : 'Save Entry'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }
 
-const SummaryCard = ({ title, value, subTitle, icon, color }: any) => {
-    const colorMap: any = {
-        indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100' },
-        emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
-        rose: { bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100' },
-        blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100' }
-    };
-    const c = colorMap[color] || colorMap.indigo;
-
-    return (
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm group hover:shadow-md transition-all">
-            <div className="flex justify-between items-start mb-4">
-                <div className={`p-2.5 rounded-lg ${c.bg} ${c.text}`}>
-                    {icon}
-                </div>
-            </div>
-            <div>
-                <div className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">{title}</div>
-                <div className="text-2xl font-bold text-gray-900 mb-0.5 leading-none">{value}</div>
-                {subTitle && (
-                    <div className="text-[11px] text-gray-500 font-medium">{subTitle}</div>
-                )}
-            </div>
-        </div>
-    );
-};

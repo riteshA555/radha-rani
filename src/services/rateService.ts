@@ -44,7 +44,7 @@ export const getLatestRates = async (): Promise<MetalRate[]> => {
         });
 
         return Array.from(latestMap.values());
-    }, RATE_TTL);
+    }, RATE_TTL, true); // Persist rates
 }
 
 export const getRateHistory = async (metal?: MetalType, purity?: string): Promise<MetalRate[]> => {
@@ -62,7 +62,7 @@ export const getRateHistory = async (metal?: MetalType, purity?: string): Promis
         const { data, error } = await query;
         if (error) throw error;
         return data as MetalRate[];
-    }, RATE_TTL);
+    }, RATE_TTL, true); // Persist history
 }
 
 export const addMetalRate = async (rate: Omit<MetalRate, 'id' | 'created_at'>) => {

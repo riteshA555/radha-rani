@@ -14,10 +14,10 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="fixed inset-0 flex flex-col bg-gray-50 overflow-hidden select-none safe-pb">
       {/* Top Header */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between sticky top-0 z-40 h-16">
-        <div className="flex items-center gap-3">
+      <header className="bg-white border-b border-gray-200 px-6 py-2 flex items-center justify-between sticky top-0 z-40 h-16 flex-shrink-0 safe-pt box-content">
+        <div className="flex items-center gap-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="lg:hidden p-2 -ml-2 hover:bg-gray-100 rounded-lg"
@@ -25,14 +25,14 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
             {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
 
-          {/* Logo Container - Auto-crops wide borders */}
-          <div className="flex items-center gap-2">
-            <div className="h-10 w-32 overflow-hidden relative flex items-center justify-center">
+          {/* Logo Container - Digitally cropped to remove redundant borders */}
+          <div className="flex items-center gap-2 group cursor-pointer">
+            <div className="h-10 w-40 overflow-hidden relative flex items-center justify-center transition-all duration-500 group-hover:scale-105">
               <img
                 src="/logo.png"
                 alt="NEXORA DIGITAL"
-                className="h-full w-full object-cover object-center scale-110"
-                onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement!.innerText = 'NEXORA DIGITAL'; e.currentTarget.parentElement!.className = 'text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-800 to-indigo-600 tracking-tight'; }}
+                className="h-full w-full object-cover object-center scale-125 transition-transform duration-700 group-hover:scale-140"
+                onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.parentElement!.innerText = 'NEXORA DIGITAL'; e.currentTarget.parentElement!.className = 'text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-800 to-indigo-600 tracking-tight'; }}
               />
             </div>
           </div>
@@ -51,7 +51,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Desktop Sidebar */}
         <aside className="hidden lg:block w-64 bg-white border-r border-gray-200 overflow-y-auto">
           <Sidebar currentPage={currentPage} onNavigate={onNavigate} />
@@ -61,11 +61,11 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
         {sidebarOpen && (
           <>
             <div
-              className="lg:hidden fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 transition-opacity"
+              className="lg:hidden fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[60] transition-opacity"
               onClick={() => setSidebarOpen(false)}
             />
-            <aside className="lg:hidden fixed left-0 top-0 bottom-0 w-[85vw] max-w-sm bg-white z-50 overflow-y-auto shadow-2xl animate-in slide-in-from-left-4 duration-200">
-              <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+            <aside className="lg:hidden fixed left-0 top-0 bottom-0 w-[85vw] max-w-sm bg-white z-[70] shadow-2xl animate-in slide-in-from-left-4 duration-300 flex flex-col h-full">
+              <div className="p-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0 safe-pt box-content">
                 <div className="flex items-center gap-2">
                   <div className="h-8 w-8 overflow-hidden relative flex items-center justify-center rounded-lg">
                     <img
@@ -84,25 +84,29 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <Sidebar
-                currentPage={currentPage}
-                onNavigate={(page) => {
-                  onNavigate(page);
-                  setSidebarOpen(false);
-                }}
-              />
+              <div className="flex-1 overflow-y-auto pb-32">
+                <Sidebar
+                  currentPage={currentPage}
+                  onNavigate={(page) => {
+                    onNavigate(page);
+                    setSidebarOpen(false);
+                  }}
+                />
+              </div>
             </aside>
           </>
         )}
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto pb-20 lg:pb-4">
+        <main className="flex-1 overflow-y-auto pb-24 lg:pb-4 touch-pan-y">
           {children}
         </main>
       </div>
 
       {/* Bottom Navigation for Mobile */}
-      <BottomNav currentPage={currentPage} onNavigate={onNavigate} />
+      <footer className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-pb">
+        <BottomNav currentPage={currentPage} onNavigate={onNavigate} />
+      </footer>
     </div>
   );
 }

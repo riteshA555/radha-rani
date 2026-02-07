@@ -15,8 +15,7 @@ import {
     Printer, Share2, ExternalLink, MessageCircle
 } from 'lucide-react'
 import { formatIndianRupees } from '../../shared/utils/formatters'
-import { getSettings } from '../../services/settingsService'
-import { BusinessProfileSettings, GSTSettings } from '../../types/settings'
+import { useSettings } from '../../context/SettingsContext'
 import { PageHeader } from '../components/ui/PageHeader'
 
 type FormValues = {
@@ -57,9 +56,9 @@ export function CreateOrder() {
     const [karigars, setKarigars] = useState<Karigar[]>([])
     const [savedCustomers, setSavedCustomers] = useState<any[]>([])
 
-    // Business Info State
-    const [businessProfile, setBusinessProfile] = useState<BusinessProfileSettings | null>(null)
-    const [gstSettings, setGstSettings] = useState<GSTSettings | null>(null)
+    const { settings } = useSettings()
+    const businessProfile = settings.business_profile
+    const gstSettings = settings.gst_settings
 
     // Success Modal State
     const [successData, setSuccessData] = useState<{
@@ -118,12 +117,10 @@ export function CreateOrder() {
         const loadData = async () => {
             try {
                 // Ensure helper services return [] on error if needed, or handle catch block
-                const [jwData, prodData, karigarData, businessData, gstData, currentRate, customerList] = await Promise.all([
+                const [jwData, prodData, karigarData, currentRate, customerList] = await Promise.all([
                     getJobWorkItems(),
                     getProducts(),
                     getKarigars(),
-                    getSettings<BusinessProfileSettings>('business_profile'),
-                    getSettings<GSTSettings>('gst_settings'),
                     getLatestRates(),
                     getAssetLedgers()
                 ])
@@ -131,8 +128,6 @@ export function CreateOrder() {
                     setJobWorkItems(jwData || [])
                     setProducts(prodData || [])
                     setKarigars(karigarData || [])
-                    setBusinessProfile(businessData)
-                    setGstSettings(gstData)
                     const silverRate = currentRate.find(r => r.metal_type === 'SILVER') || null
                     setSilverRate(silverRate)
                     setSavedCustomers(customerList || [])

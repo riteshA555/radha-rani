@@ -30,23 +30,15 @@ export interface KarigarWorkRecord {
     karigars?: { name: string };
 }
 
-export const getKarigars = async () => {
-    const cached = cacheStore.get(KARIGARS_CACHE_KEY)
-    if (cached) {
-        fetchFreshKarigars()
-        return cached as Karigar[]
-    }
-    return fetchFreshKarigars()
-}
-
-const fetchFreshKarigars = async () => {
-    const { data, error } = await supabase
-        .from('karigars')
-        .select('*')
-        .order('name')
-    if (error) throw error
-    cacheStore.set(KARIGARS_CACHE_KEY, data)
-    return data as Karigar[]
+export const getKarigars = async (): Promise<Karigar[]> => {
+    return cacheStore.getOrFetch(KARIGARS_CACHE_KEY, async () => {
+        const { data, error } = await supabase
+            .from('karigars')
+            .select('*')
+            .order('name');
+        if (error) throw error;
+        return data as Karigar[];
+    }, 1000 * 60 * 60, true); // Persist for 1 hour
 }
 
 export const createKarigar = async (karigar: Omit<Karigar, 'id'>) => {

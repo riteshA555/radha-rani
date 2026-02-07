@@ -60,7 +60,7 @@ export const getStockSummary = async (currentSilverRate: number): Promise<StockS
             finished_goods_weight: fg_weight,
             total_value: (raw + wastage + fg_weight) * (currentSilverRate / 1000)
         }
-    })
+    }, 1000 * 60 * 10, true) // Persist for 10 mins
 }
 
 interface StockPaymentDetails {

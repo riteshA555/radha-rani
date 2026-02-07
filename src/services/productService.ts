@@ -5,25 +5,17 @@ import { sanitizeString, validateNumber } from '../shared/utils/validation'
 
 const PRODUCTS_CACHE_KEY = 'products_list'
 
-export const getProducts = async () => {
-    const cached = cacheStore.get(PRODUCTS_CACHE_KEY)
-    if (cached) {
-        fetchFreshProducts()
-        return cached as Product[]
-    }
-    return fetchFreshProducts()
-}
+export const getProducts = async (): Promise<Product[]> => {
+    return cacheStore.getOrFetch(PRODUCTS_CACHE_KEY, async () => {
+        const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .eq('is_active', true)
+            .order('name');
 
-const fetchFreshProducts = async () => {
-    const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('is_active', true)
-        .order('name')
-
-    if (error) throw error
-    cacheStore.set(PRODUCTS_CACHE_KEY, data)
-    return data as Product[]
+        if (error) throw error;
+        return data as Product[];
+    }, 1000 * 60 * 60, true); // Persist for 1 hour
 }
 
 export const updateProduct = async (id: string, updates: Partial<Product>) => {

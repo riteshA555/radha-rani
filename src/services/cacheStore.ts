@@ -9,6 +9,29 @@ type FetchFunction<T> = () => Promise<T>;
 class CacheStore {
     private cache: Map<string, CacheData> = new Map();
     private DEFAULT_TTL = 1000 * 60 * 2; // 2 minutes default TTL
+    private STORAGE_PREFIX = 'sf_cache_';
+
+    constructor() {
+        // Hydrate from localStorage on initialization for specific keys
+        this.hydrate();
+    }
+
+    private hydrate() {
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key?.startsWith(this.STORAGE_PREFIX)) {
+                    const raw = localStorage.getItem(key);
+                    if (raw) {
+                        const data = JSON.parse(raw);
+                        this.cache.set(key.replace(this.STORAGE_PREFIX, ''), data);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Cache hydration failed', e);
+        }
+    }
 
     /**
      * Get cached data if valid, otherwise return null
@@ -21,7 +44,7 @@ class CacheStore {
         const isExpired = Date.now() - cached.timestamp > ttl;
 
         if (isExpired) {
-            this.cache.delete(key); // Clean up expired entries
+            this.invalidate(key);
             return null;
         }
 
@@ -29,14 +52,23 @@ class CacheStore {
     }
 
     /**
-     * Set data in cache with optional TTL override
+     * Set data in cache with optional TTL override and persistence
      */
-    set(key: string, data: any, ttl?: number) {
-        this.cache.set(key, {
+    set(key: string, data: any, ttl?: number, persist: boolean = false) {
+        const cacheData: CacheData = {
             data,
             timestamp: Date.now(),
             ttl
-        });
+        };
+        this.cache.set(key, cacheData);
+
+        if (persist) {
+            try {
+                localStorage.setItem(this.STORAGE_PREFIX + key, JSON.stringify(cacheData));
+            } catch (e) {
+                console.warn('LocalStorage save failed', e);
+            }
+        }
     }
 
     /**
@@ -44,11 +76,11 @@ class CacheStore {
      */
     invalidate(key: string) {
         this.cache.delete(key);
+        localStorage.removeItem(this.STORAGE_PREFIX + key);
     }
 
     /**
      * Invalidate all cache keys matching a pattern
-     * Example: invalidatePattern('stock_') clears stock_summary, stock_transactions, etc.
      */
     invalidatePattern(pattern: string) {
         const keysToDelete: string[] = [];
@@ -57,7 +89,7 @@ class CacheStore {
                 keysToDelete.push(key);
             }
         });
-        keysToDelete.forEach(key => this.cache.delete(key));
+        keysToDelete.forEach(key => this.invalidate(key));
     }
 
     /**
@@ -65,43 +97,45 @@ class CacheStore {
      */
     clear() {
         this.cache.clear();
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key?.startsWith(this.STORAGE_PREFIX)) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
     }
 
     /**
-     * Stale-while-revalidate pattern: return cached data immediately,
-     * then fetch fresh data in background and update cache
+     * Stale-while-revalidate pattern
      */
     async getOrFetch<T>(
         key: string,
         fetchFn: FetchFunction<T>,
-        ttl?: number
+        ttl?: number,
+        persist: boolean = false
     ): Promise<T> {
         const cached = this.get(key);
 
         if (cached !== null) {
-            // Return cached data immediately
-            // Optionally trigger background refresh if close to expiry
+            // Background refresh if older than 50% of TTL
             const cacheData = this.cache.get(key);
             if (cacheData) {
                 const age = Date.now() - cacheData.timestamp;
                 const cacheTtl = cacheData.ttl || this.DEFAULT_TTL;
 
-                // If cache is more than 75% expired, refresh in background
-                if (age > cacheTtl * 0.75) {
+                if (age > cacheTtl * 0.5) {
                     fetchFn().then(freshData => {
-                        this.set(key, freshData, ttl);
-                    }).catch(err => {
-                        console.warn(`Background refresh failed for ${key}:`, err);
-                    });
+                        this.set(key, freshData, ttl, persist);
+                    }).catch(() => { });
                 }
             }
-
             return cached;
         }
 
-        // No cache, fetch fresh data
         const freshData = await fetchFn();
-        this.set(key, freshData, ttl);
+        this.set(key, freshData, ttl, persist);
         return freshData;
     }
 }

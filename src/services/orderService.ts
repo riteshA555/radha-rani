@@ -85,6 +85,17 @@ export const createOrder = async (
 }
 
 export const updateOrderStatus = async (orderId: string, status: string) => {
+    // If cancelling, use atomic reversal RPC
+    if (status.toLowerCase() === 'cancelled') {
+        const { data, error } = await supabase.rpc('cancel_order_atomic', { p_order_id: orderId })
+        if (error) throw error
+        cacheStore.invalidate(CACHE_KEYS.ORDERS)
+        cacheStore.invalidate('dashboard_stats')
+        cacheStore.invalidatePattern('stock_')
+        cacheStore.invalidatePattern('ledger_')
+        return data
+    }
+
     const { data, error } = await supabase
         .from('orders')
         .update({ status })
@@ -98,32 +109,8 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
 }
 
 export const deleteOrder = async (orderId: string) => {
-    // 1. Delete Stock Transactions
-    const { error: stockError } = await supabase
-        .from('stock_transactions')
-        .delete()
-        .eq('order_id', orderId)
-    if (stockError) throw stockError
-
-    // 2. Delete Accounting Transactions
-    const { error: transError } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('order_id', orderId)
-    if (transError) throw transError
-
-    // 3. Delete Karigar Work Records
-    const { error: workError } = await supabase
-        .from('karigar_work_records')
-        .delete()
-        .eq('order_id', orderId)
-    if (workError) throw workError
-
-
-    const { error } = await supabase
-        .from('orders')
-        .delete()
-        .eq('id', orderId)
+    // Use atomic deletion RPC which handles side-effect reversal
+    const { data, error } = await supabase.rpc('delete_order_atomic', { p_order_id: orderId })
 
     if (error) throw error
 
@@ -131,6 +118,8 @@ export const deleteOrder = async (orderId: string) => {
     cacheStore.invalidate(CACHE_KEYS.ORDERS)
     cacheStore.invalidate('dashboard_stats')
     cacheStore.invalidatePattern('stock_') // Deleting orders affects stock
+    cacheStore.invalidatePattern('ledger_') // Ledger entries are removed
+    return data
 }
 
 export const deleteOrders = async (orderIds: string[]) => {

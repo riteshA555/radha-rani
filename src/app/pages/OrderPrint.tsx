@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
-import { getSettings } from '../../services/settingsService';
 import { updateOrderStatus } from '../../services/orderService';
-import { BusinessProfileSettings } from '../../types/settings';
+import { useSettings } from '../../context/SettingsContext';
 import { formatIndianRupees } from '../../shared/utils/formatters';
 import { Loader2, ArrowLeft, Printer } from 'lucide-react';
 
@@ -11,7 +10,8 @@ export function OrderPrint() {
     const { id } = useParams();
     const navigate = useNavigate();
     const [order, setOrder] = useState<any>(null);
-    const [business, setBusiness] = useState<BusinessProfileSettings | null>(null);
+    const { settings } = useSettings();
+    const business = settings.business_profile;
     const [loading, setLoading] = useState(true);
     const [updatingStatus, setUpdatingStatus] = useState(false);
 
@@ -28,11 +28,7 @@ export function OrderPrint() {
 
                 if (orderError) throw orderError;
 
-                // Fetch Business Profile
-                const businessData = await getSettings<BusinessProfileSettings>('business_profile');
-
                 setOrder(orderData);
-                setBusiness(businessData);
             } catch (err) {
                 console.error("Error loading invoice:", err);
             } finally {

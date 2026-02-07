@@ -57,59 +57,58 @@ export function Dashboard() {
   const [karigars, setKarigars] = useState<Karigar[]>([]);
   const [karigarBalances, setKarigarBalances] = useState<{ [key: string]: { cash: number, metal: number } }>({});
 
+  // Refactored granular data fetching
   const loadData = useCallback(async () => {
-    try {
-      const [rates, hist, inv, fw, ords, prods, kList, kBal] = await Promise.all([
-        getLatestRates(),
-        getRateHistory(),
-        getMetalInventory(),
-        getFinishedGoodsWeight(),
-        getOrders(),
-        getProducts(),
-        getKarigars(),
-        getKarigarBalances()
-      ]);
-
+    // 1. Fetch Rates (Persisted)
+    getLatestRates().then(rates => {
       const silverRate = rates.find(r => r.metal_type === 'SILVER') || null;
       setRate(silverRate);
+    }).catch(e => console.error('Rate fetch failed', e));
+
+    getRateHistory().then(hist => {
       setRecentRates(hist.filter(h => h.metal_type === 'SILVER'));
-      setInventory(inv);
-      setFinishedWeight(fw);
-      setOrders(ords);
-      setProducts(prods);
-      setKarigars(kList);
-      setKarigarBalances(kBal);
-    } catch (err) {
-      console.error('Dashboard load error:', err);
-    } finally {
-      setLoading(false);
-    }
+    }).catch(e => console.error('History fetch failed', e));
+
+    // 2. Fetch Inventory & finished weight
+    getMetalInventory().then(setInventory).catch(e => console.error('Inventory fetch failed', e));
+    getFinishedGoodsWeight().then(setFinishedWeight).catch(e => console.error('Weight fetch failed', e));
+
+    // 3. Fetch Orders & Products
+    getOrders().then(setOrders).catch(e => console.error('Orders fetch failed', e));
+    getProducts().then(setProducts).catch(e => console.error('Products fetch failed', e));
+
+    // 4. Fetch Karigars
+    getKarigars().then(setKarigars).catch(e => console.error('Karigars fetch failed', e));
+    getKarigarBalances().then(setKarigarBalances).catch(e => console.error('Balances fetch failed', e));
+
+    setLoading(false);
   }, []);
 
   useEffect(() => {
     loadData();
 
-    // Live Monitoring Channels
+    // Debounced realtime refresh
+    let refreshTimer: NodeJS.Timeout;
+    const debouncedRefresh = () => {
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(loadData, 1000);
+    };
+
     const ordersChannel = supabase
       .channel('dashboard_order_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        loadData();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, debouncedRefresh)
       .subscribe();
 
     const stockChannel = supabase
       .channel('dashboard_stock_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_transactions' }, () => {
-        loadData();
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'products' }, () => {
-        loadData();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_transactions' }, debouncedRefresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'products' }, debouncedRefresh)
       .subscribe();
 
     return () => {
       supabase.removeChannel(ordersChannel);
       supabase.removeChannel(stockChannel);
+      clearTimeout(refreshTimer);
     };
   }, [loadData]);
 
@@ -169,7 +168,7 @@ export function Dashboard() {
     return [...recentRates].sort((a, b) => new Date(b.rate_date).getTime() - new Date(a.rate_date).getTime()).slice(0, 5);
   }, [recentRates]);
 
-  const handleStatusChange = async (id: string, newStatus: string) => {
+  const handleStatusChange = useCallback(async (id: string, newStatus: string) => {
     // Optimistic Update
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus as any } : o));
     try {
@@ -178,7 +177,7 @@ export function Dashboard() {
       console.error("Failed to update status", err);
       loadData(); // Revert on failure
     }
-  };
+  }, [loadData]);
 
   return (
     <div className="p-4 space-y-6 max-w-7xl mx-auto">

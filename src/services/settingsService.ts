@@ -71,7 +71,7 @@ export async function getSettings<T>(category: SettingsCategory): Promise<T> {
         .select('*')
         .eq('user_id', user.id)
         .eq('category', category)
-        .single()
+        .maybeSingle()
 
     if (error && error.code !== 'PGRST116') { // PGRST116 = not found
         throw error
