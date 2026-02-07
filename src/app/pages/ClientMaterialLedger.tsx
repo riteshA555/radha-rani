@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Plus, Database, Search, History, Loader2, X, Download, Filter, User, ArrowRightLeft, AlertTriangle, Save, Pencil, Calendar } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Tabs } from '../components/ui/tabs';
