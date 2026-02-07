@@ -153,14 +153,31 @@ export function ClientMaterialLedger() {
             resetForm();
 
             // 3. Perform network operations in background
-            if (editing) {
-                await updateClientMaterialTransaction(editing, payload);
-            } else {
-                await addClientMaterialTransaction(payload);
-            }
+            const backgroundOps = async () => {
+                try {
+                    // Auto-Add Base Material Type if it's new
+                    if (formData.base_type) {
+                        const exists = baseMaterialTypes.some(t => t.name.toLowerCase() === formData.base_type.toLowerCase());
+                        if (!exists) {
+                            await createBaseMaterialType(formData.base_type);
+                        }
+                    }
 
-            // 4. Silent refresh in background
-            loadData(true);
+                    if (editing) {
+                        await updateClientMaterialTransaction(editing, payload);
+                    } else {
+                        await addClientMaterialTransaction(payload);
+                    }
+
+                    // 4. Silent refresh in background
+                    loadData(true);
+                } catch (err: any) {
+                    console.error('Background save failed:', err);
+                    alert('Error saving: ' + err.message);
+                }
+            };
+
+            backgroundOps();
         } catch (err: any) {
             console.error('Background save failed:', err);
             // In a real app, we might reopen the modal or show a retry toast
