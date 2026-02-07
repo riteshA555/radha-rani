@@ -12,7 +12,7 @@ import {
 import { getBaseMaterialTypes, createBaseMaterialType, BaseMaterialType } from '../../services/baseMaterialService';
 import { getCustomers, getCustomerList, Customer } from '../../services/contactService';
 import { ClientMaterialTransaction, ClientMaterialBalance, ClientMaterialType, ClientTransactionType } from '../../types';
-import { format } from 'date-fns';
+import { format, parse, isValid } from 'date-fns';
 
 
 // Helper to generate simple random Job ID
@@ -82,6 +82,10 @@ export function ClientMaterialLedger() {
     const [baseSearch, setBaseSearch] = useState('');
     const [baseResults, setBaseResults] = useState<BaseMaterialType[]>([]);
     const [showBaseResults, setShowBaseResults] = useState(false);
+
+    // Hybrid Date States
+    const [dateDisplay, setDateDisplay] = useState(format(new Date(), 'dd-MM-yyyy'));
+    const datePickerRef = useRef<HTMLInputElement>(null);
 
     const loadData = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
@@ -210,6 +214,7 @@ export function ClientMaterialLedger() {
         setShowCustomerResults(false);
         setBaseSearch('');
         setShowBaseResults(false);
+        setDateDisplay(format(new Date(), 'dd-MM-yyyy'));
     };
 
     const handleCustomerSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -251,6 +256,30 @@ export function ClientMaterialLedger() {
         } else {
             setBaseResults([]);
             setShowBaseResults(false);
+        }
+    };
+
+    // Hybrid Date Handlers
+    const handleDateDisplayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setDateDisplay(val);
+
+        // Auto-parse if DD-MM-YYYY format reached
+        if (val.length === 10) {
+            // Support both - and / separators
+            const cleanVal = val.replace(/\//g, '-');
+            const parsedDate = parse(cleanVal, 'dd-MM-yyyy', new Date());
+            if (isValid(parsedDate)) {
+                setForm(prev => ({ ...prev, transaction_date: format(parsedDate, 'yyyy-MM-dd') }));
+            }
+        }
+    };
+
+    const handleDatePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value; // YYYY-MM-DD
+        if (val) {
+            setForm(prev => ({ ...prev, transaction_date: val }));
+            setDateDisplay(format(new Date(val), 'dd-MM-yyyy'));
         }
     };
 
@@ -304,6 +333,7 @@ export function ClientMaterialLedger() {
         });
         setCustomerSearch(transaction.client_name);
         setBaseSearch(baseType);
+        setDateDisplay(format(new Date(transaction.transaction_date), 'dd-MM-yyyy'));
         setEditingId(transaction.id);
         setShowModal(true);
     };
@@ -382,7 +412,7 @@ export function ClientMaterialLedger() {
                 <body>
                     <h1>${title}</h1>
                     <h2>Generated on ${format(new Date(), 'dd MMM yyyy HH:mm')}${filterText}${subFilterText}</h2>
-                    
+
                     ${activeTab === 'STATEMENT' ? `
                         <div class="summary-grid">
                             <div class="summary-box"><div class="summary-label">Total Received</div><div class="summary-value">${totals.received.toFixed(3)} KG</div></div>
@@ -443,7 +473,7 @@ export function ClientMaterialLedger() {
                             </tbody>
                         </table>
                     `}
-                    
+
                     <script>
                         window.onload = () => { window.print(); window.close(); };
                     </script>
@@ -726,20 +756,38 @@ export function ClientMaterialLedger() {
                                             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">Transaction Date</label>
                                             <button
                                                 type="button"
-                                                onClick={() => setForm({ ...form, transaction_date: format(new Date(), 'yyyy-MM-dd') })}
+                                                onClick={() => {
+                                                    const today = new Date();
+                                                    setForm({ ...form, transaction_date: format(today, 'yyyy-MM-dd') });
+                                                    setDateDisplay(format(today, 'dd-MM-yyyy'));
+                                                }}
                                                 className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full"
                                             >
                                                 Today
                                             </button>
                                         </div>
                                         <div className="relative group">
-                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-500 z-10 pointer-events-none" />
+                                            {/* Hidden Date Picker triggered by icon */}
                                             <input
                                                 type="date"
-                                                required
+                                                ref={datePickerRef}
+                                                className="absolute bottom-0 left-0 w-0 h-0 opacity-0 pointer-events-none"
                                                 value={form.transaction_date}
-                                                onChange={(e) => setForm({ ...form, transaction_date: e.target.value })}
-                                                className="w-full pl-11 pr-4 h-12 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+                                                onChange={handleDatePickerChange}
+                                            />
+
+                                            <Calendar
+                                                className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-500 z-10 cursor-pointer hover:text-indigo-600"
+                                                onClick={() => datePickerRef.current?.showPicker?.()}
+                                            />
+
+                                            <input
+                                                type="text"
+                                                required
+                                                value={dateDisplay}
+                                                onChange={handleDateDisplayChange}
+                                                className="w-full h-12 pl-11 pr-4 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 transition-all outline-none"
+                                                placeholder="DD-MM-YYYY"
                                             />
                                         </div>
                                     </div>
