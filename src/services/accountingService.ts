@@ -30,6 +30,10 @@ export interface CustomerLedger {
     credit: number;
     ledger_id: string;
     balance?: number;
+    is_deleted?: boolean;
+    deleted_at?: string;
+    deleted_by?: string;
+    reversal_of?: string;
 }
 
 const CACHE_KEYS = {
@@ -428,4 +432,21 @@ export const deleteLedger = async (id: string, force: boolean = false) => {
 
     if (error) throw error
     cacheStore.invalidate(CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX)
+}
+
+export const deleteTransaction = async (txId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { data, error } = await supabase.rpc('delete_ledger_transaction_atomic', {
+        p_tx_id: txId,
+        p_user_id: user.id
+    });
+
+    if (error) throw error;
+
+    // Invalidate caches
+    cacheStore.invalidatePattern(CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX)
+    cacheStore.invalidate('pl_report')
+    return data;
 }

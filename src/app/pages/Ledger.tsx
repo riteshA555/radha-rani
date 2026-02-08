@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Calendar, Download, Printer, ArrowUpRight, ArrowDownLeft, Wallet, Loader2, X, IndianRupee } from 'lucide-react';
-import { getCustomerStatement, getAssetLedgers, recordPayment, CustomerLedger } from '../../services/accountingService';
+import { Search, Plus, Calendar, Download, Printer, ArrowUpRight, ArrowDownLeft, Wallet, Loader2, X, IndianRupee, Trash2 } from 'lucide-react';
+import { getCustomerStatement, getAssetLedgers, recordPayment, CustomerLedger, deleteTransaction } from '../../services/accountingService';
 import { formatIndianRupees } from '../../shared/utils/formatters';
 import { PageHeader } from '../components/ui/PageHeader';
 
@@ -80,13 +80,26 @@ export function Ledger() {
     }
   };
 
-  const totalDebit = transactions.reduce((sum, t) => sum + Number(t.debit), 0);
-  const totalCredit = transactions.reduce((sum, t) => sum + Number(t.credit), 0);
-  const balance = totalDebit - totalCredit;
+  const handleDelete = async (txId: string) => {
+    if (!window.confirm("Bhai, kya aap waqai is entry ko reverse karna chahte hain? Yeh audit ke liye ek reversal entry post karega.")) return;
+
+    setLoading(true);
+    try {
+      await deleteTransaction(txId);
+      await fetchStatement();
+    } catch (err: any) {
+      alert("Delete failed: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const totalDebit = transactions.filter(t => !t.is_deleted).reduce((sum, t) => sum + Number(t.debit), 0);
+  const totalCredit = transactions.filter(t => !t.is_deleted).reduce((sum, t) => sum + Number(t.credit), 0);
+  const balance = transactions.reduce((sum, t) => sum + (Number(t.debit) - Number(t.credit)), 0);
 
   return (
     <div className="p-4 space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
       {/* Header */}
       <PageHeader
         title="Customer Ledger"
@@ -210,31 +223,52 @@ export function Ledger() {
                       <th className="px-6 py-4 text-right">Debit (Dr)</th>
                       <th className="px-6 py-4 text-right">Credit (Cr)</th>
                       <th className="px-6 py-4 text-right bg-gray-50/60">Balance</th>
+                      <th className="px-6 py-4 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {transactions.length === 0 ? (
-                      <tr><td colSpan={5} className="text-center py-12 text-gray-400 text-sm italic">No transactions found for this period.</td></tr>
+                      <tr><td colSpan={6} className="text-center py-12 text-gray-400 text-sm italic">No transactions found for this period.</td></tr>
                     ) : (
-                      transactions.map((t, idx) => (
-                        <tr key={t.id || idx} className="hover:bg-gray-50/30 transition-colors group">
-                          <td className="px-6 py-4 whitespace-nowrap text-gray-500 font-medium text-xs">
-                            {new Date(t.date).toLocaleDateString()}
-                          </td>
-                          <td className={`px-6 py-4 font-bold text-sm ${t.description === 'Opening Balance' ? 'text-indigo-700 italic' : 'text-gray-900'}`}>
-                            {t.description}
-                          </td>
-                          <td className={`px-6 py-4 text-right font-bold text-sm ${t.debit > 0 ? 'text-indigo-600' : 'text-gray-200'}`}>
-                            {t.debit > 0 ? `₹${formatIndianRupees(Number(t.debit))}` : '-'}
-                          </td>
-                          <td className={`px-6 py-4 text-right font-bold text-sm ${t.credit > 0 ? 'text-emerald-600' : 'text-gray-200'}`}>
-                            {t.credit > 0 ? `₹${formatIndianRupees(Number(t.credit))}` : '-'}
-                          </td>
-                          <td className="px-6 py-4 text-right font-black text-sm text-gray-700 bg-gray-50/30">
-                            ₹{formatIndianRupees(Number(t.balance))}
-                          </td>
-                        </tr>
-                      ))
+                      transactions.map((t, idx) => {
+                        const isReversed = t.is_deleted;
+                        const isReversalEntry = t.reversal_of !== null;
+
+                        return (
+                          <tr key={t.id || idx} className={`hover:bg-gray-50/30 transition-colors group ${isReversed ? 'opacity-40 bg-gray-50/50' : ''}`}>
+                            <td className="px-6 py-4 whitespace-nowrap text-gray-500 font-medium text-xs">
+                              {new Date(t.date).toLocaleDateString()}
+                            </td>
+                            <td className={`px-6 py-4 font-bold text-sm ${t.description.startsWith('Opening Balance') ? 'text-indigo-700 italic' : 'text-gray-900'} ${isReversed ? 'line-through' : ''}`}>
+                              <div className="flex flex-col">
+                                <span>{t.description}</span>
+                                {isReversed && <span className="text-[10px] text-rose-500 font-black uppercase tracking-tighter mt-0.5">REVERSED</span>}
+                                {isReversalEntry && <span className="text-[10px] text-emerald-600 font-black uppercase tracking-tighter mt-0.5">REVERSAL ENTRY</span>}
+                              </div>
+                            </td>
+                            <td className={`px-6 py-4 text-right font-bold text-sm ${t.debit > 0 ? (isReversed ? 'text-gray-400' : 'text-indigo-600') : 'text-gray-200'} ${isReversed ? 'line-through' : ''}`}>
+                              {t.debit > 0 ? `₹${formatIndianRupees(Number(t.debit))}` : '-'}
+                            </td>
+                            <td className={`px-6 py-4 text-right font-bold text-sm ${t.credit > 0 ? (isReversed ? 'text-gray-400' : 'text-emerald-600') : 'text-gray-200'} ${isReversed ? 'line-through' : ''}`}>
+                              {t.credit > 0 ? `₹${formatIndianRupees(Number(t.credit))}` : '-'}
+                            </td>
+                            <td className={`px-6 py-4 text-right font-black text-sm text-gray-700 bg-gray-50/30 ${isReversed ? 'opacity-50' : ''}`}>
+                              ₹{formatIndianRupees(Number(t.balance))}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {!isReversed && !isReversalEntry && (
+                                <button
+                                  onClick={() => handleDelete(t.id)}
+                                  className="p-2 text-gray-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                  title="Reverse Transaction"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -244,11 +278,10 @@ export function Ledger() {
         </>
       )}
 
-      {/* Payment Modal - Full Screen on Mobile, Centered on Desktop */}
+      {/* Payment Modal */}
       {showPayModal && (
         <div className="fixed inset-0 bg-gray-900/60 z-[60] flex items-center justify-center sm:p-4 backdrop-blur-sm">
           <div className="bg-white rounded-none sm:rounded-2xl shadow-xl w-full max-w-sm h-[100dvh] sm:h-auto overflow-hidden flex flex-col border border-gray-100 animate-in slide-in-from-bottom sm:zoom-in duration-300">
-            {/* Header - Fixed on top */}
             <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Receive Payment</h2>
@@ -259,7 +292,6 @@ export function Ledger() {
               </button>
             </div>
 
-            {/* Scrollable Form Body */}
             <form id="payment-form" onSubmit={handlePaymentSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
               <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
                 <label className="block text-[10px] font-bold text-emerald-700 uppercase tracking-widest mb-1.5 ml-1">Amount to Receive (₹)</label>
@@ -308,7 +340,6 @@ export function Ledger() {
               </div>
             </form>
 
-            {/* Footer for Buttons - Anchored at the bottom of the flex-col */}
             <div className="p-6 border-t border-gray-100 bg-white flex gap-3 z-10 safe-pb">
               <button
                 type="button"
