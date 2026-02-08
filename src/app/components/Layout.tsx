@@ -20,7 +20,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-50 overflow-hidden select-none safe-pb">
       {/* Top Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-2 flex items-center justify-between sticky top-0 z-40 h-16 flex-shrink-0 safe-pt box-content">
+      <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-2 flex items-center justify-between sticky top-0 z-40 h-16 flex-shrink-0 safe-pt box-content">
         <div className="flex items-center gap-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -43,7 +43,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
         </div>
         <div className="flex items-center gap-3">
           {/* User Profile & Sign Out - Production Grade */}
-          <div className="flex items-center gap-2 sm:gap-3 mr-1 sm:mr-2 px-2 sm:px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
+          <div className="flex items-center gap-1.5 sm:gap-3 mr-0.5 sm:mr-2 px-1.5 sm:px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
             <div className="flex items-center gap-2">
               <div className="h-7 w-7 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-sm border border-indigo-400">
                 <User size={14} />

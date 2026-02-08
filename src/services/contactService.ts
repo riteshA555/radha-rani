@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { cacheStore } from './cacheStore';
 import { createLedger, deleteLedger, updateLedger } from './accountingService';
 
 export interface Customer {
@@ -36,96 +37,60 @@ export const getCustomerList = async (): Promise<{ id: string, name: string }[]>
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
-    const { data, error } = await supabase
-        .from('ledgers')
-        .select('id, name')
-        .eq('type', 'ASSET')
-        .eq('user_id', user.id)
-        .order('name');
+    return cacheStore.getOrFetch('customer_list_names', async () => {
+        const { data, error } = await supabase
+            .from('ledgers')
+            .select('id, name')
+            .eq('type', 'ASSET')
+            .eq('user_id', user.id)
+            .order('name');
 
-    if (error) throw error;
-    return data || [];
+        if (error) throw error;
+        return data || [];
+    }, 1000 * 60 * 60, true); // 1 hour, persistent
 };
 
 export const getCustomers = async (): Promise<Customer[]> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
-    // 1. Get Asset Ledgers (Customers)
-    const { data: ledgers, error } = await supabase
-        .from('ledgers')
-        .select('id, name, contact_info, address, gst_number, running_balance')
-        .eq('type', 'ASSET')
-        .eq('user_id', user.id)
-        .order('name');
+    return cacheStore.getOrFetch('customers_detailed_list', async () => {
+        const { data, error } = await supabase.rpc('get_customers_overview');
+        if (error) throw error;
 
-    if (error) throw error;
-
-    // 2. Get Stats for each customer
-    const customers = await Promise.all(ledgers.map(async (l: any) => {
-        // Fetch Orders Stats
-        const { data: orders } = await supabase
-            .from('orders')
-            .select('total_amount, order_date')
-            .eq('customer_id', l.id)
-            .eq('user_id', user.id)
-            .order('order_date', { ascending: false });
-
-        const balance = Number(l.running_balance || 0);
-
-        const totalOrders = orders?.length || 0;
-        const totalSpent = orders?.reduce((sum: number, o: any) => sum + Number(o.total_amount || 0), 0) || 0;
-        const lastOrderDate = orders?.[0]?.order_date || '';
-
-        return {
+        return (data || []).map((l: any) => ({
             id: l.id,
             name: l.name,
             phone: l.contact_info || '',
             email: '',
             address: l.address || '',
             gstNumber: l.gst_number,
-            totalOrders,
-            totalSpent,
-            lastOrderDate: lastOrderDate ? new Date(lastOrderDate).toLocaleDateString() : '-',
+            totalOrders: Number(l.total_orders || 0),
+            totalSpent: Number(l.total_spent || 0),
+            lastOrderDate: l.last_order_date ? new Date(l.last_order_date).toLocaleDateString() : '-',
             status: 'active',
-            balance,
-            running_balance: balance
-        } as Customer;
-    }));
-
-    return customers;
+            balance: Number(l.running_balance || 0),
+            running_balance: Number(l.running_balance || 0)
+        } as Customer));
+    }, 1000 * 60 * 30, true); // 30 mins, persistent
 };
 
 export const getVendors = async (): Promise<Vendor[]> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
-    // 1. Get Liability Ledgers (Vendors)
-    const { data: ledgers, error } = await supabase
-        .from('ledgers')
-        .select('id, name, contact_info, address, gst_number')
-        .eq('type', 'LIABILITY')
-        .eq('user_id', user.id)
-        .order('name');
+    return cacheStore.getOrFetch('vendors_list', async () => {
+        // 1. Get Liability Ledgers (Vendors)
+        const { data: ledgers, error } = await supabase
+            .from('ledgers')
+            .select('id, name, contact_info, address, gst_number, running_balance')
+            .eq('type', 'LIABILITY')
+            .eq('user_id', user.id)
+            .order('name');
 
-    if (error) throw error;
+        if (error) throw error;
 
-    // 2. Get Stats
-    const vendors = await Promise.all(ledgers.map(async (l: any) => {
-        // Fetch Ledger Balance
-        const { data: transactions } = await supabase
-            .from('transactions')
-            .select('debit, credit')
-            .eq('ledger_id', l.id)
-            .eq('user_id', user.id);
-
-        const totalDebit = transactions?.reduce((sum: number, t: any) => sum + Number(t.debit || 0), 0) || 0;
-        const totalCredit = transactions?.reduce((sum: number, t: any) => sum + Number(t.credit || 0), 0) || 0;
-
-        // Liability: Credit - Debit = Balance (Payable)
-        const balance = totalCredit - totalDebit;
-
-        return {
+        return (ledgers || []).map((l: any) => ({
             id: l.id,
             name: l.name,
             companyName: l.name,
@@ -134,15 +99,13 @@ export const getVendors = async (): Promise<Vendor[]> => {
             address: l.address || '',
             category: 'Supplier',
             gstNumber: l.gst_number,
-            totalPurchases: 0, // Placeholder
-            totalAmount: 0, // Placeholder
+            totalPurchases: 0,
+            totalAmount: 0,
             lastPurchaseDate: '-',
             status: 'active',
-            balance
-        } as Vendor;
-    }));
-
-    return vendors;
+            balance: Number(l.running_balance || 0)
+        } as Vendor));
+    }, 1000 * 60 * 60, true); // 1 hour, persistent
 };
 
 export const addCustomer = async (customer: Omit<Customer, 'id' | 'totalOrders' | 'totalSpent' | 'lastOrderDate' | 'status' | 'balance' | 'running_balance'> & { openingBalance?: number, openingBalanceType?: 'RECEIVABLE' | 'ADVANCE' }) => {

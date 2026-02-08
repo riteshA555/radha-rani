@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Search, Filter, Calendar, User, Package, IndianRupee, Clock, CheckCircle2, XCircle, ArrowRight, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getOrders } from '../../services/orderService';
@@ -46,21 +46,34 @@ export function Orders() {
     }
   };
 
-  const filteredOrders = orders.filter((order) => {
-    const matchesSearch =
-      order.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      String(order.order_number).includes(searchQuery);
-    const matchesFilter = filterStatus === 'all' || order.status.toLowerCase() === filterStatus.toLowerCase();
-    return matchesSearch && matchesFilter;
-  });
+  const { filteredOrders, statusCounts } = useMemo(() => {
+    const counts = {
+      all: orders.length,
+      pending: 0,
+      'in-production': 0,
+      completed: 0,
+      cancelled: 0,
+    };
 
-  const statusCounts = {
-    all: orders.length,
-    pending: orders.filter((o) => o.status.toLowerCase() === 'pending').length,
-    'in-production': orders.filter((o) => o.status.toLowerCase() === 'in-production').length,
-    completed: orders.filter((o) => o.status.toLowerCase() === 'completed').length,
-    cancelled: orders.filter((o) => o.status.toLowerCase() === 'cancelled').length,
-  };
+    const filtered = orders.filter((order) => {
+      const s = order.status.toLowerCase();
+      if (s === 'pending') counts.pending++;
+      else if (s === 'in-production' || s === 'in production') counts['in-production']++;
+      else if (s === 'completed') counts.completed++;
+      else if (s === 'cancelled') counts.cancelled++;
+
+      const matchesSearch =
+        order.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(order.order_number).includes(searchQuery);
+      const matchesFilter = filterStatus === 'all' || s === filterStatus.toLowerCase();
+      return matchesSearch && matchesFilter;
+    });
+
+    return {
+      filteredOrders: filtered.sort((a: APIOrder, b: APIOrder) => new Date(b.order_date).getTime() - new Date(a.order_date).getTime()),
+      statusCounts: counts
+    };
+  }, [orders, searchQuery, filterStatus]);
 
   const { settings } = useSettings();
   const lang = settings.user_settings?.language || 'en';
@@ -141,26 +154,26 @@ export function Orders() {
               return (
                 <div
                   key={order.id}
-                  className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-all cursor-pointer group hover:border-indigo-100"
+                  className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all cursor-pointer group hover:border-indigo-100"
                   onClick={() => navigate(`/orders/${order.id}`)}
                 >
                   {/* Order Header */}
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start justify-between mb-3 sm:mb-4 gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-1.5">
-                        <h3 className="font-bold text-gray-900 text-sm tracking-tight flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1.5">
+                        <h3 className="font-bold text-gray-900 text-xs sm:text-sm tracking-tight flex items-center gap-1 sm:gap-2">
                           #{order.order_number}
                         </h3>
                         <span
-                          className={`px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-tight ${statusConfig.bgColor} ${statusConfig.textColor} flex items-center gap-1 border border-transparent`}
+                          className={`px-2 py-0.5 text-[9px] sm:text-[10px] font-bold rounded-full uppercase tracking-tight whitespace-nowrap ${statusConfig.bgColor} ${statusConfig.textColor} flex items-center gap-1 border border-transparent`}
                         >
                           {statusConfig.label}
                         </span>
                       </div>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{new Date(order.order_date).toLocaleDateString()}</p>
+                      <p className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-wider">{new Date(order.order_date).toLocaleDateString()}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-base font-bold text-gray-900">
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm sm:text-base font-black text-gray-900">
                         ₹{formatIndianRupees(order.total_amount)}
                       </p>
                     </div>

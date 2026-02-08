@@ -51,6 +51,7 @@ type FormValues = {
     discount_amount?: number
     advance_amount?: number
     payment_mode?: 'CASH' | 'ONLINE' | 'BANK'
+    include_ledger_balance: boolean
 }
 
 export function CreateOrder() {
@@ -116,6 +117,7 @@ export function CreateOrder() {
             order_date: new Date().toISOString().split('T')[0],
             material_type: 'CLIENT',
             gst_enabled: false,
+            include_ledger_balance: true,
             items: []
         }
     })
@@ -495,7 +497,7 @@ export function CreateOrder() {
                 discount_amount: data.discount_amount,
                 delivery_date: data.delivery_date,
                 notes: data.notes
-            }, cleanedItems, data.gst_enabled, gstRateValue, data.advance_amount || 0, data.payment_mode || 'CASH')
+            }, cleanedItems, data.gst_enabled, gstRateValue, data.advance_amount || 0, data.payment_mode || 'CASH', data.include_ledger_balance)
 
             // SHOW SUCCESS MODAL INSTEAD OF NAVIGATING
             setSuccessData({
@@ -1022,7 +1024,7 @@ export function CreateOrder() {
                         </div>
 
                         {/* Totals Footer */}
-                        <div className="bg-gray-50 p-6 border-t border-gray-200 mt-auto">
+                        <div className="bg-white p-6 border-t border-gray-100 mt-auto">
                             <div className="flex flex-col gap-3 mb-6">
                                 {/* Subtotal Row */}
                                 <div className="flex justify-between items-center text-gray-800">
@@ -1076,62 +1078,80 @@ export function CreateOrder() {
                                 </div>
                             </div>
 
-                            {/* Grand Total */}
-                            <div className="border-t border-dashed border-gray-300 pt-4 mb-4">
-                                <div className="flex justify-between items-center mb-3">
-                                    <div className="text-lg font-bold text-gray-700">Grand Total</div>
-                                    <div className="text-3xl font-extrabold text-indigo-600">₹{formatIndianRupees(grandTotal)}</div>
-                                </div>
-
-                                {/* Advance Payment Section - Redesigned for Prominence */}
-                                <div className="bg-gradient-to-br from-indigo-50 to-white p-5 rounded-2xl border-2 border-indigo-100 shadow-sm mt-4 relative overflow-hidden group">
-                                    {/* Background Decorative Icon */}
-                                    <Wallet className="absolute -right-4 -bottom-4 text-indigo-100 opacity-20 group-hover:scale-110 transition-transform" size={100} />
-
-                                    <div className="relative z-10">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <div className="flex flex-col">
-                                                <span className="text-sm font-black text-indigo-900 flex items-center gap-2 italic uppercase tracking-wider">
-                                                    Advance Payment / एडवांस भुगतान
-                                                </span>
-                                                <span className="text-[10px] text-indigo-400 font-bold uppercase">Record partial payment now</span>
+                            {/* Enhanced Professional Summary Card (Light Theme) */}
+                            <div className="bg-white border-2 border-indigo-50 p-6 rounded-[2.5rem] shadow-2xl shadow-indigo-100/40 mt-6 overflow-hidden relative group transition-all hover:shadow-indigo-100/60">
+                                <div className="relative z-10 flex flex-col gap-5">
+                                    {/* Grand Total Row */}
+                                    <div className="flex justify-between items-end border-b border-gray-100 pb-5">
+                                        <div>
+                                            <div className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1 px-1">Grand Total / कुल देय</div>
+                                            <div className="text-4xl font-black tracking-tight text-gray-900">₹{formatIndianRupees(grandTotal)}</div>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-3">
+                                            <div className="flex items-center gap-3 bg-indigo-50/50 px-4 py-2 rounded-full border border-indigo-100/50">
+                                                <input
+                                                    type="checkbox"
+                                                    {...register('include_ledger_balance')}
+                                                    id="incl-bal"
+                                                    className="w-4 h-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer"
+                                                />
+                                                <label htmlFor="incl-bal" className="text-[10px] font-black text-indigo-900 uppercase tracking-wider cursor-pointer hover:text-indigo-600 transition-colors">
+                                                    Include Balance?
+                                                </label>
                                             </div>
                                             <select
                                                 {...register('payment_mode')}
-                                                className="bg-white border-2 border-indigo-200 text-xs font-bold rounded-lg px-3 py-1.5 text-indigo-700 focus:outline-none focus:border-indigo-500 shadow-sm cursor-pointer"
+                                                className="bg-gray-900 border-none text-[10px] font-black rounded-full px-4 py-2 text-white focus:outline-none focus:ring-4 focus:ring-indigo-100 shadow-lg cursor-pointer transition-all hover:scale-105"
                                             >
-                                                <option value="CASH">💵 CASH / नकद</option>
-                                                <option value="ONLINE">📱 ONLINE / ऑनलाइन</option>
-                                                <option value="BANK">🏦 BANK / बैंक</option>
+                                                <option value="CASH">💵 CASH</option>
+                                                <option value="ONLINE">📱 ONLINE</option>
+                                                <option value="BANK">🏦 BANK</option>
                                             </select>
                                         </div>
+                                    </div>
 
-                                        <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm p-3 rounded-xl border border-indigo-100 shadow-inner group-focus-within:border-indigo-400 transition-all">
-                                            <div className="bg-indigo-600 p-2 rounded-lg shadow-md shadow-indigo-200">
-                                                <span className="text-white font-black text-xl leading-none">₹</span>
+                                    {/* Advance Payment Input Integrated */}
+                                    <div className="flex items-center gap-6 py-1">
+                                        <div className="flex-1">
+                                            <div className="text-[11px] font-black text-indigo-400 uppercase tracking-wider mb-2 px-1 text-center sm:text-left">Advance Payment / एडवांस</div>
+                                            <div className="flex items-center gap-3 bg-gray-50 rounded-2xl p-3 border-2 border-transparent focus-within:border-indigo-100 focus-within:bg-white transition-all shadow-inner">
+                                                <div className="bg-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100">
+                                                    <span className="text-white font-black text-xl">₹</span>
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    {...register('advance_amount', { valueAsNumber: true })}
+                                                    className="w-full bg-transparent border-none p-0 text-3xl font-black text-gray-900 focus:ring-0 placeholder-gray-200"
+                                                    placeholder="0.00"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setValue('advance_amount', grandTotal)}
+                                                    className="bg-white hover:bg-gray-900 text-indigo-600 hover:text-white text-[10px] font-black px-4 py-2.5 rounded-xl transition-all border border-indigo-100 hover:border-gray-900 uppercase tracking-widest shadow-sm hover:shadow-md"
+                                                >
+                                                    Full
+                                                </button>
                                             </div>
-                                            <input
-                                                type="number"
-                                                {...register('advance_amount', { valueAsNumber: true })}
-                                                className="w-full bg-transparent border-none p-0 text-gray-900 font-black text-2xl focus:ring-0 placeholder-gray-300"
-                                                placeholder="0.00"
-                                            />
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-3 mt-4">
-                                            <div className="bg-white/60 p-2.5 rounded-xl border border-indigo-50">
-                                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter mb-1">Balance Due / बकाया</div>
-                                                <div className={`text-lg font-black leading-tight ${Math.max(0, grandTotal - (watch('advance_amount') || 0)) > 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
+                                        {/* Status Indicators */}
+                                        <div className="flex flex-col gap-3 min-w-[140px]">
+                                            <div className="bg-gray-50/50 p-3 rounded-2xl border border-gray-100">
+                                                <div className="text-[9px] text-gray-400 font-black uppercase mb-1">Due / बाकी</div>
+                                                <div className={`text-lg font-black tracking-tight ${Math.max(0, grandTotal - (watch('advance_amount') || 0)) > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
                                                     ₹{formatIndianRupees(Math.max(0, grandTotal - (watch('advance_amount') || 0)))}
                                                 </div>
                                             </div>
-
                                             {customerName && savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase()) && (
-                                                <div className="bg-indigo-600/5 p-2.5 rounded-xl border border-indigo-100">
-                                                    <div className="text-[10px] text-indigo-400 font-bold uppercase tracking-tighter mb-1">Final Total Balance</div>
-                                                    <div className="text-lg font-black text-indigo-700 leading-tight">
+                                                <div className="bg-indigo-600 p-3 rounded-2xl border border-indigo-700 shadow-lg shadow-indigo-100">
+                                                    <div className="text-[9px] text-indigo-200 font-black uppercase mb-1">
+                                                        {watch('include_ledger_balance') ? 'Final Balance (Inc. Old)' : 'Bill Balance (Only Today)'}
+                                                    </div>
+                                                    <div className="text-lg font-black text-white tracking-tight">
                                                         ₹{formatIndianRupees(
-                                                            Number(savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance || 0) +
+                                                            (watch('include_ledger_balance')
+                                                                ? Number(savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance || 0)
+                                                                : 0) +
                                                             Number(grandTotal) -
                                                             Number(watch('advance_amount') || 0)
                                                         )}
@@ -1141,6 +1161,7 @@ export function CreateOrder() {
                                         </div>
                                     </div>
                                 </div>
+                                <Wallet className="absolute -right-12 -bottom-12 text-indigo-50/30 -rotate-12 group-hover:scale-110 transition-transform duration-700" size={240} />
                             </div>
 
                             {/* Error Message */}

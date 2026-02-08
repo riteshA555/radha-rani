@@ -1419,7 +1419,13 @@ export function ClientMaterialLedger() {
                         </div>
                         <div className="h-8 w-px bg-gray-700 mx-2" />
                         <button
-                            onClick={() => setShowOrderModal(true)}
+                            onClick={() => {
+                                const firstSelected = transactions.find(t => selectedConsumptions.includes(t.id));
+                                if (firstSelected) {
+                                    setOrderForm(prev => ({ ...prev, customer_name: firstSelected.client_name }));
+                                }
+                                setShowOrderModal(true);
+                            }}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-lg flex items-center gap-2"
                         >
                             <Plus size={18} /> Create Order

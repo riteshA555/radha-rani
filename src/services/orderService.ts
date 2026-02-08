@@ -20,7 +20,7 @@ export const getOrders = async () => {
 
         if (error) throw error
         return data as Order[]
-    })
+    }, 1000 * 60 * 5, true) // 5 mins TTL, persistent
 }
 
 // Updated type definition implicitly via the arguments
@@ -34,7 +34,8 @@ export const createOrder = async (
     gstEnabled: boolean = false,
     gstRate: number = 3,
     advanceAmount: number = 0,
-    paymentMode: string = 'CASH'
+    paymentMode: string = 'CASH',
+    includeLedgerBalance: boolean = true
 ) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
@@ -69,7 +70,8 @@ export const createOrder = async (
         p_delivery_date: order.delivery_date || null,
         p_notes: order.notes || '',
         p_advance_amount: advanceAmount,
-        p_payment_mode: paymentMode
+        p_payment_mode: paymentMode,
+        p_include_ledger_balance: includeLedgerBalance
     })
 
     if (error) {
@@ -133,6 +135,11 @@ export const deleteOrder = async (orderId: string) => {
     const { data, error } = await supabase.rpc('delete_order_atomic', { p_order_id: orderId })
 
     if (error) throw error
+
+    // Check internal success flag from RPC
+    if (data && typeof data === 'object' && 'success' in data && !data.success) {
+        throw new Error((data as any).error || 'Failed to delete order')
+    }
 
     // Invalidate related caches
     cacheStore.invalidate(CACHE_KEYS.ORDERS)
@@ -200,5 +207,5 @@ export const getDashboardKPIs = async () => {
             raw_silver_stock_value: number;
             finished_goods_stock_value: number;
         };
-    }, 1000 * 60 * 1); // 1 minute TTL
+    }, 1000 * 60 * 2, true); // 2 minutes TTL, persistent
 }

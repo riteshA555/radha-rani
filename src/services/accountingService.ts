@@ -123,7 +123,7 @@ export const getPLReport = async (startDate?: string, endDate?: string) => {
             grossProfit,
             netProfit: totalIncome - totalExpenses
         } as PLData
-    })
+    }, 1000 * 60 * 5, true) // 5 mins, persistent
 }
 
 export const getCustomerStatement = async (customerName: string, startDate?: string, endDate?: string) => {
@@ -183,7 +183,7 @@ export const getCustomerStatement = async (customerName: string, startDate?: str
             // If same date, use created_at (descending)
             return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         });
-    })
+    }, 1000 * 60 * 15, true) // 15 mins, persistent
 }
 
 export const getClientStatementReport = async (customerName: string, startDate: string, endDate: string) => {
@@ -251,16 +251,18 @@ export const getAssetLedgers = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
-    // Fetches Customers (Assets) for the dropdown
-    const { data, error } = await supabase
-        .from('ledgers')
-        .select('id, name, contact_info, address, gst_number, credit_limit, payment_terms, running_balance')
-        .eq('type', 'ASSET')
-        .eq('user_id', user.id)
-        .order('name')
+    return cacheStore.getOrFetch('asset_ledgers_list', async () => {
+        // Fetches Customers (Assets) for the dropdown
+        const { data, error } = await supabase
+            .from('ledgers')
+            .select('id, name, contact_info, address, gst_number, credit_limit, payment_terms, running_balance')
+            .eq('type', 'ASSET')
+            .eq('user_id', user.id)
+            .order('name')
 
-    if (error) throw error
-    return data
+        if (error) throw error
+        return data
+    }, 1000 * 60 * 30, true) // 30 mins, persistent
 }
 
 export const recordPayment = async (ledgerId: string, amount: number, mode: string, note: string) => {
@@ -316,16 +318,18 @@ export const getLiabilityLedgers = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
-    // Fetches Vendors (Liabilities)
-    const { data, error } = await supabase
-        .from('ledgers')
-        .select('id, name, contact_info, address, gst_number, running_balance')
-        .eq('type', 'LIABILITY')
-        .eq('user_id', user.id)
-        .order('name')
+    return cacheStore.getOrFetch('liability_ledgers_list', async () => {
+        // Fetches Vendors (Liabilities)
+        const { data, error } = await supabase
+            .from('ledgers')
+            .select('id, name, contact_info, address, gst_number, running_balance')
+            .eq('type', 'LIABILITY')
+            .eq('user_id', user.id)
+            .order('name')
 
-    if (error) throw error
-    return data
+        if (error) throw error
+        return data
+    }, 1000 * 60 * 60, true) // 1 hour, persistent
 }
 
 export const createLedger = async (data: { name: string, type: 'ASSET' | 'LIABILITY' | 'EXPENSE' | 'INCOME', contact_info?: string, address?: string, gst_number?: string, credit_limit?: number, payment_terms?: string }) => {

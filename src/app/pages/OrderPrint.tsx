@@ -37,24 +37,23 @@ export function OrderPrint() {
                     .from('ledgers')
                     .select('running_balance')
                     .eq('name', orderData.customer_name)
-                    .eq('type', 'ASSET')
                     .single();
 
                 const currentBalance = Number(ledgerData?.running_balance || 0);
 
-                // For the printout: 
-                // Final Balance = Current Balance (Live)
-                // Balance Before = Final Balance - Current Order Total + Any Advance paid (since advance also reduced the balance)
-                // Note: This logic assumes we are printing the bill immediately or it's the latest balance context.
-                const finalBalance = currentBalance;
-                const orderTotal = Number(orderData.total_amount || 0);
-                const advanceAmount = Number(orderData.advance_amount || 0);
-                const balanceBefore = finalBalance - orderTotal + advanceAmount;
+                // Use snapshots if available, otherwise fallback to calculation
+                const balanceBefore = orderData.ledger_balance_before !== null && orderData.ledger_balance_before !== undefined
+                    ? Number(orderData.ledger_balance_before)
+                    : (currentBalance - Number(orderData.total_amount || 0) + Number(orderData.advance_amount || 0));
+
+                const balanceAfter = orderData.ledger_balance_after !== null && orderData.ledger_balance_after !== undefined
+                    ? Number(orderData.ledger_balance_after)
+                    : currentBalance;
 
                 setOrder({
                     ...orderData,
                     ledger_balance_before: balanceBefore,
-                    ledger_balance_after: finalBalance
+                    ledger_balance_after: balanceAfter
                 });
 
                 // Fetch Job Work Items for names
@@ -357,20 +356,45 @@ export function OrderPrint() {
 
                         {/* RUNNING BALANCE SUMMARY */}
                         <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '2px solid #111827' }}>
-                            <div style={{ fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', color: '#64748b', marginBottom: '12px', letterSpacing: '1px' }}>Account Summary (खाता विवरण)</div>
+                            <div style={{ fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', color: '#64748b', marginBottom: '12px', letterSpacing: '1px' }}>
+                                {order.include_ledger_balance ? 'Account Summary (खाता विवरण)' : 'Bill Summary (विल विवरण)'}
+                            </div>
                             <div style={{ marginTop: '8px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-                                    <span style={{ color: '#475569', fontWeight: 600 }}>Previous Balance (पिछला बैलेंस):</span>
-                                    <span style={{ fontWeight: 800 }}>₹{formatIndianRupees(Math.abs(Number(order.ledger_balance_before || 0)))} {Number(order.ledger_balance_before || 0) >= 0 ? '(Dr)' : '(Cr)'}</span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-                                    <span style={{ color: '#475569', fontWeight: 600 }}>Current Bill (आज का विल):</span>
-                                    <span style={{ fontWeight: 800 }}>₹{formatIndianRupees(order.total_amount)}</span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#111827', color: 'white', borderRadius: '8px', fontSize: '14px', fontWeight: 900, marginTop: '12px' }}>
-                                    <span>FINAL BALANCE (कुल वाकी):</span>
-                                    <span>₹{formatIndianRupees(Math.abs(Number(order.ledger_balance_after || 0)))}</span>
-                                </div>
+                                {order.include_ledger_balance ? (
+                                    <>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                                            <span style={{ color: '#475569', fontWeight: 600 }}>Previous Balance (पिछला बैलेंस):</span>
+                                            <span style={{ fontWeight: 800 }}>₹{formatIndianRupees(Math.abs(Number(order.ledger_balance_before || 0)))} {Number(order.ledger_balance_before || 0) >= 0 ? '(Dr)' : '(Cr)'}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                                            <span style={{ color: '#475569', fontWeight: 600 }}>Current Bill (आज का विल):</span>
+                                            <span style={{ fontWeight: 800 }}>₹{formatIndianRupees(order.total_amount)}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                                            <span style={{ color: '#475569', fontWeight: 600 }}>Paid Amount (जमा राशि):</span>
+                                            <span style={{ fontWeight: 800, color: '#059669' }}>- ₹{formatIndianRupees(order.advance_amount || 0)}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#111827', color: 'white', borderRadius: '8px', fontSize: '14px', fontWeight: 900, marginTop: '12px' }}>
+                                            <span>FINAL BALANCE (कुल वाकी):</span>
+                                            <span>₹{formatIndianRupees(Math.abs(Number(order.ledger_balance_after || 0)))}</span>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                                            <span style={{ color: '#475569', fontWeight: 600 }}>Bill Total (कुल विल):</span>
+                                            <span style={{ fontWeight: 800 }}>₹{formatIndianRupees(order.total_amount)}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                                            <span style={{ color: '#475569', fontWeight: 600 }}>Paid for this Bill (जमा):</span>
+                                            <span style={{ fontWeight: 800, color: '#059669' }}>₹{formatIndianRupees(order.advance_amount || 0)}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#111827', color: 'white', borderRadius: '8px', fontSize: '14px', fontWeight: 900, marginTop: '12px' }}>
+                                            <span>BALANCE DUE (वाकी):</span>
+                                            <span>₹{formatIndianRupees(Math.max(0, order.total_amount - (order.advance_amount || 0)))}</span>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
 

@@ -14,6 +14,9 @@ export interface Order {
     total_amount: number;
     advance_amount: number;
     payment_mode: 'CASH' | 'ONLINE' | 'BANK';
+    include_ledger_balance?: boolean;
+    ledger_balance_before?: number;
+    ledger_balance_after?: number;
     status: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
     created_at: string;
     updated_at: string;

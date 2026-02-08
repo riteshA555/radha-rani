@@ -27,6 +27,19 @@ body {
     overflow: hidden;
 }
 
+/* Global Responsive Padding Utilities */
+.px-responsive {
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+    .px-responsive {
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+}
+
 .animate-scale-in {
     animation: scaleIn 0.2s ease-out;
 }

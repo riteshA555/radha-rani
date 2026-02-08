@@ -24,48 +24,16 @@ export const getStockSummary = async (currentSilverRate: number): Promise<StockS
     const cacheKey = `${CACHE_KEYS.STOCK_SUMMARY}_${currentSilverRate}`;
 
     return cacheStore.getOrFetch(cacheKey, async () => {
-        // Fetch all transactions for this user
-        const { data, error } = await supabase
-            .from('stock_transactions')
-            .select('item_type, type, quantity, weight_gm')
-            .eq('user_id', user.id)
+        const { data, error } = await supabase.rpc('get_stock_summary_v2', {
+            p_silver_rate: currentSilverRate
+        });
 
-        if (error) throw error
-        // ... logic continues ...
-
-        let raw = 0
-        let wastage = 0
-        let fg_count = 0
-        let fg_weight = 0
-
-        data.forEach((t: any) => {
-            const qty = Number(t.quantity || 0)
-            const weight = Number(t.weight_gm || 0)
-
-            if (t.item_type === 'RAW_SILVER') {
-                if (t.type === 'RAW_IN') raw += qty
-                else if (t.type === 'RAW_OUT' || t.type === 'PRODUCTION' || t.type === 'ADJUSTMENT') raw -= qty
-            } else if (t.item_type === 'WASTAGE') {
-                if (t.type === 'WASTAGE') wastage += qty
-                else if (t.type === 'ADJUSTMENT') wastage -= qty
-            } else if (t.item_type === 'FINISHED_GOODS') {
-                if (t.type === 'PRODUCTION' || t.type === 'RAW_IN') {
-                    fg_count += qty
-                    fg_weight += weight
-                } else if (t.type === 'ORDER_DEDUCTION' || t.type === 'ADJUSTMENT' || t.type === 'RAW_OUT') {
-                    fg_count -= qty
-                    fg_weight -= weight
-                }
-            }
-        })
-
-        return {
-            raw_silver: raw,
-            wastage: wastage,
-            finished_goods_count: fg_count,
-            finished_goods_weight: fg_weight,
-            total_value: (raw + wastage + fg_weight) * (currentSilverRate / 1000)
+        if (error) {
+            console.error('Stock Summary RPC failed:', error);
+            throw error;
         }
+
+        return data as StockSummary;
     }, 1000 * 60 * 10, true) // Persist for 10 mins
 }
 
@@ -134,7 +102,7 @@ export const getStockTransactions = async (itemType?: StockItemType) => {
 
         if (error) throw error
         return data as StockTransaction[]
-    })
+    }, 1000 * 60 * 10, true) // 10 mins, persistent
 }
 
 export const getFinishedGoodsInventory = async () => {
@@ -151,7 +119,7 @@ export const getFinishedGoodsInventory = async () => {
 
         if (error) throw error
         return data as Product[]
-    })
+    }, 1000 * 60 * 30, true) // 30 mins, persistent
 }
 
 // Legacy helpers kept for compatibility

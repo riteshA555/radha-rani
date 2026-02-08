@@ -20,11 +20,12 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
-import { getLatestRates, getRateHistory, MetalRate } from '../../services/rateService';
-import { getMetalInventory, getFinishedGoodsWeight, MetalInventory } from '../../services/inventoryService';
-import { getOrders, updateOrderStatus, getDashboardKPIs } from '../../services/orderService';
-import { getKarigars, getKarigarBalances, Karigar } from '../../services/karigarService';
+import { getDashboardFullData, DashboardCompositeData } from '../../services/dashboardService';
 import { getProducts } from '../../services/productService';
+import { updateOrderStatus } from '../../services/orderService';
+import { MetalRate } from '../../services/rateService';
+import { MetalInventory } from '../../services/inventoryService';
+import { Karigar } from '../../services/karigarService';
 import { Order, Product } from '../../types';
 import { useSettings } from '../../context/SettingsContext';
 import { t } from '../../shared/utils/i18n';
@@ -48,86 +49,83 @@ export function Dashboard() {
   const [showGstCalc, setShowGstCalc] = useState(false);
 
   // Data States
+  const [dashboardData, setDashboardData] = useState<DashboardCompositeData | null>(null);
   const [rate, setRate] = useState<MetalRate | null>(null);
   const [recentRates, setRecentRates] = useState<MetalRate[]>([]);
   const [inventory, setInventory] = useState<MetalInventory[]>([]);
   const [finishedWeight, setFinishedWeight] = useState(0);
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-
-  // New Data States
   const [karigars, setKarigars] = useState<Karigar[]>([]);
   const [karigarBalances, setKarigarBalances] = useState<{ [key: string]: { cash: number, metal: number } }>({});
   const [kpis, setKpis] = useState<any>(null);
 
-  // Granular Fetchers
-  const refreshRates = useCallback(() => {
-    getLatestRates().then(rates => {
-      const silverRate = rates.find(r => r.metal_type === 'SILVER') || null;
-      setRate(silverRate);
-    }).catch(e => console.error('Rate fetch failed', e));
+  const refreshAll = useCallback(async () => {
+    try {
+      const data = await getDashboardFullData();
+      setDashboardData(data);
 
-    getRateHistory().then(hist => {
-      setRecentRates(hist.filter(h => h.metal_type === 'SILVER'));
-    }).catch(e => console.error('History fetch failed', e));
-  }, []);
+      // Map composite data to legacy states for minimal UI change
+      setKpis(data.kpis);
+      setInventory([
+        { id: 'raw', name: 'Raw Silver', weight_gm: data.stock.raw_silver },
+        { id: 'wastage', name: 'Wastage Silver', weight_gm: data.stock.wastage }
+      ]);
+      setFinishedWeight(data.stock.finished_goods_weight);
+      setOrders(data.recent_orders || []);
+      setRecentRates(data.recent_rates || []);
+      setRate({
+        id: 'live',
+        metal_type: 'SILVER',
+        selling_rate: data.live_rate,
+        rate_date: new Date().toISOString(),
+        source: 'Market'
+      } as any);
 
-  const refreshInventory = useCallback(() => {
-    getMetalInventory().then(setInventory).catch(e => console.error('Inventory fetch failed', e));
-    getFinishedGoodsWeight().then(setFinishedWeight).catch(e => console.error('Weight fetch failed', e));
-  }, []);
+      const balances: any = {};
+      data.karigar_overview.forEach(k => {
+        balances[k.id] = { cash: k.current_balance, metal: k.current_metal_balance };
+      });
+      setKarigarBalances(balances);
+      setKarigars(data.karigar_overview);
 
-  const refreshOrders = useCallback(() => {
-    getOrders().then(setOrders).catch(e => console.error('Orders fetch failed', e));
-    getDashboardKPIs().then(setKpis).catch(e => console.error('KPI fetch failed', e));
-  }, []);
+      // Fetch products separately (still 1 extra call, but improved)
+      getProducts().then(setProducts).catch(() => { });
 
-  const refreshProducts = useCallback(() => {
-    getProducts().then(setProducts).catch(e => console.error('Products fetch failed', e));
-  }, []);
-
-  const refreshKarigars = useCallback(() => {
-    getKarigars().then(setKarigars).catch(e => console.error('Karigars fetch failed', e));
-    getKarigarBalances().then(setKarigarBalances).catch(e => console.error('Balances fetch failed', e));
+    } catch (e) {
+      console.error('Core refresh failed', e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    // Initial Load
-    refreshRates();
-    refreshInventory();
-    refreshOrders();
-    refreshProducts();
-    refreshKarigars();
-    setLoading(false);
+    refreshAll();
 
-    // Debounced Refresh Helpers
-    let timerRates: any, timerInv: any, timerOrders: any, timerProducts: any, timerKarigars: any;
-    const dRates = () => { clearTimeout(timerRates); timerRates = setTimeout(refreshRates, 1000); };
-    const dInv = () => { clearTimeout(timerInv); timerInv = setTimeout(refreshInventory, 1000); };
-    const dOrders = () => { clearTimeout(timerOrders); timerOrders = setTimeout(refreshOrders, 1000); };
-    const dProducts = () => { clearTimeout(timerProducts); timerProducts = setTimeout(refreshProducts, 1000); };
-    const dKarigars = () => { clearTimeout(timerKarigars); timerKarigars = setTimeout(refreshKarigars, 1000); };
+    // Debounced Refresh Helper
+    let timer: any;
+    const dRefresh = () => { clearTimeout(timer); timer = setTimeout(refreshAll, 1000); };
 
     const ordersChannel = supabase
       .channel('dashboard_order_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, dOrders)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, dRefresh)
       .subscribe();
 
     const stockChannel = supabase
       .channel('dashboard_stock_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_transactions' }, dInv)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'products' }, dProducts)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_transactions' }, dRefresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'products' }, dRefresh)
       .subscribe();
 
     const ledgerChannel = supabase
       .channel('dashboard_ledger_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ledgers' }, dKarigars)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, dOrders) // Transactions affect KPIs
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ledgers' }, dRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, dRefresh)
       .subscribe();
 
     const rateChannel = supabase
       .channel('dashboard_rate_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'metal_rates' }, dRates)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'metal_rates' }, dRefresh)
       .subscribe();
 
     return () => {
@@ -135,29 +133,15 @@ export function Dashboard() {
       supabase.removeChannel(stockChannel);
       supabase.removeChannel(ledgerChannel);
       supabase.removeChannel(rateChannel);
-      clearTimeout(timerRates); clearTimeout(timerInv); clearTimeout(timerOrders); clearTimeout(timerProducts); clearTimeout(timerKarigars);
+      clearTimeout(timer);
     };
-  }, [refreshRates, refreshInventory, refreshOrders, refreshProducts, refreshKarigars]);
+  }, [refreshAll]);
 
 
   // --- Derived Stats (Memoized) ---
   const stats = useMemo(() => {
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-
-    const monthlyOrders = orders.filter(o => {
-      const d = new Date(o.order_date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    });
-
     const rawSilverWeight = inventory.reduce((sum, item) => sum + (item.weight_gm || 0), 0);
     const totalSilverStockKg = (rawSilverWeight + finishedWeight) / 1000;
-
-    const pendingOrders = orders.filter(o => o.status !== 'Completed');
-    const pendingValue = pendingOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-    const pendingCount = pendingOrders.length;
-
-    const monthlySales = monthlyOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
 
     // Rate Calculations
     const prevRate = recentRates.length > 1 ? (recentRates[recentRates.length - 2].selling_rate * 10) : ((rate?.selling_rate || 0) * 10);
@@ -173,23 +157,15 @@ export function Dashboard() {
       currentRateKg,
       rateChangePercent,
       rateChangeAmt,
-      pendingCount,
-      pendingValue,
-      monthlySales,
-      monthlyOrdersCount: monthlyOrders.length,
+      pendingCount: kpis?.stats_pending_count || 0,
+      pendingValue: kpis?.stats_pending_value || 0,
+      monthlySales: kpis?.stats_monthly_sales || 0,
+      monthlyOrdersCount: kpis?.stats_monthly_count || 0,
       lowStockCount: lowStockItems.length
     };
-  }, [orders, inventory, finishedWeight, recentRates, rate, products]);
+  }, [inventory, finishedWeight, recentRates, rate, products, kpis]);
 
-  const gstPayable = useMemo(() => {
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    const monthlyOrders = orders.filter(o => {
-      const d = new Date(o.order_date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    });
-    return monthlyOrders.reduce((sum, o) => sum + (o.gst_amount || 0), 0);
-  }, [orders]);
+  const gstPayable = useMemo(() => kpis?.stats_monthly_gst || 0, [kpis]);
 
   const recentOrdersSubset = useMemo(() => orders.slice(0, 5), [orders]);
 
@@ -205,9 +181,9 @@ export function Dashboard() {
       await updateOrderStatus(id, newStatus);
     } catch (err) {
       console.error("Failed to update status", err);
-      refreshOrders(); // Revert on failure
+      refreshAll(); // Revert on failure
     }
-  }, [refreshOrders]);
+  }, [refreshAll]);
 
   return (
     <div className="p-4 space-y-6 max-w-7xl mx-auto">
@@ -512,16 +488,16 @@ export function Dashboard() {
 // Components
 
 const KpiCard = ({ label, value, icon, loading, color }: any) => (
-  <div className={`bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-xl hover:shadow-${color}-100/50 transition-all`}>
-    <div className="flex justify-between items-start mb-6">
-      <div className={`p-4 rounded-2xl bg-${color}-50 text-${color}-600 group-hover:scale-110 transition-transform`}>
+  <div className={`bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-xl hover:shadow-${color}-100/50 transition-all`}>
+    <div className="flex justify-between items-start mb-4 sm:mb-6">
+      <div className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-${color}-50 text-${color}-600 group-hover:scale-110 transition-transform`}>
         {icon}
       </div>
     </div>
     <div className="relative z-10">
-      <div className="text-gray-400 text-xs font-black uppercase tracking-[0.1em] mb-2">{label}</div>
+      <div className="text-gray-400 text-[9px] sm:text-xs font-black uppercase tracking-[0.1em] mb-1 sm:mb-2">{label}</div>
       <CardSkeleton loading={loading}>
-        <div className="text-4xl font-black text-gray-900 leading-tight">
+        <div className="text-2xl min-[400px]:text-3xl lg:text-4xl font-black text-gray-900 leading-tight">
           ₹{Math.round(value).toLocaleString()}
         </div>
       </CardSkeleton>

@@ -206,7 +206,7 @@ export const getKarigarBalances = async () => {
             }
         })
         return balances
-    }, 1000 * 60 * 5); // 5 minutes TTL
+    }, 1000 * 60 * 5, true); // 5 minutes TTL, persistent
 }
 
 export const issueMetalToKarigar = async (karigarId: string, weight: number, date: string, note: string) => {
@@ -321,7 +321,7 @@ export const getKarigarStats = async (karigarId: string) => {
             cashBalance: Number(kData.current_balance) || 0,
             metalBalance: Number(kData.current_metal_balance) || 0
         }
-    }, 1000 * 60 * 5); // 5 minutes TTL
+    }, 1000 * 60 * 5, true); // 5 minutes TTL, persistent
 }
 
 export const getKarigarSettlementReport = async (karigarId: string, month: string) => {
