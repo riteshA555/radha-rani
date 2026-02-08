@@ -190,21 +190,23 @@ export const getKarigarBalances = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return {};
 
-    const { data, error } = await supabase
-        .from('karigars')
-        .select('id, current_balance, current_metal_balance')
-        .eq('user_id', user.id)
+    return cacheStore.getOrFetch('karigar_balances', async () => {
+        const { data, error } = await supabase
+            .from('karigars')
+            .select('id, current_balance, current_metal_balance')
+            .eq('user_id', user.id)
 
-    if (error) throw error
+        if (error) throw error
 
-    const balances: { [key: string]: { cash: number, metal: number } } = {}
-    data?.forEach((k: any) => {
-        balances[k.id] = {
-            cash: Number(k.current_balance) || 0,
-            metal: Number(k.current_metal_balance) || 0
-        }
-    })
-    return balances
+        const balances: { [key: string]: { cash: number, metal: number } } = {}
+        data?.forEach((k: any) => {
+            balances[k.id] = {
+                cash: Number(k.current_balance) || 0,
+                metal: Number(k.current_metal_balance) || 0
+            }
+        })
+        return balances
+    }, 1000 * 60 * 5); // 5 minutes TTL
 }
 
 export const issueMetalToKarigar = async (karigarId: string, weight: number, date: string, note: string) => {
@@ -293,31 +295,33 @@ export const getKarigarStats = async (karigarId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const { data: records, error: rError } = await supabase
-        .from('karigar_work_records')
-        .select('amount')
-        .eq('karigar_id', karigarId)
-        .eq('payment_status', 'PENDING')
-        .eq('user_id', user.id)
+    return cacheStore.getOrFetch(`karigar_stats_${karigarId}`, async () => {
+        const { data: records, error: rError } = await supabase
+            .from('karigar_work_records')
+            .select('amount')
+            .eq('karigar_id', karigarId)
+            .eq('payment_status', 'PENDING')
+            .eq('user_id', user.id)
 
-    if (rError) throw rError
+        if (rError) throw rError
 
-    const pendingWork = records.reduce((sum: number, r: any) => sum + Number(r.amount), 0)
+        const pendingWork = records.reduce((sum: number, r: any) => sum + Number(r.amount), 0)
 
-    const { data: kData, error: kError } = await supabase
-        .from('karigars')
-        .select('current_balance, current_metal_balance')
-        .eq('id', karigarId)
-        .eq('user_id', user.id)
-        .single()
+        const { data: kData, error: kError } = await supabase
+            .from('karigars')
+            .select('current_balance, current_metal_balance')
+            .eq('id', karigarId)
+            .eq('user_id', user.id)
+            .single()
 
-    if (kError) throw kError
+        if (kError) throw kError
 
-    return {
-        pendingWork: 0, // In this new model, balance logic is handled by current_balance directly
-        cashBalance: Number(kData.current_balance) || 0,
-        metalBalance: Number(kData.current_metal_balance) || 0
-    }
+        return {
+            pendingWork: 0, // In this new model, balance logic is handled by current_balance directly
+            cashBalance: Number(kData.current_balance) || 0,
+            metalBalance: Number(kData.current_metal_balance) || 0
+        }
+    }, 1000 * 60 * 5); // 5 minutes TTL
 }
 
 export const getKarigarSettlementReport = async (karigarId: string, month: string) => {

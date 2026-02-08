@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Search, Plus, Calendar, Download, Printer, ArrowUpRight, ArrowDownLeft, Wallet, Loader2, X, IndianRupee, Trash2 } from 'lucide-react';
 import { getCustomerStatement, getAssetLedgers, recordPayment, CustomerLedger, deleteTransaction } from '../../services/accountingService';
 import { formatIndianRupees } from '../../shared/utils/formatters';
@@ -20,28 +20,17 @@ export function Ledger() {
   const [submitting, setSubmitting] = useState(false);
   const [payForm, setPayForm] = useState({ amount: '', mode: 'Cash', note: '' });
 
-  useEffect(() => {
-    loadCustomers();
-  }, []);
-
-  useEffect(() => {
-    if (selectedCustomer) {
-      fetchStatement();
-    } else {
-      setTransactions([]);
-    }
-  }, [selectedCustomer, startDate, endDate]);
-
-  const loadCustomers = async () => {
+  const loadCustomers = useCallback(async () => {
     try {
       const data = await getAssetLedgers();
       setCustomers(data || []);
     } catch (err) {
       console.error("Failed to load customers", err);
     }
-  };
+  }, []);
 
-  const fetchStatement = async () => {
+  const fetchStatement = useCallback(async () => {
+    if (!selectedCustomer) return;
     setLoading(true);
     setError('');
     try {
@@ -52,7 +41,19 @@ export function Ledger() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCustomer, startDate, endDate]);
+
+  useEffect(() => {
+    loadCustomers();
+  }, [loadCustomers]);
+
+  useEffect(() => {
+    if (selectedCustomer) {
+      fetchStatement();
+    } else {
+      setTransactions([]);
+    }
+  }, [fetchStatement]);
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,9 +95,13 @@ export function Ledger() {
     }
   };
 
-  const totalDebit = transactions.filter(t => !t.is_deleted).reduce((sum, t) => sum + Number(t.debit), 0);
-  const totalCredit = transactions.filter(t => !t.is_deleted).reduce((sum, t) => sum + Number(t.credit), 0);
-  const balance = transactions.reduce((sum, t) => sum + (Number(t.debit) - Number(t.credit)), 0);
+  const { totalDebit, totalCredit, balance } = useMemo(() => {
+    const activeTx = transactions.filter(t => !t.is_deleted);
+    const debit = activeTx.reduce((sum, t) => sum + Number(t.debit), 0);
+    const credit = activeTx.reduce((sum, t) => sum + Number(t.credit), 0);
+    const bal = transactions.reduce((sum, t) => sum + (Number(t.debit) - Number(t.credit)), 0);
+    return { totalDebit: debit, totalCredit: credit, balance: bal };
+  }, [transactions]);
 
   return (
     <div className="p-4 space-y-6 max-w-7xl mx-auto">

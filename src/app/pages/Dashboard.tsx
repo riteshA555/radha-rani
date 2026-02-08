@@ -60,9 +60,8 @@ export function Dashboard() {
   const [karigarBalances, setKarigarBalances] = useState<{ [key: string]: { cash: number, metal: number } }>({});
   const [kpis, setKpis] = useState<any>(null);
 
-  // Refactored granular data fetching
-  const loadData = useCallback(async () => {
-    // 1. Fetch Rates (Persisted)
+  // Granular Fetchers
+  const refreshRates = useCallback(() => {
     getLatestRates().then(rates => {
       const silverRate = rates.find(r => r.metal_type === 'SILVER') || null;
       setRate(silverRate);
@@ -71,54 +70,64 @@ export function Dashboard() {
     getRateHistory().then(hist => {
       setRecentRates(hist.filter(h => h.metal_type === 'SILVER'));
     }).catch(e => console.error('History fetch failed', e));
+  }, []);
 
-    // 2. Fetch Inventory & finished weight
+  const refreshInventory = useCallback(() => {
     getMetalInventory().then(setInventory).catch(e => console.error('Inventory fetch failed', e));
     getFinishedGoodsWeight().then(setFinishedWeight).catch(e => console.error('Weight fetch failed', e));
+  }, []);
 
-    // 3. Fetch Orders & Products
+  const refreshOrders = useCallback(() => {
     getOrders().then(setOrders).catch(e => console.error('Orders fetch failed', e));
-    getProducts().then(setProducts).catch(e => console.error('Products fetch failed', e));
+    getDashboardKPIs().then(setKpis).catch(e => console.error('KPI fetch failed', e));
+  }, []);
 
-    // 4. Fetch Karigars
+  const refreshProducts = useCallback(() => {
+    getProducts().then(setProducts).catch(e => console.error('Products fetch failed', e));
+  }, []);
+
+  const refreshKarigars = useCallback(() => {
     getKarigars().then(setKarigars).catch(e => console.error('Karigars fetch failed', e));
     getKarigarBalances().then(setKarigarBalances).catch(e => console.error('Balances fetch failed', e));
-
-    getDashboardKPIs().then(setKpis).catch(e => console.error('KPI fetch failed', e));
-
-    setLoading(false);
   }, []);
 
   useEffect(() => {
-    loadData();
+    // Initial Load
+    refreshRates();
+    refreshInventory();
+    refreshOrders();
+    refreshProducts();
+    refreshKarigars();
+    setLoading(false);
 
-    // Debounced realtime refresh
-    let refreshTimer: NodeJS.Timeout;
-    const debouncedRefresh = () => {
-      clearTimeout(refreshTimer);
-      refreshTimer = setTimeout(loadData, 1000);
-    };
+    // Debounced Refresh Helpers
+    let timerRates: any, timerInv: any, timerOrders: any, timerProducts: any, timerKarigars: any;
+    const dRates = () => { clearTimeout(timerRates); timerRates = setTimeout(refreshRates, 1000); };
+    const dInv = () => { clearTimeout(timerInv); timerInv = setTimeout(refreshInventory, 1000); };
+    const dOrders = () => { clearTimeout(timerOrders); timerOrders = setTimeout(refreshOrders, 1000); };
+    const dProducts = () => { clearTimeout(timerProducts); timerProducts = setTimeout(refreshProducts, 1000); };
+    const dKarigars = () => { clearTimeout(timerKarigars); timerKarigars = setTimeout(refreshKarigars, 1000); };
 
     const ordersChannel = supabase
       .channel('dashboard_order_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, debouncedRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, dOrders)
       .subscribe();
 
     const stockChannel = supabase
       .channel('dashboard_stock_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_transactions' }, debouncedRefresh)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'products' }, debouncedRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_transactions' }, dInv)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'products' }, dProducts)
       .subscribe();
 
     const ledgerChannel = supabase
       .channel('dashboard_ledger_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ledgers' }, debouncedRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, debouncedRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ledgers' }, dKarigars)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, dOrders) // Transactions affect KPIs
       .subscribe();
 
     const rateChannel = supabase
       .channel('dashboard_rate_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'metal_rates' }, debouncedRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'metal_rates' }, dRates)
       .subscribe();
 
     return () => {
@@ -126,9 +135,9 @@ export function Dashboard() {
       supabase.removeChannel(stockChannel);
       supabase.removeChannel(ledgerChannel);
       supabase.removeChannel(rateChannel);
-      clearTimeout(refreshTimer);
+      clearTimeout(timerRates); clearTimeout(timerInv); clearTimeout(timerOrders); clearTimeout(timerProducts); clearTimeout(timerKarigars);
     };
-  }, [loadData]);
+  }, [refreshRates, refreshInventory, refreshOrders, refreshProducts, refreshKarigars]);
 
 
   // --- Derived Stats (Memoized) ---
@@ -196,9 +205,9 @@ export function Dashboard() {
       await updateOrderStatus(id, newStatus);
     } catch (err) {
       console.error("Failed to update status", err);
-      loadData(); // Revert on failure
+      refreshOrders(); // Revert on failure
     }
-  }, [loadData]);
+  }, [refreshOrders]);
 
   return (
     <div className="p-4 space-y-6 max-w-7xl mx-auto">

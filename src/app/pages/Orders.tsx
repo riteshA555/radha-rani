@@ -4,6 +4,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { getOrders } from '../../services/orderService';
 import { Order as APIOrder } from '../../types'; // Adjust path if needed
 import { formatIndianRupees } from '../../shared/utils/formatters';
+import { t } from '../../shared/utils/i18n';
+import { useSettings } from '../../context/SettingsContext';
 
 export function Orders() {
   const navigate = useNavigate();
@@ -60,12 +62,15 @@ export function Orders() {
     cancelled: orders.filter((o) => o.status.toLowerCase() === 'cancelled').length,
   };
 
+  const { settings } = useSettings();
+  const lang = settings.user_settings?.language || 'en';
+
   return (
     <div className="p-4 space-y-4 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Orders</h2>
+          <h2 className="text-xl font-bold text-gray-900">{t('orders', lang)}</h2>
           <p className="text-xs text-gray-500 mt-0.5">
             Manage customer orders and track production
           </p>
@@ -74,7 +79,7 @@ export function Orders() {
           to="/orders/create"
           className="hidden lg:flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm text-sm font-bold"
         >
-          <Plus className="w-4 h-4" /> New Order
+          <Plus className="w-4 h-4" /> {t('add_new', lang)}
         </Link>
       </div>
 
@@ -84,7 +89,7 @@ export function Orders() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by customer name or order number..."
+            placeholder={`${t('search', lang)}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -103,7 +108,7 @@ export function Orders() {
                   : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
                   }`}
               >
-                {status === 'all' ? 'All' : status.replace('-', ' ')}
+                {t(status.replace('-', '_') as any, lang)}
                 <span className={`ml-2 px-1.5 py-0.5 rounded-md text-[9px] ${filterStatus === status ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
                   {statusCounts[status] || 0}
                 </span>

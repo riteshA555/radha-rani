@@ -74,6 +74,7 @@ const LayoutWrapper = () => {
           <Route path="orders/:id" element={<OrderPrint />} />
           <Route path="stock" element={<Stock />} />
           <Route path="client-material" element={<ClientMaterialLedger />} />
+          <Route path="accounting" element={<Accounting />} />
           <Route path="customer-payments" element={<CustomerPayments />} />
           <Route path="base-material-types" element={<BaseMaterialTypes />} />
           <Route path="service-master" element={<ServiceMaster />} />

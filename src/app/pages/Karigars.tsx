@@ -33,6 +33,8 @@ import {
 import { getProducts } from '../../services/productService';
 import { formatIndianRupees } from '../../shared/utils/formatters';
 import { Product } from '../../types';
+import { t } from '../../shared/utils/i18n';
+import { useSettings } from '../../context/SettingsContext';
 
 type TabType = 'MASTER' | 'SETTLEMENT';
 
@@ -218,6 +220,9 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
         k.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const { settings } = useSettings();
+    const lang = settings.user_settings?.language || 'en';
+
     return (
         <div className="p-4 space-y-6 max-w-7xl mx-auto pb-24">
             {/* Header */}
@@ -225,7 +230,7 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
                 <div>
                     <h2 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
                         <Briefcase className="w-5 h-5 text-indigo-600" />
-                        Artisan Portal
+                        {t('karigar', lang)}
                     </h2>
                     <p className="text-xs text-gray-500 font-medium tracking-tight">Manage artisans, metal balances, and labor payments</p>
                 </div>
@@ -234,7 +239,7 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
                         onClick={() => { setEditingId(null); setRegisterForm({ name: '', work_type: 'General', rate_type: 'Per KG', default_rate: 0, status: 'ACTIVE', contact_number: '', specialization: '', address: '' }); setShowRegisterModal(true); }}
                         className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-all text-sm font-semibold shadow-sm"
                     >
-                        <Plus className="w-4 h-4" /> Add Artisan
+                        <Plus className="w-4 h-4" /> {t('add_new', lang)}
                     </button>
                 )}
             </div>
@@ -247,7 +252,7 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
                         onClick={() => setActiveTab(tab)}
                         className={`px-6 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${activeTab === tab ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                     >
-                        {tab === 'MASTER' ? 'Artisan Master' : 'Settlement Audit'}
+                        {tab === 'MASTER' ? t('artisan_master', lang) : t('settlement_audit', lang)}
                     </button>
                 ))}
             </div>

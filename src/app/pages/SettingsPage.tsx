@@ -8,6 +8,7 @@ import {
 import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { t } from '../../shared/utils/i18n';
 import { ReAuthModal } from '../components/shared/ReAuthModal';
 import { ImageUpload } from '../../components/shared/ImageUpload';
 import {
@@ -21,22 +22,23 @@ import {
 import { formatIndianRupees } from '../../shared/utils/formatters';
 
 const TABS = [
-  { id: 'business_profile', label: 'Business Profile', icon: Building2, color: 'text-blue-600', bg: 'bg-blue-50', description: 'Company branding & contact' },
-  { id: 'user_settings', label: 'User Preferences', icon: User, color: 'text-indigo-600', bg: 'bg-indigo-50', description: 'Language, theme & display' },
-  { id: 'gst_settings', label: 'Tax & GST', icon: Calculator, color: 'text-emerald-600', bg: 'bg-emerald-50', description: 'GST rates & tax logic' },
-  { id: 'invoice_settings', label: 'Invoicing', icon: FileText, color: 'text-violet-600', bg: 'bg-violet-50', description: 'Invoice prefixes & bank info' },
-  { id: 'inventory_settings', label: 'Inventory', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50', description: 'Stock thresholds & units' },
-  { id: 'pricing_settings', label: 'Pricing & Rates', icon: CreditCard, color: 'text-rose-600', bg: 'bg-rose-50', description: 'Margins & making charges' },
-  { id: 'karigar_settings', label: 'Karigar Settings', icon: HardDrive, color: 'text-cyan-600', bg: 'bg-cyan-50', description: 'Karigar rates & penalties' },
-  { id: 'customer_settings', label: 'Customer Settings', icon: ShieldCheck, color: 'text-green-600', bg: 'bg-green-50', description: 'Credit limits & interest' },
-  { id: 'notification_settings', label: 'Notifications', icon: Bell, color: 'text-orange-600', bg: 'bg-orange-50', description: 'Email & WhatsApp alerts' },
-  { id: 'advanced', label: 'Advanced & Backup', icon: Database, color: 'text-gray-600', bg: 'bg-gray-50', description: 'Data export & factory reset' },
+  { id: 'business_profile', label: 'Business Profile', labelKey: 'business_profile', icon: Building2, color: 'text-blue-600', bg: 'bg-blue-50', description: 'Company branding & contact' },
+  { id: 'user_settings', label: 'User Preferences', labelKey: 'user_preferences', icon: User, color: 'text-indigo-600', bg: 'bg-indigo-50', description: 'Language, theme & display' },
+  { id: 'gst_settings', label: 'Tax & GST', labelKey: 'tax_gst', icon: Calculator, color: 'text-emerald-600', bg: 'bg-emerald-50', description: 'GST rates & tax logic' },
+  { id: 'invoice_settings', label: 'Invoicing', labelKey: 'invoice_settings', icon: FileText, color: 'text-violet-600', bg: 'bg-violet-50', description: 'Invoice prefixes & bank info' },
+  { id: 'inventory_settings', label: 'Inventory', labelKey: 'inventory_stock', icon: Package, color: 'text-amber-600', bg: 'bg-amber-50', description: 'Stock thresholds & units' },
+  { id: 'pricing_settings', label: 'Pricing & Rates', labelKey: 'pricing_rates', icon: CreditCard, color: 'text-rose-600', bg: 'bg-rose-50', description: 'Margins & making charges' },
+  { id: 'karigar_settings', label: 'Karigar Settings', labelKey: 'karigar_settings', icon: HardDrive, color: 'text-cyan-600', bg: 'bg-cyan-50', description: 'Karigar rates & penalties' },
+  { id: 'customer_settings', label: 'Customer Settings', labelKey: 'customer_ledger', icon: ShieldCheck, color: 'text-green-600', bg: 'bg-green-50', description: 'Credit limits & interest' },
+  { id: 'notification_settings', label: 'Notifications', labelKey: 'notifications', icon: Bell, color: 'text-orange-600', bg: 'bg-orange-50', description: 'Email & WhatsApp alerts' },
+  { id: 'advanced', label: 'Advanced & Backup', labelKey: 'advanced_backup', icon: Database, color: 'text-gray-600', bg: 'bg-gray-50', description: 'Data export & factory reset' },
 ];
 
 export function SettingsPage() {
   const { signOut } = useAuth();
-  const navigate = useNavigate();
   const { settings, updateSetting, loading: globalLoading } = useSettings();
+  const lang = settings.user_settings?.language || 'en';
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('business_profile');
   const [saving, setSaving] = useState(false);
   const [showReAuth, setShowReAuth] = useState(false);
@@ -138,8 +140,8 @@ export function SettingsPage() {
             {tab && <tab.icon size={24} />}
           </div>
           <div>
-            <h3 className="text-xl font-bold text-gray-900 leading-tight">{tab?.label}</h3>
-            <p className="text-sm font-medium text-gray-500">{tab?.description}</p>
+            <h3 className="text-lg font-bold text-gray-900 leading-none">{t(tab?.labelKey as any, lang)}</h3>
+            <p className="text-xs text-gray-400 font-medium mt-1">{tab?.description}</p>
           </div>
         </div>
 
@@ -404,22 +406,21 @@ export function SettingsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-shrink-0 lg:w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group ${isActive
-                  ? 'bg-indigo-50 text-indigo-700'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all ${activeTab === tab.id
+                  ? 'bg-white shadow-md shadow-gray-200/50 border border-gray-100'
+                  : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
                   }`}
               >
-                <div className={`p-2 rounded-lg transition-all ${isActive ? 'bg-white shadow-sm text-indigo-600 border border-indigo-100' : 'bg-transparent text-gray-400 group-hover:text-gray-600'}`}>
-                  <Icon size={18} />
+                <div className={`p-2 rounded-xl scale-90 ${activeTab === tab.id ? `${tab.bg} ${tab.color}` : 'bg-gray-50'}`}>
+                  <tab.icon size={18} />
                 </div>
                 <div className="text-left">
-                  <div className="text-sm font-bold tracking-tight">{tab.label}</div>
-                  {!isActive && (
-                    <div className="text-[10px] font-medium text-gray-400">
-                      {tab.description.slice(0, 24)}...
-                    </div>
-                  )}
+                  <p className={`text-xs font-bold leading-none ${activeTab === tab.id ? 'text-gray-900' : 'text-gray-500'}`}>
+                    {t(tab.labelKey as any, lang)}
+                  </p>
+                  <p className="text-[9px] text-gray-400 mt-1 font-medium">{tab.description}</p>
                 </div>
+                {activeTab === tab.id && <ChevronRight size={14} className="ml-auto text-gray-300" />}
               </button>
             )
           })}

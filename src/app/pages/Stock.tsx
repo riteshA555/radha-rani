@@ -9,6 +9,8 @@ import { StockSummary, Product, StockType, StockItemType, StockTransaction } fro
 import { formatIndianRupees } from '../../shared/utils/formatters';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Tabs } from '../components/ui/tabs';
+import { t } from '../../shared/utils/i18n';
+import { useSettings } from '../../context/SettingsContext';
 
 export function Stock() {
   // Data State
@@ -385,7 +387,7 @@ export function Stock() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden animate-in fade-in zoom-in duration-200 border border-gray-100">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Stock Entry</h2>
+                <h2 className="text-xl font-bold text-gray-900">{t('stock_entry', lang)}</h2>
                 <p className="text-sm text-gray-500 font-medium">Record movements for silvers & products</p>
               </div>
               <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -397,9 +399,9 @@ export function Stock() {
               {/* Item Type Selector */}
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { id: 'RAW_SILVER', label: 'Raw Silver', icon: <Database /> },
-                  { id: 'FINISHED_GOODS', label: 'Finished Items', icon: <Package /> },
-                  { id: 'WASTAGE', label: 'Wastage', icon: <Sparkles /> }
+                  { id: 'RAW_SILVER', label: t('raw', lang), icon: <Database /> },
+                  { id: 'FINISHED_GOODS', label: t('finished', lang), icon: <Package /> },
+                  { id: 'WASTAGE', label: t('wastage', lang), icon: <Sparkles /> }
                 ].map(type => (
                   <button
                     key={type.id}

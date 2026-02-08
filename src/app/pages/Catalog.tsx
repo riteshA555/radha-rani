@@ -6,10 +6,12 @@ import { getLatestRates } from '../../services/rateService';
 import { getSettings } from '../../services/settingsService';
 import { GSTSettings, PricingSettings, InventorySettings } from '../../types/settings';
 import { Product, JobWorkItem } from '../../types';
+import { t } from '../../shared/utils/i18n';
+import { useSettings } from '../../context/SettingsContext';
+import { cacheStore } from '../../services/cacheStore';
 import { formatIndianRupees } from '../../shared/utils/formatters';
 import { ImageUpload } from '../../components/shared/ImageUpload';
 import { supabase } from '../../supabaseClient';
-import { cacheStore } from '../../services/cacheStore';
 
 export function Catalog() {
   // Data State
@@ -46,24 +48,43 @@ export function Catalog() {
     image_url: ''
   });
 
-  const loadData = useCallback(async (isInitial = false) => {
-    if (isInitial) setLoading(true);
+  const fetchProducts = useCallback(async () => {
     try {
-      const [p, s, rates, gst, pricing, inv] = await Promise.all([
-        getProducts(),
-        getJobWorkItems(),
-        getLatestRates(),
+      const p = await getProducts();
+      setProducts(p || []);
+    } catch (err) {
+      console.error('Failed to load products', err);
+    }
+  }, []);
+
+  const fetchServices = useCallback(async () => {
+    try {
+      const s = await getJobWorkItems();
+      setServices(s || []);
+    } catch (err) {
+      console.error('Failed to load services', err);
+    }
+  }, []);
+
+  const fetchRates = useCallback(async () => {
+    try {
+      const rates = await getLatestRates();
+      const silver = rates.find(r => r.metal_type === 'SILVER') || null;
+      setSilverRate(silver ? silver.selling_rate : 0);
+    } catch (err) {
+      console.error('Failed to load rates', err);
+    }
+  }, []);
+
+  const fetchSettingsData = useCallback(async (isInitial = false) => {
+    try {
+      const [gst, pricing, inv] = await Promise.all([
         getSettings<GSTSettings>('gst_settings'),
         getSettings<PricingSettings>('pricing_settings'),
         getSettings<InventorySettings>('inventory_settings')
       ]);
-      setProducts(p || []);
-      setServices(s || []);
-      const silverRate = rates.find(r => r.metal_type === 'SILVER') || null;
-      setSilverRate(silverRate ? silverRate.selling_rate : 0);
       setGstSettings(gst);
       setInvSettings(inv);
-
       if (isInitial) {
         setForm((prev: any) => ({
           ...prev,
@@ -72,30 +93,42 @@ export function Catalog() {
         }));
       }
     } catch (err) {
-      console.error('Failed to load catalog', err);
-    } finally {
-      if (isInitial) setLoading(false);
+      console.error('Failed to load settings', err);
     }
   }, []);
+
+  const loadData = useCallback(async (isInitial = false) => {
+    if (isInitial) setLoading(true);
+    await Promise.all([
+      fetchProducts(),
+      fetchServices(),
+      fetchRates(),
+      fetchSettingsData(isInitial)
+    ]);
+    if (isInitial) setLoading(false);
+  }, [fetchProducts, fetchServices, fetchRates, fetchSettingsData]);
 
   useEffect(() => {
     loadData(true);
 
-    // Live Monitoring
+    // Debounced Refresh Helpers
+    let timerProducts: any, timerServices: any, timerRates: any;
+    const dProducts = () => { clearTimeout(timerProducts); timerProducts = setTimeout(fetchProducts, 1000); };
+    const dServices = () => { clearTimeout(timerServices); timerServices = setTimeout(fetchServices, 1000); };
+    const dRates = () => { clearTimeout(timerRates); timerRates = setTimeout(fetchRates, 1000); };
+
     const channel = supabase
-      .channel('catalog_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        loadData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobwork_items' }, () => {
-        loadData();
-      })
+      .channel('catalog_granular_updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, dProducts)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobwork_items' }, dServices)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'metal_rates' }, dRates)
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+      clearTimeout(timerProducts); clearTimeout(timerServices); clearTimeout(timerRates);
     };
-  }, [loadData]);
+  }, [loadData, fetchProducts, fetchServices, fetchRates]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,12 +264,15 @@ export function Catalog() {
     }
   }, [products, services, activeTab, searchQuery]);
 
+  const { settings } = useSettings();
+  const lang = settings.user_settings?.language || 'en';
+
   return (
     <div className="p-4 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Business Catalog</h2>
+          <h2 className="text-xl font-bold text-gray-900">{t('catalog', lang)}</h2>
           <p className="text-xs text-gray-500 mt-0.5">
             Manage products and service rates
           </p>
@@ -253,7 +289,7 @@ export function Catalog() {
             onClick={() => { resetForm(); setShowModal(true); }}
             className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm text-sm font-bold"
           >
-            <Plus className="w-4 h-4" /> Add New {activeTab === 'Products' ? 'Product' : 'Service'}
+            <Plus className="w-4 h-4" /> {t('add_new', lang)} {activeTab === 'Products' ? t('product', lang) : t('services', lang)}
           </button>
         </div>
       </div>
@@ -266,14 +302,14 @@ export function Catalog() {
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'Products' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'
               }`}
           >
-            <Package size={14} /> Products
+            <Package size={14} /> {t('products', lang)}
           </button>
           <button
             onClick={() => setActiveTab('Services')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === 'Services' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'
               }`}
           >
-            <Hammer size={14} /> Services
+            <Hammer size={14} /> {t('services', lang)}
           </button>
         </div>
 
@@ -539,7 +575,7 @@ export function Catalog() {
                   <div className="w-full sm:w-1/3 shrink-0">
                     <ImageUpload
                       currentImageUrl={form.image_url}
-                      onImageUploaded={(url) => setForm({ ...form, image_url: url })}
+                      onImageUploaded={(url: string) => setForm({ ...form, image_url: url })}
                       bucketName="product-images"
                     />
                   </div>
