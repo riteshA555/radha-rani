@@ -12,6 +12,8 @@ export interface Order {
     gst_amount: number;
     subtotal: number;
     total_amount: number;
+    advance_amount: number;
+    payment_mode: 'CASH' | 'ONLINE' | 'BANK';
     status: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
     created_at: string;
     updated_at: string;

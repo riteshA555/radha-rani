@@ -20,6 +20,13 @@ export function Ledger() {
   const [submitting, setSubmitting] = useState(false);
   const [payForm, setPayForm] = useState({ amount: '', mode: 'Cash', note: '' });
 
+  const [showSystemAccounts, setShowSystemAccounts] = useState(false);
+
+  const filteredCustomers = useMemo(() => {
+    if (showSystemAccounts) return customers;
+    return customers.filter(c => c.name !== 'Cash Account');
+  }, [customers, showSystemAccounts]);
+
   const loadCustomers = useCallback(async () => {
     try {
       const data = await getAssetLedgers();
@@ -145,7 +152,15 @@ export function Ledger() {
       {/* Selection & Constraints */}
       <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-1 min-w-[250px] w-full">
-          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Select Customer</label>
+          <div className="flex items-center justify-between ml-1 mb-1.5">
+            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Select Customer</label>
+            <button
+              onClick={() => setShowSystemAccounts(!showSystemAccounts)}
+              className={`text-[9px] font-bold uppercase tracking-tighter px-2 py-0.5 rounded transition-all ${showSystemAccounts ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-400 hover:text-gray-600'}`}
+            >
+              {showSystemAccounts ? 'Hide System A/C' : 'Show All A/C'}
+            </button>
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <select
@@ -154,7 +169,7 @@ export function Ledger() {
               className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 bg-white text-sm font-medium text-gray-700"
             >
               <option value="">-- Choose Customer --</option>
-              {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              {filteredCustomers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
           </div>
         </div>

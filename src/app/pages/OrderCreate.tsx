@@ -12,7 +12,7 @@ import { supabase } from '../../supabaseClient'
 import {
     Trash2, Plus, ShoppingCart, User, Package, Hammer,
     CheckCircle2, AlertTriangle, Loader2, ArrowRight, X, ChevronLeft,
-    Printer, Share2, ExternalLink, MessageCircle
+    Printer, Share2, ExternalLink, MessageCircle, Wallet
 } from 'lucide-react'
 import { formatIndianRupees } from '../../shared/utils/formatters'
 import { useSettings } from '../../context/SettingsContext'
@@ -1083,48 +1083,63 @@ export function CreateOrder() {
                                     <div className="text-3xl font-extrabold text-indigo-600">₹{formatIndianRupees(grandTotal)}</div>
                                 </div>
 
-                                {/* Advance Payment Section */}
-                                <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-sm mt-3">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <span className="text-sm font-semibold text-gray-700">Advance Paid?</span>
-                                        <select
-                                            {...register('payment_mode')}
-                                            className="bg-gray-50 border border-gray-200 text-xs rounded px-2 py-1 text-gray-700 focus:outline-none focus:border-indigo-500"
-                                        >
-                                            <option value="CASH">Cash</option>
-                                            <option value="ONLINE">Online/UPI</option>
-                                            <option value="BANK">Bank Transfer</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <span className="text-gray-400 text-lg">₹</span>
-                                        <input
-                                            type="number"
-                                            {...register('advance_amount', { valueAsNumber: true })}
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-900 font-bold text-lg focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-all placeholder-gray-300"
-                                            placeholder="0.00"
-                                        />
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm border-t border-gray-100 pt-2 mt-2">
-                                        <span className="text-gray-500">Balance Due</span>
-                                        <span className={`font-bold text-lg ${Math.max(0, grandTotal - (watch('advance_amount') || 0)) > 0 ? 'text-red-500' : 'text-green-600'}`}>
-                                            ₹{formatIndianRupees(Math.max(0, grandTotal - (watch('advance_amount') || 0)))}
-                                        </span>
-                                    </div>
+                                {/* Advance Payment Section - Redesigned for Prominence */}
+                                <div className="bg-gradient-to-br from-indigo-50 to-white p-5 rounded-2xl border-2 border-indigo-100 shadow-sm mt-4 relative overflow-hidden group">
+                                    {/* Background Decorative Icon */}
+                                    <Wallet className="absolute -right-4 -bottom-4 text-indigo-100 opacity-20 group-hover:scale-110 transition-transform" size={100} />
 
-                                    {/* AFTER ORDER BALANCE SUMMARY */}
-                                    {customerName && savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase()) && (
-                                        <div className="mt-3 pt-3 border-t border-dashed border-indigo-100 flex justify-between items-center bg-indigo-50/50 -mx-4 px-4 py-2">
-                                            <div className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">After Order Balance</div>
-                                            <div className="text-sm font-black text-indigo-700">
-                                                ₹{formatIndianRupees(
-                                                    Number(savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance || 0) +
-                                                    Number(grandTotal) -
-                                                    Number(watch('advance_amount') || 0)
-                                                )}
+                                    <div className="relative z-10">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-black text-indigo-900 flex items-center gap-2 italic uppercase tracking-wider">
+                                                    Advance Payment / एडवांस भुगतान
+                                                </span>
+                                                <span className="text-[10px] text-indigo-400 font-bold uppercase">Record partial payment now</span>
                                             </div>
+                                            <select
+                                                {...register('payment_mode')}
+                                                className="bg-white border-2 border-indigo-200 text-xs font-bold rounded-lg px-3 py-1.5 text-indigo-700 focus:outline-none focus:border-indigo-500 shadow-sm cursor-pointer"
+                                            >
+                                                <option value="CASH">💵 CASH / नकद</option>
+                                                <option value="ONLINE">📱 ONLINE / ऑनलाइन</option>
+                                                <option value="BANK">🏦 BANK / बैंक</option>
+                                            </select>
                                         </div>
-                                    )}
+
+                                        <div className="flex items-center gap-3 bg-white/80 backdrop-blur-sm p-3 rounded-xl border border-indigo-100 shadow-inner group-focus-within:border-indigo-400 transition-all">
+                                            <div className="bg-indigo-600 p-2 rounded-lg shadow-md shadow-indigo-200">
+                                                <span className="text-white font-black text-xl leading-none">₹</span>
+                                            </div>
+                                            <input
+                                                type="number"
+                                                {...register('advance_amount', { valueAsNumber: true })}
+                                                className="w-full bg-transparent border-none p-0 text-gray-900 font-black text-2xl focus:ring-0 placeholder-gray-300"
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3 mt-4">
+                                            <div className="bg-white/60 p-2.5 rounded-xl border border-indigo-50">
+                                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter mb-1">Balance Due / बकाया</div>
+                                                <div className={`text-lg font-black leading-tight ${Math.max(0, grandTotal - (watch('advance_amount') || 0)) > 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
+                                                    ₹{formatIndianRupees(Math.max(0, grandTotal - (watch('advance_amount') || 0)))}
+                                                </div>
+                                            </div>
+
+                                            {customerName && savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase()) && (
+                                                <div className="bg-indigo-600/5 p-2.5 rounded-xl border border-indigo-100">
+                                                    <div className="text-[10px] text-indigo-400 font-bold uppercase tracking-tighter mb-1">Final Total Balance</div>
+                                                    <div className="text-lg font-black text-indigo-700 leading-tight">
+                                                        ₹{formatIndianRupees(
+                                                            Number(savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance || 0) +
+                                                            Number(grandTotal) -
+                                                            Number(watch('advance_amount') || 0)
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
