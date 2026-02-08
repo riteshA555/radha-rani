@@ -187,22 +187,27 @@ export async function exportFullData(): Promise<string> {
 
     const tables = [
         'settings',
+        'ledgers',
+        'contacts',
+        'karigars',
+        'products',
+        'job_work_items',
+        'base_material_types',
+        'metal_inventory',
+        'metal_rates',
         'orders',
         'order_items',
-        'products',
         'stock_transactions',
         'transactions',
-        'karigars',
         'karigar_work_records',
-        'contacts',
+        'karigar_payments',
         'expenses',
-        'base_material_types',
         'client_raw_material_ledger'
     ]
 
     const fullBackup: any = {
         meta: {
-            version: '2.0',
+            version: '3.0',
             exported_at: new Date().toISOString(),
             user_id: user.id
         },
@@ -223,6 +228,9 @@ export async function exportFullData(): Promise<string> {
         }
     }
 
+    // Update last backup date in settings
+    await updateSettings('system_settings', { lastBackupAt: new Date().toISOString() })
+
     return JSON.stringify(fullBackup, null, 2)
 }
 
@@ -236,18 +244,23 @@ export async function importFullData(jsonData: string): Promise<void> {
         throw new Error('Invalid backup file format')
     }
 
-    // Sequence matters for foreign keys (e.g., Karigars before Work Records, Orders before Items)
+    // Sequence matters for foreign keys
     const tablesInOrder = [
         'settings',
+        'ledgers',
         'contacts',
         'karigars',
         'products',
+        'job_work_items',
         'base_material_types',
+        'metal_inventory',
+        'metal_rates',
         'orders',
         'order_items',
         'stock_transactions',
         'transactions',
         'karigar_work_records',
+        'karigar_payments',
         'expenses',
         'client_raw_material_ledger'
     ]
@@ -256,9 +269,7 @@ export async function importFullData(jsonData: string): Promise<void> {
         const tableData = backup.data[table]
         if (!tableData || !Array.isArray(tableData) || tableData.length === 0) continue
 
-        // Remove ID and created_at if you want to regenerate them, 
-        // but for a perfect clone, we keep IDs and use upsert. 
-        // We MUST ensure user_id is set to the CURRENT user to prevent cross-account injection.
+        // Restore user ownership and IDs
         const cleanedData = tableData.map(row => ({
             ...row,
             user_id: user.id

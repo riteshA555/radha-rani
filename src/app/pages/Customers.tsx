@@ -17,7 +17,7 @@ export function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
-  const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', gstNumber: '' });
+  const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', gstNumber: '', openingBalance: '', openingType: 'RECEIVABLE' });
 
   // Payment Form
   const [payAmount, setPayAmount] = useState('');
@@ -57,7 +57,9 @@ export function Customers() {
       phone: customer.phone,
       email: customer.email,
       address: customer.address,
-      gstNumber: customer.gstNumber || ''
+      gstNumber: customer.gstNumber || '',
+      openingBalance: '',
+      openingType: 'RECEIVABLE'
     });
     setShowModal(true);
   };
@@ -80,12 +82,14 @@ export function Customers() {
           phone: formData.phone,
           email: formData.email,
           address: formData.address,
-          gstNumber: formData.gstNumber
+          gstNumber: formData.gstNumber,
+          openingBalance: Math.abs(Number(formData.openingBalance)) || 0,
+          openingBalanceType: formData.openingType as 'RECEIVABLE' | 'ADVANCE'
         });
       }
       setShowModal(false);
       setEditingCustomer(null);
-      setFormData({ name: '', phone: '', email: '', address: '', gstNumber: '' });
+      setFormData({ name: '', phone: '', email: '', address: '', gstNumber: '', openingBalance: '', openingType: 'RECEIVABLE' });
       loadCustomers();
     } catch (err: any) {
       alert("Failed to save: " + err.message);
@@ -269,7 +273,7 @@ export function Customers() {
 
       {/* Floating Action Button */}
       <button
-        onClick={() => { setEditingCustomer(null); setFormData({ name: '', phone: '', email: '', address: '', gstNumber: '' }); setShowModal(true); }}
+        onClick={() => { setEditingCustomer(null); setFormData({ name: '', phone: '', email: '', address: '', gstNumber: '', openingBalance: '', openingType: 'RECEIVABLE' }); setShowModal(true); }}
         className="fixed bottom-24 right-6 lg:bottom-8 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 flex items-center justify-center z-20"
       >
         <Plus className="w-6 h-6" />
@@ -303,6 +307,35 @@ export function Customers() {
                   <input type="text" value={formData.gstNumber} onChange={e => setFormData({ ...formData, gstNumber: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-medium text-gray-700 outline-none uppercase" placeholder="GSTIN" />
                 </div>
               </div>
+
+              {!editingCustomer && (
+                <div className="grid grid-cols-2 gap-4 border-l-4 border-indigo-500 bg-indigo-50/30 p-4 rounded-xl">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Opening Balance (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.openingBalance}
+                      onChange={e => setFormData({ ...formData, openingBalance: e.target.value })}
+                      className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-bold text-indigo-600 outline-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Balance Type</label>
+                    <select
+                      value={formData.openingType}
+                      onChange={e => setFormData({ ...formData, openingType: e.target.value })}
+                      className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-bold text-gray-700 outline-none"
+                    >
+                      <option value="RECEIVABLE">Receivable (Due)</option>
+                      <option value="ADVANCE">Advance (Credit)</option>
+                    </select>
+                  </div>
+                  <p className="col-span-2 text-[9px] text-gray-400 mt-1 ml-1 leading-tight uppercase font-bold tracking-tighter">Initial amount outstanding when starting system</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Address</label>
                 <textarea value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-medium text-gray-700 outline-none" rows={3} placeholder="Full communication address..." />

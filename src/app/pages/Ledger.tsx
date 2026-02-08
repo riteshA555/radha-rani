@@ -164,22 +164,33 @@ export function Ledger() {
       {selectedCustomer && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <LedgerSummaryCard
-              label="Total Billed (Dr)"
+              label="Opening Bal"
+              value={`₹${formatIndianRupees(Math.abs(transactions.find(t => t.description === 'Opening Balance')?.balance || 0))}`}
+              icon={<ArrowUpRight className="w-5 h-5 text-gray-400" />}
+              statusText={(() => {
+                const ob = transactions.find(t => t.description === 'Opening Balance');
+                if (!ob) return 'N/A';
+                return (ob.debit > 0) ? 'Receivable' : 'Advance';
+              })()}
+            />
+            <LedgerSummaryCard
+              label="Billed (Dr)"
               value={`₹${formatIndianRupees(totalDebit)}`}
               icon={<ArrowUpRight className="w-5 h-5 text-indigo-600" />}
             />
             <LedgerSummaryCard
-              label="Total Received (Cr)"
+              label="Received (Cr)"
               value={`₹${formatIndianRupees(totalCredit)}`}
               icon={<ArrowDownLeft className="w-5 h-5 text-emerald-600" />}
             />
             <LedgerSummaryCard
-              label="Balance Due"
-              value={`₹${formatIndianRupees(balance)}`}
+              label="Current Balance"
+              value={`₹${formatIndianRupees(Math.abs(balance))}`}
               icon={<Wallet className="w-5 h-5 text-amber-600" />}
               isWarning={balance > 0}
+              statusText={balance > 0 ? 'Receivable' : 'Advance'}
             />
           </div>
 
@@ -210,7 +221,7 @@ export function Ledger() {
                           <td className="px-6 py-4 whitespace-nowrap text-gray-500 font-medium text-xs">
                             {new Date(t.date).toLocaleDateString()}
                           </td>
-                          <td className="px-6 py-4 font-bold text-gray-900 text-sm">
+                          <td className={`px-6 py-4 font-bold text-sm ${t.description === 'Opening Balance' ? 'text-indigo-700 italic' : 'text-gray-900'}`}>
                             {t.description}
                           </td>
                           <td className={`px-6 py-4 text-right font-bold text-sm ${t.debit > 0 ? 'text-indigo-600' : 'text-gray-200'}`}>
@@ -323,15 +334,15 @@ export function Ledger() {
   );
 }
 
-const LedgerSummaryCard = ({ label, value, icon, isWarning }: { label: string, value: string, icon: React.ReactNode, isWarning?: boolean }) => (
+const LedgerSummaryCard = ({ label, value, icon, isWarning, statusText }: { label: string, value: string, icon: React.ReactNode, isWarning?: boolean, statusText?: string }) => (
   <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
     <div className="flex justify-between items-start mb-4">
       <div className="p-2.5 rounded-lg bg-gray-50 text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
         {icon}
       </div>
-      {isWarning && (
-        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 uppercase tracking-wider border border-amber-100">
-          Due
+      {(isWarning || statusText) && (
+        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border ${isWarning ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
+          {statusText || (isWarning ? 'Due' : 'Advance')}
         </span>
       )}
     </div>

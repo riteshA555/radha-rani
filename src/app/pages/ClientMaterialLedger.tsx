@@ -10,16 +10,28 @@ import {
     deleteClientMaterialTransaction
 } from '../../services/clientMaterialService';
 import { getBaseMaterialTypes, createBaseMaterialType, BaseMaterialType } from '../../services/baseMaterialService';
+import { getProducts } from '../../services/productService';
+import { getJobWorkItems } from '../../services/jobWorkService';
 import { getCustomers, getCustomerList, Customer } from '../../services/contactService';
-import { ClientMaterialTransaction, ClientMaterialBalance, ClientMaterialType, ClientTransactionType } from '../../types';
+import { ClientMaterialTransaction, ClientMaterialBalance, ClientMaterialType, ClientTransactionType, Product, JobWorkItem } from '../../types';
+import { useNavigate } from 'react-router-dom';
+import { useSettings } from '../../context/SettingsContext';
 import { format, parse, isValid } from 'date-fns';
 
 
 // Helper to generate simple random Job ID
 const generateJobId = () => `ORD-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
-const SummaryCard = ({ title, value, subTitle, icon, color }: any) => {
-    const colorMap: any = {
+interface SummaryCardProps {
+    title: string;
+    value: string;
+    subTitle?: string;
+    icon: React.ReactNode;
+    color: 'indigo' | 'emerald' | 'rose' | 'blue';
+}
+
+const SummaryCard = ({ title, value, subTitle, icon, color }: SummaryCardProps) => {
+    const colorMap = {
         indigo: { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100' },
         emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
         rose: { bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100' },
@@ -45,11 +57,17 @@ const SummaryCard = ({ title, value, subTitle, icon, color }: any) => {
     );
 };
 
+interface CustomerResult {
+    id: string;
+    name: string;
+    phone?: string;
+}
+
 export function ClientMaterialLedger() {
     const [transactions, setTransactions] = useState<ClientMaterialTransaction[]>([]);
     const [balances, setBalances] = useState<ClientMaterialBalance[]>([]);
     const [baseMaterialTypes, setBaseMaterialTypes] = useState<BaseMaterialType[]>([]);
-    const [customers, setCustomers] = useState<{ id: string, name: string }[]>([]);
+    const [customers, setCustomers] = useState<{ id: string, name: string, phone?: string }[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'STATEMENT' | 'HISTORY'>('STATEMENT');
     const [historySubFilter, setHistorySubFilter] = useState<'ALL' | 'RECEIPT' | 'CONSUMPTION' | 'LOSS'>('ALL');
@@ -57,10 +75,22 @@ export function ClientMaterialLedger() {
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const navigate = useNavigate();
+    const { settings } = useSettings();
+
+    // Integration States
+    const [products, setProducts] = useState<Product[]>([]);
+    const [jobWorkItems, setJobWorkItems] = useState<JobWorkItem[]>([]);
+    const [selectedConsumptions, setSelectedConsumptions] = useState<string[]>([]);
+    const [showOrderModal, setShowOrderModal] = useState(false);
+    const [orderForm, setOrderForm] = useState({
+        customer_name: '',
+        order_date: format(new Date(), 'yyyy-MM-dd')
+    });
 
     // Filter states for Customer Search
     const [customerSearch, setCustomerSearch] = useState('');
-    const [customerResults, setCustomerResults] = useState<{ id: string, name: string, phone: string }[]>([]);
+    const [customerResults, setCustomerResults] = useState<CustomerResult[]>([]);
     const [showCustomerResults, setShowCustomerResults] = useState(false);
 
     const [form, setForm] = useState({
@@ -76,7 +106,10 @@ export function ClientMaterialLedger() {
         reason: '',
         job_work_order_id: generateJobId(),
         manual_client_entry: false,
-        material_type_id: ''
+        material_type_id: '',
+        product_id: '',
+        pcs: '',
+        pcs_work_type: 'None'
     });
 
     const [baseSearch, setBaseSearch] = useState('');
@@ -90,7 +123,7 @@ export function ClientMaterialLedger() {
     const loadData = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
         // Load each independently so one failure doesn't block the whole page
-        const safeFetch = async (fn: () => Promise<any>, setter: (data: any) => void, name: string) => {
+        const safeFetch = async <T,>(fn: () => Promise<T>, setter: (data: T) => void, name: string) => {
             try {
                 const data = await fn();
                 setter(data);
@@ -100,10 +133,12 @@ export function ClientMaterialLedger() {
         };
 
         const promises = [
-            safeFetch(getClientMaterialTransactions, setTransactions, 'Transactions'),
-            safeFetch(getClientMaterialBalances, setBalances, 'Balances'),
-            safeFetch(getBaseMaterialTypes, setBaseMaterialTypes, 'Base Materials'),
-            safeFetch(getCustomerList, setCustomers, 'Customers')
+            safeFetch(getClientMaterialTransactions, (data) => setTransactions(data), 'Transactions'),
+            safeFetch(getClientMaterialBalances, (data) => setBalances(data), 'Balances'),
+            safeFetch(getBaseMaterialTypes, (data) => setBaseMaterialTypes(data), 'Base Materials'),
+            safeFetch(getProducts, (data) => setProducts(data), 'Products'),
+            safeFetch(getCustomerList, (data) => setCustomers(data), 'Customers'),
+            safeFetch(getJobWorkItems, (data) => setJobWorkItems(data), 'Job Work Items')
         ];
 
         await Promise.all(promises);
@@ -149,7 +184,10 @@ export function ClientMaterialLedger() {
                 transaction_date: formData.transaction_date,
                 remarks: finalRemarks,
                 reason: formData.transaction_type === 'LOSS' ? formData.reason : undefined,
-                job_work_order_id: formData.job_work_order_id || undefined
+                job_work_order_id: formData.job_work_order_id || undefined,
+                product_id: formData.product_id || undefined,
+                pcs: formData.pcs ? Number(formData.pcs) : undefined,
+                pcs_work_type: formData.pcs_work_type || 'None'
             };
 
             // 2. CLOSE MODAL IMMEDIATELY - "Na ke barabar" loading feel
@@ -207,7 +245,10 @@ export function ClientMaterialLedger() {
             reason: '',
             job_work_order_id: generateJobId(),
             manual_client_entry: false,
-            material_type_id: ''
+            material_type_id: '',
+            product_id: '',
+            pcs: '',
+            pcs_work_type: 'None'
         });
         setEditingId(null);
         setCustomerSearch('');
@@ -223,7 +264,7 @@ export function ClientMaterialLedger() {
         setForm(prev => ({ ...prev, client_name: query, client_id: '' })); // Reset ID if typing manually
 
         if (query.length > 0) {
-            const filtered = (customers as any[]).filter(c =>
+            const filtered = customers.filter(c =>
                 c.name.toLowerCase().includes(query.toLowerCase()) ||
                 (c.phone && c.phone.includes(query))
             );
@@ -238,20 +279,20 @@ export function ClientMaterialLedger() {
     const handleBaseSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         const query = e.target.value;
         setBaseSearch(query);
-        setForm(prev => ({ ...prev, base_type: query, material_type_id: '' }));
+        setForm(prev => ({ ...prev, base_type: query, product_id: '' }));
 
         if (query.length > 0) {
-            const currentType = form.transaction_type;
-            const filtered = baseMaterialTypes.filter(m => {
-                const matchesSearch = m.name.toLowerCase().includes(query.toLowerCase());
-                // Filter by usage_type: Show if BOTH or matching the current transaction type
-                const matchesType = m.usage_type === 'BOTH' ||
-                    (currentType === 'RECEIPT' && m.usage_type === 'RECEIPT') ||
-                    (currentType !== 'RECEIPT' && m.usage_type === 'CONSUMPTION');
+            // Priority 1: Search in Products (Catalog)
+            const matchedProducts = products.filter((p: Product) =>
+                p.name.toLowerCase().includes(query.toLowerCase()) ||
+                p.category.toLowerCase().includes(query.toLowerCase())
+            );
 
-                return matchesSearch && matchesType;
-            });
-            setBaseResults(filtered);
+            // Priority 2: Search in Legacy Base Material Types (for backwards compatibility if needed, or just use Products as source)
+            // The request said: Replace FROM base_material_types TO products table.
+            // So I will primarily show Products.
+
+            setBaseResults(matchedProducts as any); // Cast as any for autocomplete compatibility since baseResults is BaseMaterialType[]
             setShowBaseResults(true);
         } else {
             setBaseResults([]);
@@ -303,6 +344,119 @@ export function ClientMaterialLedger() {
         }
     };
 
+    const handleToggleSelection = (id: string) => {
+        setSelectedConsumptions((prev: string[]) =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    const handleCreateOrder = () => {
+        if (selectedConsumptions.length === 0) return;
+
+        // Map selected consumptions to Order Items
+        const selectedItems = transactions.filter((t: ClientMaterialTransaction) => selectedConsumptions.includes(t.id));
+
+        // Prepare prefilled data
+        interface PrefilledOrderItem {
+            description: string;
+            quantity: number;
+            unit: string;
+            rate: number;
+            product_id?: string;
+            item_type: 'PRODUCT' | 'SERVICE';
+        }
+        const prefilledItems: PrefilledOrderItem[] = [];
+        let errorMsg = '';
+
+        const findService = (target: string) => {
+            if (!target || target === 'None') return null;
+            const cleanTarget = target.toLowerCase().trim();
+            const baseTarget = cleanTarget.replace(/\s*\(.*\)/g, '').trim(); // Remove (Diamond Cutting) etc.
+
+            return jobWorkItems.find((s: JobWorkItem) => {
+                const sName = s.name.toLowerCase().trim();
+                return (
+                    sName === cleanTarget ||
+                    sName === `${cleanTarget} work` ||
+                    sName === baseTarget ||
+                    sName === `${baseTarget} work`
+                );
+            });
+        };
+
+        for (const item of selectedItems) {
+            const baseMaterial = item.remarks?.split(' - ')[0] || '';
+            const pcsWorkType = item.pcs_work_type || 'None';
+
+            // A) KG based item (Skip if Spring Locket Labour)
+            if (item.quantity > 0 && pcsWorkType !== 'Spring Locket Labour') {
+                if (!baseMaterial) {
+                    errorMsg = `Base material missing for a selected row.`;
+                    break;
+                }
+                const service = findService(baseMaterial);
+
+                if (!service) {
+                    errorMsg = `Service NOT FOUND in catalogue for: ${baseMaterial}`;
+                    break;
+                }
+                if (!service.default_rate || parseFloat(service.default_rate.toString()) === 0) {
+                    errorMsg = `Rate is ZERO or MISSING for service: ${service.name}. Please set rate in Service Catalogue.`;
+                    break;
+                }
+                prefilledItems.push({
+                    description: baseMaterial,
+                    quantity: item.quantity,
+                    unit: 'KG',
+                    rate: service.default_rate,
+                    product_id: item.product_id,
+                    item_type: 'PRODUCT'
+                });
+            }
+
+            // B) PCS based item (If PCS > 0 and Work Type selected)
+            if (item.pcs && item.pcs > 0 && pcsWorkType !== 'None') {
+                const service = findService(pcsWorkType);
+
+                if (!service) {
+                    errorMsg = `PCS Work Type NOT FOUND in catalogue: ${pcsWorkType}`;
+                    break;
+                }
+                if (!service.default_rate || parseFloat(service.default_rate.toString()) === 0) {
+                    errorMsg = `Rate is ZERO or MISSING for PCS Work: ${service.name}. Please set rate in Service Catalogue.`;
+                    break;
+                }
+                prefilledItems.push({
+                    description: `${pcsWorkType}${baseMaterial ? ' - ' + baseMaterial : ''}`,
+                    quantity: item.pcs,
+                    unit: 'PCS',
+                    rate: service.default_rate,
+                    product_id: item.product_id,
+                    item_type: 'PRODUCT'
+                });
+            }
+        }
+
+        if (errorMsg) {
+            alert(errorMsg);
+            return;
+        }
+
+        // Use the first item's customer if available
+        const customerName = orderForm.customer_name || selectedItems[0]?.client_name;
+
+        navigate('/orders/create', {
+            state: {
+                prefilled: {
+                    customer_name: customerName,
+                    order_date: orderForm.order_date,
+                    material_type: 'CLIENT',
+                    items: prefilledItems
+                }
+            }
+        });
+    };
+
     // Helper for manual gram conversion
     const convertToKg = () => {
         const val = parseFloat(form.quantity);
@@ -318,7 +472,7 @@ export function ClientMaterialLedger() {
         const manual = parts.slice(2).join(' - ') || '';
 
         // Try to find material_type_id from baseMaterialTypes
-        const materialMatch = baseMaterialTypes.find(m => m.name.toLowerCase() === baseType.toLowerCase());
+        const materialMatch = baseMaterialTypes.find((m: BaseMaterialType) => m.name.toLowerCase() === baseType.toLowerCase());
 
         setForm({
             client_name: transaction.client_name,
@@ -333,7 +487,10 @@ export function ClientMaterialLedger() {
             reason: transaction.reason || '',
             job_work_order_id: transaction.job_work_order_id || generateJobId(),
             manual_client_entry: false,
-            material_type_id: materialMatch?.id || ''
+            material_type_id: materialMatch?.id || '',
+            product_id: transaction.product_id || '',
+            pcs: transaction.pcs?.toString() || '',
+            pcs_work_type: transaction.pcs_work_type || 'None'
         });
         setCustomerSearch(transaction.client_name);
         setBaseSearch(baseType);
@@ -362,11 +519,11 @@ export function ClientMaterialLedger() {
     }, [balances]);
 
     const filteredBalances = useMemo(() =>
-        balances.filter(b => b.client_name.toLowerCase().includes(searchQuery.toLowerCase())),
+        balances.filter((b: ClientMaterialBalance) => b.client_name.toLowerCase().includes(searchQuery.toLowerCase())),
         [balances, searchQuery]);
 
     const filteredTransactions = useMemo(() =>
-        transactions.filter(t => {
+        transactions.filter((t: ClientMaterialTransaction) => {
             const matchesSearch = t.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 t.remarks?.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesFilter = historySubFilter === 'ALL' || t.transaction_type === historySubFilter;
@@ -387,99 +544,283 @@ export function ClientMaterialLedger() {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
-        const title = `Client Material Ledger - ${activeTab === 'STATEMENT' ? 'Balance Statement' : 'History Log'}`;
-        const filterText = searchQuery ? ` | Search: ${searchQuery}` : '';
-        const subFilterText = activeTab === 'HISTORY' && historySubFilter !== 'ALL' ? ` | Filter: ${historySubFilter}` : '';
+        const business = settings.business_profile;
+        const title = activeTab === 'STATEMENT' ? 'Client Balance Statement' : 'Client Material History Log';
+        const dateStr = format(new Date(), 'dd MMMM yyyy, HH:mm');
 
         const html = `
+            <!DOCTYPE html>
             <html>
                 <head>
                     <title>${title}</title>
                     <style>
-                        body { font-family: sans-serif; padding: 20px; color: #333; }
-                        h1 { font-size: 24px; margin-bottom: 5px; }
-                        h2 { font-size: 16px; color: #666; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 12px; }
-                        th { bg-color: #f9f9f9; font-weight: bold; }
+                        @page { size: A4; margin: 20mm; }
+                        body { 
+                            font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+                            color: #1f2937; 
+                            line-height: 1.5;
+                            margin: 0;
+                            background: white;
+                        }
+                        .container { max-width: 100%; margin: 0 auto; }
+                        
+                        /* Header Section */
+                        .header { 
+                            display: flex; 
+                            justify-content: space-between; 
+                            align-items: flex-start; 
+                            border-bottom: 2px solid #e5e7eb;
+                            padding-bottom: 20px;
+                            margin-bottom: 30px;
+                        }
+                        .biz-info h1 { 
+                            font-size: 24px; 
+                            font-weight: 800; 
+                            margin: 0; 
+                            color: #111827;
+                            text-transform: uppercase;
+                            letter-spacing: -0.025em;
+                        }
+                        .biz-details { font-size: 11px; color: #4b5563; margin-top: 4px; max-width: 300px; }
+                        .doc-info { text-align: right; }
+                        .doc-info h2 { font-size: 16px; margin: 0; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.05em; }
+                        .doc-info p { font-size: 11px; margin: 4px 0 0; color: #6b7280; }
+
+                        /* Recipient Section */
+                        .info-grid { 
+                            display: grid; 
+                            grid-template-cols: 1fr 1fr; 
+                            gap: 40px; 
+                            margin-bottom: 30px; 
+                        }
+                        .info-block h3 { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #9ca3af; margin: 0 0 8px; border-bottom: 1px solid #f3f4f6; padding-bottom: 4px; }
+                        .info-content { font-size: 13px; font-weight: 600; }
+                        .info-sub { font-size: 11px; color: #6b7280; font-weight: 400; margin-top: 2px; }
+
+                        /* Table Section */
+                        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                        th { 
+                            background: #f9fafb; 
+                            font-size: 10px; 
+                            font-weight: 700; 
+                            text-transform: uppercase; 
+                            color: #4b5563; 
+                            text-align: left; 
+                            padding: 12px 10px;
+                            border-bottom: 2px solid #e5e7eb;
+                        }
+                        td { 
+                            padding: 10px; 
+                            font-size: 11px; 
+                            border-bottom: 1px solid #f3f4f6; 
+                            vertical-align: middle;
+                        }
+                        tr:last-child td { border-bottom: 2px solid #e5e7eb; }
                         .text-right { text-align: right; }
-                        .summary-grid { display: grid; grid-template-cols: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
-                        .summary-box { border: 1px solid #eee; padding: 10px; border-radius: 8px; }
-                        .summary-label { font-size: 10px; text-transform: uppercase; color: #888; margin-bottom: 5px; }
-                        .summary-value { font-size: 16px; font-weight: bold; }
-                        .badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
-                        .badge-receipt { background: #eff6ff; color: #1e40af; }
-                        .badge-consumption { background: #ecfdf5; color: #065f46; }
-                        .badge-loss { background: #fff1f2; color: #9f1239; }
+                        .font-bold { font-weight: 700; }
+
+                        /* Transaction Badges */
+                        .badge { 
+                            padding: 2px 6px; 
+                            border-radius: 4px; 
+                            font-size: 9px; 
+                            font-weight: 700; 
+                            text-transform: uppercase;
+                        }
+                        .badge-receipt { background: #dcfce7; color: #166534; }
+                        .badge-consumption { background: #fee2e2; color: #991b1b; }
+                        .badge-loss { background: #fef3c7; color: #92400e; }
+
+                        /* Footer */
+                        .footer { margin-top: 50px; }
+                        .summary-row { display: flex; justify-content: flex-end; margin-bottom: 40px; }
+                        .summary-table { width: 250px; }
+                        .summary-table div { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; border-bottom: 1px dashed #e5e7eb; }
+                        .summary-table .total { border-bottom: none; border-top: 2px solid #111827; margin-top: 4px; padding-top: 10px; font-size: 14px; font-weight: 800; }
+                        
+                        .sign-section { display: flex; justify-content: flex-end; margin-top: 60px; }
+                        .sign-box { border-top: 1px solid #000; width: 200px; text-align: center; padding-top: 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+
+                        @media print {
+                            body { -webkit-print-color-adjust: exact; }
+                            .no-print { display: none; }
+                        }
                     </style>
                 </head>
                 <body>
-                    <h1>${title}</h1>
-                    <h2>Generated on ${format(new Date(), 'dd MMM yyyy HH:mm')}${filterText}${subFilterText}</h2>
+                    <div class="container">
+                        <div class="header">
+                            <div class="biz-info">
+                                <h1>${business.businessName || 'Your Business Name'}</h1>
+                                <div class="biz-details">
+                                    ${business.address ? `${business.address}<br>` : ''}
+                                    ${business.city ? `${business.city}, ` : ''}${business.state ? `${business.state} - ` : ''}${business.pincode || ''}<br>
+                                    ${business.phone ? `Phone: ${business.phone} | ` : ''}${business.email ? `Email: ${business.email}` : ''}<br>
+                                    ${business.gstin ? `<strong>GSTIN: ${business.gstin}</strong>` : ''}
+                                </div>
+                            </div>
+                            <div class="doc-info">
+                                <h2>Material Ledger</h2>
+                                <p>Report Type: ${activeTab === 'STATEMENT' ? 'Balance Summary' : 'Transaction History'}</p>
+                                <p>Date: ${dateStr}</p>
+                            </div>
+                        </div>
 
-                    ${activeTab === 'STATEMENT' ? `
-                        <div class="summary-grid">
-                            <div class="summary-box"><div class="summary-label">Total Received</div><div class="summary-value">${totals.received.toFixed(3)} KG</div></div>
-                            <div class="summary-box"><div class="summary-label">Total Consumed</div><div class="summary-value">${totals.consumed.toFixed(3)} KG</div></div>
-                            <div class="summary-box"><div class="summary-label">Total Loss</div><div class="summary-value">${totals.loss.toFixed(3)} KG</div></div>
-                            <div class="summary-box"><div class="summary-label">Net Balance</div><div class="summary-value">${totals.balance.toFixed(3)} KG</div></div>
+                        <div class="info-grid">
+                            <div class="info-block">
+                                <h3>Account Information</h3>
+                                <div class="info-content">All Active Clients</div>
+                                <div class="info-sub">Material Type: All Base Materials</div>
+                            </div>
+                            ${searchQuery ? `
+                            <div class="info-block">
+                                <h3>Filtered Results</h3>
+                                <div class="info-content">Searching for: "${searchQuery}"</div>
+                                <div class="info-sub">Applied to ${activeTab === 'STATEMENT' ? 'Client Names' : 'All Fields'}</div>
+                            </div>
+                            ` : ''}
                         </div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Client Name</th>
-                                    <th class="text-right">Received</th>
-                                    <th class="text-right">Consumed</th>
-                                    <th class="text-right">Loss</th>
-                                    <th class="text-right">Balance</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${filteredBalances.map(b => `
+
+                        ${activeTab === 'STATEMENT' ? `
+                            <table>
+                                <thead>
                                     <tr>
-                                        <td><strong>${b.client_name}</strong></td>
-                                        <td class="text-right">${b.received.toFixed(3)} KG</td>
-                                        <td class="text-right">${b.consumed.toFixed(3)} KG</td>
-                                        <td class="text-right">${b.loss.toFixed(3)} KG</td>
-                                        <td class="text-right"><strong>${b.balance.toFixed(3)} KG</strong></td>
+                                        <th>Client Name</th>
+                                        <th class="text-right">PCS</th>
+                                        <th class="text-right">Received</th>
+                                        <th class="text-right">Consumed</th>
+                                        <th class="text-right">Loss</th>
+                                        <th class="text-right">Net Balance</th>
                                     </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    ` : `
-                        <div class="summary-grid">
-                            <div class="summary-box"><div class="summary-label">Filtered Received</div><div class="summary-value">${historyTotals.received.toFixed(3)} KG</div></div>
-                            <div class="summary-box"><div class="summary-label">Filtered Consumed</div><div class="summary-value">${historyTotals.consumed.toFixed(3)} KG</div></div>
-                            <div class="summary-box"><div class="summary-label">Filtered Loss</div><div class="summary-value">${historyTotals.loss.toFixed(3)} KG</div></div>
+                                </thead>
+                                <tbody>
+                                    ${filteredBalances.map((b: any) => `
+                                        <tr>
+                                            <td class="font-bold">${b.client_name}</td>
+                                            <td class="text-right">${filteredTransactions.filter((t: any) => t.client_name === b.client_name).reduce((sum: number, t: any) => sum + (t.pcs || 0), 0)}</td>
+                                            <td class="text-right">${b.received.toFixed(3)} KG</td>
+                                            <td class="text-right">${b.consumed.toFixed(3)} KG</td>
+                                            <td class="text-right">${b.loss.toFixed(3)} KG</td>
+                                            <td class="text-right font-bold">${b.balance.toFixed(3)} KG</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                            <div class="footer">
+                                <div class="summary-row">
+                                    <div class="summary-table">
+                                        <div><span>Total Received:</span> <span>${totals.received.toFixed(3)} KG</span></div>
+                                        <div><span>Total Consumed:</span> <span>${totals.consumed.toFixed(3)} KG</span></div>
+                                        <div><span>Total Loss:</span> <span>${totals.loss.toFixed(3)} KG</span></div>
+                                        <div class="total"><span>Net Balance:</span> <span>${totals.balance.toFixed(3)} KG</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : `
+                            <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 0; border: 1px solid #e5e7eb; margin-top: 10px;">
+                                <!-- Left Column: RECEIPTS (Material In) -->
+                                <div style="border-right: 1px solid #e5e7eb;">
+                                    <div style="background: #f0fdf4; color: #166534; padding: 10px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #e5e7eb; text-align: center; text-transform: uppercase;">
+                                        Material Receipts (IN)
+                                    </div>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th style="padding: 8px 5px; font-size: 9px;">Details</th>
+                                                <th class="text-right" style="padding: 8px 5px; font-size: 9px;">PCS</th>
+                                                <th class="text-right" style="padding: 8px 5px; font-size: 9px;">Qty (KG)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${filteredTransactions.filter((t: any) => t.transaction_type === 'RECEIPT').map((t: any) => `
+                                                <tr>
+                                                    <td style="padding: 8px 5px;">
+                                                        <div style="font-weight: 700;">${t.client_name}</div>
+                                                        <div style="font-size: 9px; color: #4f46e5; font-weight: 600;">${t.material_type}</div>
+                                                        <div style="font-size: 9px; color: #6b7280;">${format(new Date(t.transaction_date), 'dd/MM/yy')}</div>
+                                                        ${t.remarks ? `<div style="font-size: 8px; color: #9ca3af; font-style: italic; margin-top: 2px;">Note: ${t.remarks}</div>` : ''}
+                                                    </td>
+                                                    <td class="text-right" style="padding: 8px 5px;">${t.pcs || 0}</td>
+                                                    <td class="text-right font-bold" style="padding: 8px 5px;">${t.quantity.toFixed(3)}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                    <div style="padding: 10px; border-top: 2px solid #e5e7eb; background: #f9fafb; font-size: 11px; font-weight: 800;">
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span>TOTAL INCOMING:</span>
+                                            <span>${historyTotals.received.toFixed(3)} KG</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Right Column: ISSUES (Material Out) -->
+                                <div>
+                                    <div style="background: #fef2f2; color: #991b1b; padding: 10px; font-size: 11px; font-weight: 800; border-bottom: 2px solid #e5e7eb; text-align: center; text-transform: uppercase;">
+                                        Material Issues (OUT)
+                                    </div>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th style="padding: 8px 5px; font-size: 9px;">Details</th>
+                                                <th class="text-right" style="padding: 8px 5px; font-size: 9px;">PCS</th>
+                                                <th class="text-right" style="padding: 8px 5px; font-size: 9px;">Qty (KG)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${filteredTransactions.filter((t: any) => t.transaction_type !== 'RECEIPT').map((t: any) => `
+                                                <tr>
+                                                    <td style="padding: 8px 5px;">
+                                                        <div style="font-weight: 700;">${t.client_name}</div>
+                                                        <div style="font-size: 9px; color: #4f46e5; font-weight: 600;">${t.material_type}</div>
+                                                        <div style="font-size: 9px; color: #6b7280;">
+                                                            ${format(new Date(t.transaction_date), 'dd/MM/yy')} | ${t.transaction_type}
+                                                        </div>
+                                                        ${(t.remarks || t.reason) ? `<div style="font-size: 8px; color: #9ca3af; font-style: italic; margin-top: 2px;">Note: ${t.remarks || t.reason}</div>` : ''}
+                                                    </td>
+                                                    <td class="text-right" style="padding: 8px 5px;">${t.pcs || 0}</td>
+                                                    <td class="text-right font-bold" style="padding: 8px 5px;">${t.quantity.toFixed(3)}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                    <div style="padding: 10px; border-top: 2px solid #e5e7eb; background: #f9fafb; font-size: 11px; font-weight: 800;">
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span>TOTAL OUTGOING:</span>
+                                            <span>${(historyTotals.consumed + historyTotals.loss).toFixed(3)} KG</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="footer">
+                                <div class="summary-row">
+                                    <div class="summary-table" style="width: 300px;">
+                                        <div class="total" style="background: #f9fafb; padding: 10px; border: 1px solid #111827;">
+                                            <span>NET LEDGER BALANCE:</span> 
+                                            <span style="color: #4f46e5;">${(historyTotals.received - (historyTotals.consumed + historyTotals.loss)).toFixed(3)} KG</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `}
+
+                        <div class="sign-section">
+                            <div class="sign-box">
+                                Authorized Signatory<br>
+                                <span style="font-size: 8px; font-weight: 400; color: #6b7280; text-transform: none;">For ${business.businessName || 'the Organization'}</span>
+                            </div>
                         </div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Client</th>
-                                    <th>Type</th>
-                                    <th>Material</th>
-                                    <th class="text-right">Quantity</th>
-                                    <th>Remarks</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${filteredTransactions.map(t => `
-                                    <tr>
-                                        <td>${format(new Date(t.transaction_date), 'dd MMM yyyy')}</td>
-                                        <td><strong>${t.client_name}</strong></td>
-                                        <td><span class="badge badge-${t.transaction_type.toLowerCase()}">${t.transaction_type}</span></td>
-                                        <td>${t.material_type}</td>
-                                        <td class="text-right"><strong>${t.quantity.toFixed(3)} KG</strong></td>
-                                        <td>${t.remarks || t.reason || ''}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    `}
+                    </div>
 
                     <script>
-                        window.onload = () => { window.print(); window.close(); };
+                        window.onload = () => { 
+                            setTimeout(() => {
+                                window.print(); 
+                                // Commented out close to let user see preview
+                                // window.close(); 
+                            }, 500);
+                        };
                     </script>
                 </body>
             </html>
@@ -639,11 +980,27 @@ export function ClientMaterialLedger() {
                                     <table className="w-full text-sm text-left">
                                         <thead className="bg-gray-50/50 text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                                             <tr>
+                                                <th className="px-6 py-4 w-10">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                        checked={selectedConsumptions.length > 0 && selectedConsumptions.length === filteredTransactions.filter(t => t.transaction_type === 'CONSUMPTION').length}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                const allCons = filteredTransactions.filter(t => t.transaction_type === 'CONSUMPTION').map(t => t.id);
+                                                                setSelectedConsumptions(allCons);
+                                                            } else {
+                                                                setSelectedConsumptions([]);
+                                                            }
+                                                        }}
+                                                    />
+                                                </th>
                                                 <th className="px-6 py-4">Date</th>
                                                 <th className="px-6 py-4">Client</th>
                                                 <th className="px-6 py-4">Type</th>
                                                 <th className="px-6 py-4">Category</th>
                                                 <th className="px-6 py-4">Base Material</th>
+                                                <th className="px-6 py-4 text-right">PCS</th>
                                                 <th className="px-6 py-4 text-right">Quantity</th>
                                                 <th className="px-6 py-4">Remarks</th>
                                                 <th className="px-6 py-4 text-right">Actions</th>
@@ -651,7 +1008,17 @@ export function ClientMaterialLedger() {
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
                                             {filteredTransactions.map((t) => (
-                                                <tr key={t.id} className="hover:bg-gray-50/30 transition-colors">
+                                                <tr key={t.id} className={`hover:bg-gray-50/30 transition-colors ${selectedConsumptions.includes(t.id) ? 'bg-indigo-50/30' : ''}`}>
+                                                    <td className="px-6 py-5">
+                                                        {t.transaction_type === 'CONSUMPTION' && (
+                                                            <input
+                                                                type="checkbox"
+                                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                                checked={selectedConsumptions.includes(t.id)}
+                                                                onChange={() => handleToggleSelection(t.id)}
+                                                            />
+                                                        )}
+                                                    </td>
                                                     <td className="px-6 py-5 whitespace-nowrap">
                                                         <div className="font-semibold text-gray-900">{format(new Date(t.transaction_date), 'dd MMM yyyy')}</div>
                                                     </td>
@@ -670,6 +1037,7 @@ export function ClientMaterialLedger() {
                                                             {(t.remarks || '').split(' - ')[0] || '—'}
                                                         </span>
                                                     </td>
+                                                    <td className="px-6 py-5 text-right font-bold text-indigo-600">{t.pcs || 0}</td>
                                                     <td className="px-6 py-5 text-right font-bold text-gray-900">{t.quantity.toFixed(3)} KG</td>
                                                     <td className="px-6 py-5">
                                                         <div className="text-xs text-gray-500 max-w-xs">{(t.remarks || '').split(' - ').slice(1).join(' - ') || t.reason || '—'}</div>
@@ -853,13 +1221,16 @@ export function ClientMaterialLedger() {
                                                                 key={m.id}
                                                                 type="button"
                                                                 onClick={() => {
-                                                                    setForm({ ...form, material_type_id: m.id, base_type: m.name });
+                                                                    setForm({ ...form, product_id: (m as any).id, base_type: m.name });
                                                                     setBaseSearch(m.name);
                                                                     setShowBaseResults(false);
                                                                 }}
                                                                 className="w-full px-4 py-3 text-left hover:bg-indigo-50 text-sm font-bold text-gray-700 border-b border-gray-50 last:border-0 transition-colors"
                                                             >
-                                                                {m.name}
+                                                                <div className="flex justify-between items-center">
+                                                                    <span>{m.name}</span>
+                                                                    <span className="text-[9px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 uppercase">{(m as any).category || 'Item'}</span>
+                                                                </div>
                                                             </button>
                                                         ))}
                                                     </div>
@@ -901,19 +1272,53 @@ export function ClientMaterialLedger() {
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="relative group">
-                                        <Database className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-400 z-10 pointer-events-none" />
-                                        <input
-                                            type="text"
-                                            required
-                                            value={form.quantity}
-                                            onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-                                            onBlur={handleQuantityBlur}
-                                            className="w-full h-14 pl-11 pr-4 bg-white border border-indigo-200 rounded-xl text-lg font-black text-gray-900 focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
-                                            placeholder="Ex: 750 (Grams) or 1.5 (KG)"
-                                        />
-                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-end">
-                                            <span className="text-[12px] font-black text-indigo-500 uppercase">KG</span>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="relative group">
+                                            <Database className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-400 z-10 pointer-events-none" />
+                                            <input
+                                                type="text"
+                                                required
+                                                value={form.quantity}
+                                                onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                                                onBlur={handleQuantityBlur}
+                                                className="w-full h-14 pl-11 pr-4 bg-white border border-indigo-200 rounded-xl text-lg font-black text-gray-900 focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+                                                placeholder="Ex: 750 (Grams) or 1.5 (KG)"
+                                            />
+                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-end">
+                                                <span className="text-[12px] font-black text-indigo-500 uppercase">KG</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="relative group">
+                                            <input
+                                                type="number"
+                                                value={form.pcs}
+                                                onChange={(e) => setForm({ ...form, pcs: e.target.value })}
+                                                className="w-full h-14 px-4 bg-white border border-indigo-200 rounded-xl text-lg font-black text-gray-900 focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+                                                placeholder="0"
+                                            />
+                                            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-end">
+                                                <span className="text-[12px] font-black text-indigo-500 uppercase">PCS</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="relative sm:col-span-2">
+                                            <label className="block text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1.5 ml-1">PCS Work Type</label>
+                                            <select
+                                                value={form.pcs_work_type}
+                                                onChange={(e) => setForm({ ...form, pcs_work_type: e.target.value })}
+                                                className="w-full h-12 px-4 bg-white border border-indigo-200 rounded-xl text-sm font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                            >
+                                                <option value="None">None</option>
+                                                {jobWorkItems
+                                                    .filter(s => s.unit === 'PCS')
+                                                    .map(service => (
+                                                        <option key={service.id} value={service.name}>
+                                                            {service.name}
+                                                        </option>
+                                                    ))
+                                                }
+                                            </select>
                                         </div>
                                     </div>
                                     <p className="text-[10px] text-indigo-400/80 mt-3 font-bold flex items-center gap-1.5 bg-white/50 w-fit px-3 py-1 rounded-lg">
@@ -998,6 +1403,75 @@ export function ClientMaterialLedger() {
                             >
                                 {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <Save size={18} />}
                                 {editingId ? 'Update Entry' : 'Save Entry'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Create Order Modal / Bar */}
+            {selectedConsumptions.length > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-bottom duration-300">
+                    <div className="bg-gray-900 border border-gray-700 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 backdrop-blur-md bg-opacity-90">
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Selections</span>
+                            <span className="text-lg font-black text-white">{selectedConsumptions.length} Consumptions</span>
+                        </div>
+                        <div className="h-8 w-px bg-gray-700 mx-2" />
+                        <button
+                            onClick={() => setShowOrderModal(true)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-lg flex items-center gap-2"
+                        >
+                            <Plus size={18} /> Create Order
+                        </button>
+                        <button
+                            onClick={() => setSelectedConsumptions([])}
+                            className="bg-gray-800 hover:bg-gray-700 text-gray-300 p-3 rounded-xl transition-all"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Quick Order Modal */}
+            {showOrderModal && (
+                <div className="fixed inset-0 bg-gray-900/60 z-[110] flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900">Create New Order</h2>
+                                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">From {selectedConsumptions.length} selected items</p>
+                            </div>
+                            <button onClick={() => setShowOrderModal(false)} className="text-gray-400 hover:text-gray-600 p-2 rounded-lg transition-colors">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Customer Name</label>
+                                <input
+                                    type="text"
+                                    value={orderForm.customer_name}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrderForm(prev => ({ ...prev, customer_name: e.target.value }))}
+                                    placeholder="Enter or confirm customer name"
+                                    className="w-full h-12 px-4 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Order Date</label>
+                                <input
+                                    type="date"
+                                    value={orderForm.order_date}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOrderForm(prev => ({ ...prev, order_date: e.target.value }))}
+                                    className="w-full h-12 px-4 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-900 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                            <button
+                                onClick={handleCreateOrder}
+                                className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-3 mt-4"
+                            >
+                                <ArrowRightLeft size={20} /> Proceed to Bill
                             </button>
                         </div>
                     </div>

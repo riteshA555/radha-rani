@@ -11,12 +11,19 @@ import {
   FileText,
   Receipt,
   CreditCard,
+  PieChart,
   UserCircle,
   Building2,
   Settings,
   Layers,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  ShieldCheck,
+  RotateCcw
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface SidebarProps {
   currentPage: string;
@@ -24,65 +31,73 @@ interface SidebarProps {
 }
 
 export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
+  const { t } = useTranslation();
+
   const menuSections = [
     {
-      title: 'Main',
+      title: t('masters'),
       items: [
-        { id: 'dashboard', path: '/', label: 'Dashboard', icon: Home },
+        { id: 'dashboard', path: '/', label: t('dashboard'), icon: Home },
       ],
     },
     {
-      title: 'Orders & Sales',
+      title: t('orders_sales'),
       items: [
-        { id: 'orders', path: '/orders', label: 'Orders', icon: ShoppingBag },
+        { id: 'orders', path: '/orders', label: t('orders'), icon: ShoppingBag },
       ],
     },
     {
-      title: 'Inventory & Production',
+      title: t('inventory_production'),
       items: [
-        { id: 'stock', path: '/stock', label: 'Stock Management', icon: Package },
-        { id: 'client-material', path: '/client-material', label: 'Client Material Ledger', icon: Database },
-        { id: 'catalog', path: '/catalog', label: 'Unified Catalog', icon: Gem },
-        { id: 'karigar', path: '/karigar', label: 'Artisan Portal', icon: Users },
-        { id: 'settlement', path: '/settlement', label: 'Artisan Settlement', icon: Coins },
-        { id: 'rates', path: '/rates', label: 'Market Terminal', icon: TrendingUp, live: true },
+        { id: 'stock', path: '/stock', label: t('stock_management'), icon: Package },
+        { id: 'client-material', path: '/client-material', label: t('client_material'), icon: Database },
+        { id: 'catalog', path: '/catalog', label: t('catalog'), icon: Gem },
+        { id: 'karigar', path: '/karigar', label: t('karigar'), icon: Users },
+        { id: 'karigar-settlement', path: '/karigar-settlement', label: 'Karigar Settlement', icon: Coins },
+        { id: 'settlement', path: '/settlement', label: t('settlement'), icon: Coins },
+        { id: 'rates', path: '/rates', label: t('rates'), icon: TrendingUp, live: true },
       ],
     },
     {
-      title: 'Accounting & Finance',
+      title: t('accounting_finance'),
       items: [
-        { id: 'accounting', path: '/accounting', label: 'Accounting Dashboard', icon: Calculator },
-        { id: 'customer-payments', path: '/customer-payments', label: 'Customer Payments', icon: CreditCard },
-        { id: 'expenses', path: '/expenses', label: 'Expense Manager', icon: Receipt },
-        { id: 'ledger', path: '/ledger', label: 'Ledger', icon: FileText },
-        { id: 'gst-reports', path: '/gst-reports', label: 'GST Reports', icon: FileText },
+        { id: 'accounting', path: '/accounting', label: t('accounting'), icon: Calculator },
+        { id: 'profit-loss', path: '/profit-loss', label: 'P&L Report', icon: PieChart },
+        { id: 'customer-payments', path: '/customer-payments', label: t('customer_payments'), icon: CreditCard },
+        { id: 'expenses', path: '/expenses', label: t('expenses'), icon: Receipt },
+        { id: 'ledger', path: '/ledger', label: t('ledger'), icon: FileText },
+        { id: 'client-statement', path: '/client-statement', label: 'Client Statement', icon: FileText },
+        { id: 'gst-reports', path: '/gst-reports', label: t('gst_reports'), icon: FileText },
       ],
     },
     {
-      title: 'Masters',
+      title: t('masters'),
       items: [
-        { id: 'base-material-types', path: '/base-material-types', label: 'Base Material Types', icon: Layers },
+        { id: 'base-material-types', path: '/base-material-types', label: t('base_material_types'), icon: Layers },
       ],
     },
     {
-      title: 'Contacts',
+      title: t('contacts'),
       items: [
-        { id: 'customers', path: '/customers', label: 'Customers', icon: UserCircle },
-        { id: 'vendors', path: '/vendors', label: 'Vendors', icon: Building2 },
+        { id: 'customers', path: '/customers', label: t('customers'), icon: UserCircle },
+        { id: 'vendors', path: '/vendors', label: t('vendors'), icon: Building2 },
       ],
     },
     {
-      title: 'System',
+      title: t('system'),
       items: [
-        { id: 'settings', path: '/settings', label: 'Settings', icon: Settings },
+        { id: 'audit', path: '/audit', label: 'Audit Logs', icon: ShieldCheck },
+        { id: 'backup-restore', path: '/backup-restore', label: 'Backup & Restore', icon: Database },
+        { id: 'factory-reset', path: '/factory-reset', label: 'Factory Reset', icon: RotateCcw },
+        { id: 'settings', path: '/settings', label: t('settings'), icon: Settings },
       ],
     },
   ];
 
   return (
     <nav className="p-4 space-y-6">
-      {menuSections.map((section) => (
-        <div key={section.title}>
+      {menuSections.map((section, idx) => (
+        <div key={`${section.title}-${idx}`}>
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-3">
             {section.title}
           </h3>

@@ -4,6 +4,7 @@ import { BottomNav } from './BottomNav';
 import { Sidebar } from './Sidebar';
 import { NotificationCenter } from './NotificationCenter';
 import { useAuth } from '../../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,6 +15,7 @@ interface LayoutProps {
 export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const { t, i18n } = useTranslation();
 
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-50 overflow-hidden select-none safe-pb">
@@ -50,14 +52,14 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
                 <span className="text-[10px] font-black text-gray-900 leading-none truncate max-w-[80px] sm:max-w-[100px]">
                   {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
                 </span>
-                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">Gold Member</span>
+                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">{t('gold_member')}</span>
               </div>
             </div>
             <div className="h-4 w-[1px] bg-gray-200 mx-0.5 sm:mx-1"></div>
             <button
               onClick={() => signOut()}
               className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-all"
-              title="Sign Out"
+              title={t('logout')}
             >
               <LogOut size={16} />
             </button>
@@ -68,9 +70,9 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
           <div className="h-8 w-[1px] bg-gray-100 mx-1 hidden sm:block"></div>
 
           <div className="hidden md:flex flex-col items-end">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Current Date</span>
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">{t('current_date')}</span>
             <span className="text-xs font-bold text-gray-700">
-              {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              {new Date().toLocaleDateString(i18n.language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
           </div>
         </div>

@@ -4,7 +4,8 @@ import { supabase } from '../../supabaseClient';
 import { updateOrderStatus } from '../../services/orderService';
 import { useSettings } from '../../context/SettingsContext';
 import { formatIndianRupees } from '../../shared/utils/formatters';
-import { Loader2, ArrowLeft, Printer } from 'lucide-react';
+import { Loader2, ArrowLeft, Printer, Trash2, AlertTriangle } from 'lucide-react';
+import { deleteOrder } from '../../services/orderService';
 
 export function OrderPrint() {
     const { id } = useParams();
@@ -14,6 +15,8 @@ export function OrderPrint() {
     const business = settings.business_profile;
     const [loading, setLoading] = useState(true);
     const [updatingStatus, setUpdatingStatus] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [jobWorkItems, setJobWorkItems] = useState<any[]>([]);
 
     useEffect(() => {
@@ -29,7 +32,30 @@ export function OrderPrint() {
 
                 if (orderError) throw orderError;
 
-                setOrder(orderData);
+                // Fetch Customer Ledger to get current running balance
+                const { data: ledgerData } = await supabase
+                    .from('ledgers')
+                    .select('running_balance')
+                    .eq('name', orderData.customer_name)
+                    .eq('type', 'ASSET')
+                    .single();
+
+                const currentBalance = Number(ledgerData?.running_balance || 0);
+
+                // For the printout: 
+                // Final Balance = Current Balance (Live)
+                // Balance Before = Final Balance - Current Order Total + Any Advance paid (since advance also reduced the balance)
+                // Note: This logic assumes we are printing the bill immediately or it's the latest balance context.
+                const finalBalance = currentBalance;
+                const orderTotal = Number(orderData.total_amount || 0);
+                const advanceAmount = Number(orderData.advance_amount || 0);
+                const balanceBefore = finalBalance - orderTotal + advanceAmount;
+
+                setOrder({
+                    ...orderData,
+                    ledger_balance_before: balanceBefore,
+                    ledger_balance_after: finalBalance
+                });
 
                 // Fetch Job Work Items for names
                 const { data: jwData } = await supabase.from('job_work_items').select('*');
@@ -54,6 +80,21 @@ export function OrderPrint() {
             alert("Failed to update status");
         } finally {
             setUpdatingStatus(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!id) return;
+        try {
+            setDeleting(true);
+            await deleteOrder(id);
+            navigate('/orders', { replace: true });
+        } catch (err: any) {
+            console.error("Failed to delete order", err);
+            alert("Deletion Failed: " + err.message);
+        } finally {
+            setDeleting(false);
+            setShowDeleteConfirm(false);
         }
     };
 
@@ -91,8 +132,51 @@ export function OrderPrint() {
                     >
                         <Printer size={20} /> Print Invoice
                     </button>
+
+                    <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        disabled={deleting}
+                        className="flex items-center gap-2 bg-rose-50 text-rose-600 px-4 py-2 rounded-lg hover:bg-rose-600 hover:text-white transition shadow-sm font-medium border border-rose-100"
+                    >
+                        {deleting ? <Loader2 className="animate-spin" size={20} /> : <Trash2 size={20} />}
+                        Delete Order
+                    </button>
                 </div>
             </div>
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-gray-900/60 flex items-center justify-center z-[110] backdrop-blur-sm p-4 print:hidden">
+                    <div className="bg-white rounded-[2rem] w-full max-w-[450px] shadow-2xl animate-scale-in overflow-hidden border border-gray-100">
+                        <div className="p-8 text-center">
+                            <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <AlertTriangle size={40} className="text-rose-500" />
+                            </div>
+                            <h3 className="text-2xl font-black text-gray-900 mb-2">Revert Order?</h3>
+                            <p className="text-gray-600 font-medium mb-8">
+                                Deleting this order will <strong>revert stock</strong> and <strong>remove financial entries</strong>. This action is atomic and permanent.
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <button
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    className="p-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-bold transition-all"
+                                >
+                                    Go Back
+                                </button>
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={deleting}
+                                    className="p-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-200"
+                                >
+                                    {deleting ? <Loader2 className="animate-spin" size={20} /> : <Trash2 size={20} />}
+                                    Yes, Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Invoice Page */}
             <div
@@ -183,7 +267,7 @@ export function OrderPrint() {
                                     <td style={{ padding: '16px 20px' }}>
                                         <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '14px' }}>{item.description}</div>
 
-                                        <div style={{ marginTop: '8px', spaceY: '4px' }}>
+                                        <div style={{ marginTop: '8px' }}>
                                             {/* Base Breakdown */}
                                             <div style={{ fontSize: '12px', color: '#475569', display: 'flex', gap: '8px' }}>
                                                 <span style={{ fontWeight: 600 }}>Base:</span>
@@ -270,6 +354,26 @@ export function OrderPrint() {
                             <span style={{ fontSize: '14px', fontWeight: 900, color: '#111827', textTransform: 'uppercase' }}>Grand Total</span>
                             <span style={{ fontSize: '24px', fontWeight: 900, color: '#111827' }}>₹{formatIndianRupees(order.total_amount)}</span>
                         </div>
+
+                        {/* RUNNING BALANCE SUMMARY */}
+                        <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '2px solid #111827' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', color: '#64748b', marginBottom: '12px', letterSpacing: '1px' }}>Account Summary (खाता विवरण)</div>
+                            <div style={{ marginTop: '8px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                                    <span style={{ color: '#475569', fontWeight: 600 }}>Previous Balance (पिछला बैलेंस):</span>
+                                    <span style={{ fontWeight: 800 }}>₹{formatIndianRupees(Math.abs(Number(order.ledger_balance_before || 0)))} {Number(order.ledger_balance_before || 0) >= 0 ? '(Dr)' : '(Cr)'}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
+                                    <span style={{ color: '#475569', fontWeight: 600 }}>Current Bill (आज का विल):</span>
+                                    <span style={{ fontWeight: 800 }}>₹{formatIndianRupees(order.total_amount)}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#111827', color: 'white', borderRadius: '8px', fontSize: '14px', fontWeight: 900, marginTop: '12px' }}>
+                                    <span>FINAL BALANCE (कुल वाकी):</span>
+                                    <span>₹{formatIndianRupees(Math.abs(Number(order.ledger_balance_after || 0)))}</span>
+                                </div>
+                            </div>
+                        </div>
+
                         <div style={{ fontSize: '10px', color: '#94a3b8', textAlign: 'right', fontWeight: 700, fontStyle: 'italic', marginTop: '10px' }}>
                             Amount in words: Rupees {[order.total_amount].toLocaleString()} Only
                         </div>

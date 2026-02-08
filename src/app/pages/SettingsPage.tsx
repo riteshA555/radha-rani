@@ -177,6 +177,10 @@ export function SettingsPage() {
         {activeTab === 'user_settings' && (
           <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Select label="Application Language" value={localData.language} onChange={(v: string) => setLocalData({ ...localData, language: v })}>
+                <option value="en">English (default)</option>
+                <option value="hi">Hindi (हिंदी)</option>
+              </Select>
               <Select label="Application Theme" value={localData.theme} onChange={(v: string) => setLocalData({ ...localData, theme: v })}>
                 <option value="light">Light Mode (Clean)</option>
                 <option value="dark">Dark Mode (Premium)</option>

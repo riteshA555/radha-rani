@@ -290,10 +290,10 @@ export function Stock() {
                           </td>
                           <td className="px-6 py-5 text-right">
                             <div className="flex flex-col items-end">
-                              <span className={`text-base font-bold ${p.current_stock < (invSettings?.lowStockThreshold || 5) ? 'text-rose-600' : 'text-gray-900'}`}>
+                              <span className={`text-base font-bold ${p.current_stock < (p.min_stock || 5) ? 'text-rose-600' : 'text-gray-900'}`}>
                                 {p.current_stock} <span className="text-[10px] text-gray-400 uppercase font-medium">Pcs</span>
                               </span>
-                              {p.current_stock < (invSettings?.lowStockThreshold || 5) && (
+                              {p.current_stock < (p.min_stock || 5) && (
                                 <span className="mt-1 px-1.5 py-0.5 bg-rose-50 text-rose-600 text-[9px] font-bold rounded border border-rose-100 uppercase">Stock Low</span>
                               )}
                             </div>

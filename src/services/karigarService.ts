@@ -30,6 +30,16 @@ export interface KarigarWorkRecord {
     karigars?: { name: string };
 }
 
+export interface KarigarPayment {
+    id: string;
+    karigar_id: string;
+    amount: number;
+    payment_date: string;
+    payment_mode: string;
+    notes?: string;
+    created_at: string;
+}
+
 export const getKarigars = async (): Promise<Karigar[]> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
@@ -307,5 +317,73 @@ export const getKarigarStats = async (karigarId: string) => {
         pendingWork: 0, // In this new model, balance logic is handled by current_balance directly
         cashBalance: Number(kData.current_balance) || 0,
         metalBalance: Number(kData.current_metal_balance) || 0
+    }
+}
+
+export const getKarigarSettlementReport = async (karigarId: string, month: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const startDate = `${month}-01`;
+    const lastDay = new Date(new Date(startDate).getFullYear(), new Date(startDate).getMonth() + 1, 0).getDate();
+    const endDate = `${month}-${lastDay}`;
+
+    // 1. Calculate Opening Due (Work - Payments before month)
+    const { data: earlyWork, error: ewError } = await supabase
+        .from('karigar_work_records')
+        .select('amount')
+        .eq('karigar_id', karigarId)
+        .eq('user_id', user.id)
+        .lt('work_date', startDate)
+
+    if (ewError) throw ewError
+    const totalWorkBefore = (earlyWork || []).reduce((sum: number, r: any) => sum + Number(r.amount), 0)
+
+    const { data: earlyPayments, error: epError } = await supabase
+        .from('karigar_payments')
+        .select('amount')
+        .eq('karigar_id', karigarId)
+        .eq('user_id', user.id)
+        .lt('payment_date', startDate)
+
+    if (epError) throw epError
+    const totalPaidBefore = (earlyPayments || []).reduce((sum: number, r: any) => sum + Number(r.amount), 0)
+
+    const openingDue = totalWorkBefore - totalPaidBefore
+
+    // 2. Get Work Records for Month
+    const { data: monthWork, error: mwError } = await supabase
+        .from('karigar_work_records')
+        .select('*')
+        .eq('karigar_id', karigarId)
+        .eq('user_id', user.id)
+        .gte('work_date', startDate)
+        .lte('work_date', endDate)
+        .order('work_date', { ascending: true })
+
+    if (mwError) throw mwError
+
+    // 3. Get Payments for Month
+    const { data: monthPayments, error: mpError } = await supabase
+        .from('karigar_payments')
+        .select('*')
+        .eq('karigar_id', karigarId)
+        .eq('user_id', user.id)
+        .gte('payment_date', startDate)
+        .lte('payment_date', endDate)
+        .order('payment_date', { ascending: true })
+
+    if (mpError) throw mpError
+
+    const totalWorkMonth = (monthWork || []).reduce((sum: number, r: any) => sum + Number(r.amount), 0)
+    const totalPaidMonth = (monthPayments || []).reduce((sum: number, r: any) => sum + Number(r.amount), 0)
+
+    return {
+        openingDue,
+        workRecords: monthWork || [],
+        payments: monthPayments || [],
+        totalWorkMonth,
+        totalPaidMonth,
+        closingDue: openingDue + totalWorkMonth - totalPaidMonth
     }
 }

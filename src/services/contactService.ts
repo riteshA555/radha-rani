@@ -12,7 +12,8 @@ export interface Customer {
     totalSpent: number;
     lastOrderDate: string;
     status: 'active' | 'inactive';
-    balance: number; // Positive = Receivable (Due), Negative = Advance
+    balance: number; // For UI display (comes from ledgers.running_balance)
+    running_balance: number; // Actual value from DB
 }
 
 export interface Vendor {
@@ -53,7 +54,7 @@ export const getCustomers = async (): Promise<Customer[]> => {
     // 1. Get Asset Ledgers (Customers)
     const { data: ledgers, error } = await supabase
         .from('ledgers')
-        .select('id, name, contact_info, address, gst_number')
+        .select('id, name, contact_info, address, gst_number, running_balance')
         .eq('type', 'ASSET')
         .eq('user_id', user.id)
         .order('name');
@@ -70,16 +71,7 @@ export const getCustomers = async (): Promise<Customer[]> => {
             .eq('user_id', user.id)
             .order('order_date', { ascending: false });
 
-        // Fetch Ledger Balance
-        const { data: transactions } = await supabase
-            .from('transactions')
-            .select('debit, credit')
-            .eq('ledger_id', l.id)
-            .eq('user_id', user.id);
-
-        const totalDebit = transactions?.reduce((sum: number, t: any) => sum + Number(t.debit || 0), 0) || 0;
-        const totalCredit = transactions?.reduce((sum: number, t: any) => sum + Number(t.credit || 0), 0) || 0;
-        const balance = totalDebit - totalCredit;
+        const balance = Number(l.running_balance || 0);
 
         const totalOrders = orders?.length || 0;
         const totalSpent = orders?.reduce((sum: number, o: any) => sum + Number(o.total_amount || 0), 0) || 0;
@@ -96,7 +88,8 @@ export const getCustomers = async (): Promise<Customer[]> => {
             totalSpent,
             lastOrderDate: lastOrderDate ? new Date(lastOrderDate).toLocaleDateString() : '-',
             status: 'active',
-            balance
+            balance,
+            running_balance: balance
         } as Customer;
     }));
 
@@ -152,10 +145,16 @@ export const getVendors = async (): Promise<Vendor[]> => {
     return vendors;
 };
 
-export const addCustomer = async (customer: Omit<Customer, 'id' | 'totalOrders' | 'totalSpent' | 'lastOrderDate' | 'status' | 'balance'>) => {
-    return await createLedger({
+export const addCustomer = async (customer: Omit<Customer, 'id' | 'totalOrders' | 'totalSpent' | 'lastOrderDate' | 'status' | 'balance' | 'running_balance'> & { openingBalance?: number, openingBalanceType?: 'RECEIVABLE' | 'ADVANCE' }) => {
+    const { createLedgerWithOpeningBalance } = await import('./accountingService');
+    const signedBalance = (customer.openingBalanceType === 'ADVANCE')
+        ? -(customer.openingBalance || 0)
+        : (customer.openingBalance || 0);
+
+    return await createLedgerWithOpeningBalance({
         name: customer.name,
         type: 'ASSET',
+        openingBalance: signedBalance,
         contact_info: customer.phone,
         address: customer.address,
         gst_number: customer.gstNumber
@@ -171,10 +170,21 @@ export const updateCustomer = async (id: string, customer: Partial<Customer>) =>
     });
 };
 
-export const addVendor = async (vendor: Omit<Vendor, 'id' | 'totalPurchases' | 'totalAmount' | 'lastPurchaseDate' | 'status' | 'category' | 'balance'>) => {
-    return await createLedger({
+export const addVendor = async (vendor: Omit<Vendor, 'id' | 'totalPurchases' | 'totalAmount' | 'lastPurchaseDate' | 'status' | 'category' | 'balance' | 'running_balance'> & { openingBalance?: number, openingBalanceType?: 'PAYABLE' | 'ADVANCE' }) => {
+    const { createLedgerWithOpeningBalance } = await import('./accountingService');
+    // For Vendors (Liability): 
+    // Credit increases balance (Payable), Debit decreases it (Advance).
+    // RPC: Positive = Debit, Negative = Credit.
+    // So Payable (Credit) -> Negative RPC value.
+    // Advance (Debit) -> Positive RPC value.
+    const signedBalance = (vendor.openingBalanceType === 'PAYABLE')
+        ? -(vendor.openingBalance || 0)
+        : (vendor.openingBalance || 0);
+
+    return await createLedgerWithOpeningBalance({
         name: vendor.name,
         type: 'LIABILITY',
+        openingBalance: signedBalance,
         contact_info: vendor.phone,
         address: vendor.address,
         gst_number: vendor.gstNumber

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { getSettings, updateSettings, getAllSettings } from '../services/settingsService'
 import { useAuth } from './AuthContext'
+import i18n from '../i18n'
 import {
     BusinessProfileSettings,
     GSTSettings,
@@ -12,20 +13,30 @@ import {
     KarigarSettings,
     CustomerSettings,
     SystemSettings,
-    SettingsCategory
+    SettingsCategory,
+    DEFAULT_BUSINESS_PROFILE,
+    DEFAULT_INVOICE_SETTINGS,
+    DEFAULT_GST_SETTINGS,
+    DEFAULT_USER_SETTINGS,
+    DEFAULT_INVENTORY_SETTINGS,
+    DEFAULT_PRICING_SETTINGS,
+    DEFAULT_NOTIFICATION_SETTINGS,
+    DEFAULT_KARIGAR_SETTINGS,
+    DEFAULT_CUSTOMER_SETTINGS,
+    DEFAULT_SYSTEM_SETTINGS
 } from '../types/settings'
 
 interface SettingsState {
-    business_profile: BusinessProfileSettings | null
-    invoice_settings: InvoiceSettings | null
-    gst_settings: GSTSettings | null
-    user_settings: UserSettings | null
-    inventory_settings: InventorySettings | null
-    pricing_settings: PricingSettings | null
-    notification_settings: NotificationSettings | null
-    karigar_settings: KarigarSettings | null
-    customer_settings: CustomerSettings | null
-    system_settings: SystemSettings | null
+    business_profile: BusinessProfileSettings
+    invoice_settings: InvoiceSettings
+    gst_settings: GSTSettings
+    user_settings: UserSettings
+    inventory_settings: InventorySettings
+    pricing_settings: PricingSettings
+    notification_settings: NotificationSettings
+    karigar_settings: KarigarSettings
+    customer_settings: CustomerSettings
+    system_settings: SystemSettings
 }
 
 interface SettingsContextType {
@@ -56,16 +67,16 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
             }
         }
         return {
-            business_profile: null,
-            invoice_settings: null,
-            gst_settings: null,
-            user_settings: null,
-            inventory_settings: null,
-            pricing_settings: null,
-            notification_settings: null,
-            karigar_settings: null,
-            customer_settings: null,
-            system_settings: null
+            business_profile: DEFAULT_BUSINESS_PROFILE,
+            invoice_settings: DEFAULT_INVOICE_SETTINGS,
+            gst_settings: DEFAULT_GST_SETTINGS,
+            user_settings: DEFAULT_USER_SETTINGS,
+            inventory_settings: DEFAULT_INVENTORY_SETTINGS,
+            pricing_settings: DEFAULT_PRICING_SETTINGS,
+            notification_settings: DEFAULT_NOTIFICATION_SETTINGS,
+            karigar_settings: DEFAULT_KARIGAR_SETTINGS,
+            customer_settings: DEFAULT_CUSTOMER_SETTINGS,
+            system_settings: DEFAULT_SYSTEM_SETTINGS
         }
     })
     const [loading, setLoading] = useState(!localStorage.getItem('app_settings_v2'))
@@ -81,7 +92,8 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
 
             // Persist to localStorage
             localStorage.setItem('app_settings_v2', JSON.stringify(all))
-        } catch (error) {
+        } catch (error: any) {
+            if (error.name === 'AbortError') return;
             console.error('Failed to load global settings', error)
         } finally {
             setLoading(false)
@@ -107,6 +119,10 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
             root.classList.remove('light', 'dark')
             root.classList.add(theme)
             root.style.colorScheme = theme
+
+            // Apply Language
+            const lang = settings.user_settings.language || 'en'
+            i18n.changeLanguage(lang).catch(e => console.warn('Failed to apply language', e))
         }
     }, [settings.user_settings])
 

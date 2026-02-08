@@ -100,6 +100,7 @@ export interface SystemSettings {
     autoSyncFrequency: number // minutes
     enableDebugMode: boolean
     enableOfflineMode: boolean
+    lastBackupAt?: string
 }
 
 export type SettingsCategory =
@@ -219,5 +220,6 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     performanceMode: 'balanced',
     autoSyncFrequency: 5,
     enableDebugMode: false,
-    enableOfflineMode: false
+    enableOfflineMode: false,
+    lastBackupAt: undefined
 }

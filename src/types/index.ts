@@ -63,6 +63,7 @@ export interface Product {
     wastage_percent: number;
     labour_cost: number;
     current_stock: number;
+    min_stock: number;
     gst_rate?: number;
     is_active: boolean;
     image_url?: string;
@@ -111,6 +112,8 @@ export interface ClientMaterialTransaction {
     reason?: string;
     remarks?: string;
     product_id?: string;
+    pcs?: number;
+    pcs_work_type?: string;
     user_id: string;
     created_at: string;
 }

@@ -34,12 +34,13 @@ export function Catalog() {
   const [form, setForm] = useState<any>({
     name: '',
     category: '',
-    unit: 'Gram',
+    unit: 'GRAMS',
     default_weight: '',
     wastage_percent: '',
     labour_cost: '',
     default_rate: '',
     current_stock: '',
+    min_stock: '10',
     gst_rate: '3',
     size: '',
     image_url: ''
@@ -109,6 +110,7 @@ export function Catalog() {
           wastage_percent: Number(form.wastage_percent || 0),
           labour_cost: Number(form.labour_cost || 0),
           current_stock: Number(form.current_stock || 0),
+          min_stock: Number(form.min_stock || 0),
           gst_rate: Number(form.gst_rate || 3),
           is_active: true,
           image_url: form.image_url
@@ -170,6 +172,7 @@ export function Catalog() {
         labour_cost: item.labour_cost,
         default_rate: '',
         current_stock: item.current_stock,
+        min_stock: item.min_stock || 0,
         gst_rate: item.gst_rate ?? 3,
         size: item.size ?? '',
         image_url: item.image_url || ''
@@ -337,8 +340,8 @@ export function Catalog() {
                           <h3 className="font-bold text-gray-900 truncate pr-2 text-sm">{item.name}</h3>
                           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{item.category}</p>
                         </div>
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap uppercase tracking-wider ${item.current_stock <= 0 ? 'bg-rose-50 text-rose-700' : item.current_stock <= (invSettings?.lowStockThreshold || 10) ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                          {item.current_stock <= 0 ? 'Out of Stock' : item.current_stock <= (invSettings?.lowStockThreshold || 10) ? 'Low Stock' : `${item.current_stock} pcs`}
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap uppercase tracking-wider ${item.current_stock <= 0 ? 'bg-rose-50 text-rose-700' : item.current_stock <= (item.min_stock || 5) ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                          {item.current_stock <= 0 ? 'Out of Stock' : item.current_stock <= (item.min_stock || 5) ? 'Low Stock' : `${item.current_stock} pcs`}
                         </span>
                       </div>
                       <div className="space-y-1.5 mt-4 text-[11px] text-gray-600">
@@ -396,8 +399,8 @@ export function Catalog() {
                         </td>
                         <td className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{item.category}</td>
                         <td className="px-6 py-4 text-right">
-                          <span className={`text-xs font-bold ${item.current_stock <= 0 ? 'text-rose-500' : item.current_stock <= (invSettings?.lowStockThreshold || 10) ? 'text-amber-500' : 'text-emerald-600'}`}>
-                            {item.current_stock <= 0 ? 'Out of Stock' : `${item.current_stock} pcs`}
+                          <span className={`text-xs font-bold ${item.current_stock <= 0 ? 'text-rose-500' : item.current_stock <= (item.min_stock || 5) ? 'text-amber-500' : 'text-emerald-600'}`}>
+                            {item.current_stock <= 0 ? 'Out of Stock' : item.current_stock <= (item.min_stock || 5) ? 'Low Stock' : `${item.current_stock} pcs`}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-gray-700">{item.default_weight}g</td>
@@ -573,9 +576,12 @@ export function Catalog() {
                         <div>
                           <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Unit</label>
                           <select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm">
-                            <option value="Gram">Per Gram</option>
-                            <option value="Piece">Per Piece</option>
-                            <option value="Fixed">Fixed Cost</option>
+                            <option value="GRAMS">GRAMS</option>
+                            <option value="PCS">PCS</option>
+                            <option value="KG">KG</option>
+                            <option value="SET">SET</option>
+                            <option value="JODI">JODI</option>
+                            <option value="FIXED">FIXED</option>
                           </select>
                         </div>
                         <div>
@@ -612,6 +618,10 @@ export function Catalog() {
                       <div>
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Opening Stock Qty</label>
                         <input type="number" value={form.current_stock} onChange={e => setForm({ ...form, current_stock: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Min Stock Alert Limit</label>
+                        <input type="number" value={form.min_stock} onChange={e => setForm({ ...form, min_stock: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
                       </div>
                     </div>
 

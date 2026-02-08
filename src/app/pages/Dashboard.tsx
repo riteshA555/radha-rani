@@ -14,19 +14,21 @@ import {
   Plus,
   Receipt,
   ChevronRight,
-  User
+  User,
+  ArrowUpRight,
+  ArrowDownLeft
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
 import { getLatestRates, getRateHistory, MetalRate } from '../../services/rateService';
 import { getMetalInventory, getFinishedGoodsWeight, MetalInventory } from '../../services/inventoryService';
-import { getOrders, updateOrderStatus } from '../../services/orderService';
+import { getOrders, updateOrderStatus, getDashboardKPIs } from '../../services/orderService';
 import { getKarigars, getKarigarBalances, Karigar } from '../../services/karigarService';
 import { getProducts } from '../../services/productService';
 import { Order, Product } from '../../types';
 import { useSettings } from '../../context/SettingsContext';
 import { t } from '../../shared/utils/i18n';
-import { GstCalculatorModal } from '../components/modals/GstCalculatorModal';
+import { GstCalculatorModal } from '@/app/components/modals/GstCalculatorModal';
 
 // Helper Components
 const CardSkeleton = memo(({ loading, children }: { loading: boolean, children: React.ReactNode }) => {
@@ -56,6 +58,7 @@ export function Dashboard() {
   // New Data States
   const [karigars, setKarigars] = useState<Karigar[]>([]);
   const [karigarBalances, setKarigarBalances] = useState<{ [key: string]: { cash: number, metal: number } }>({});
+  const [kpis, setKpis] = useState<any>(null);
 
   // Refactored granular data fetching
   const loadData = useCallback(async () => {
@@ -81,6 +84,8 @@ export function Dashboard() {
     getKarigars().then(setKarigars).catch(e => console.error('Karigars fetch failed', e));
     getKarigarBalances().then(setKarigarBalances).catch(e => console.error('Balances fetch failed', e));
 
+    getDashboardKPIs().then(setKpis).catch(e => console.error('KPI fetch failed', e));
+
     setLoading(false);
   }, []);
 
@@ -105,9 +110,22 @@ export function Dashboard() {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'products' }, debouncedRefresh)
       .subscribe();
 
+    const ledgerChannel = supabase
+      .channel('dashboard_ledger_updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ledgers' }, debouncedRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, debouncedRefresh)
+      .subscribe();
+
+    const rateChannel = supabase
+      .channel('dashboard_rate_updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'metal_rates' }, debouncedRefresh)
+      .subscribe();
+
     return () => {
       supabase.removeChannel(ordersChannel);
       supabase.removeChannel(stockChannel);
+      supabase.removeChannel(ledgerChannel);
+      supabase.removeChannel(rateChannel);
       clearTimeout(refreshTimer);
     };
   }, [loadData]);
@@ -139,6 +157,8 @@ export function Dashboard() {
     const rateChangeAmt = currentRate10g - prevRate;
     const currentRateKg = (rate?.selling_rate || 0) * 1000;
 
+    const lowStockItems = products.filter(p => p.current_stock < (p.min_stock || 5));
+
     return {
       totalSilverStockKg,
       currentRateKg,
@@ -147,9 +167,10 @@ export function Dashboard() {
       pendingCount,
       pendingValue,
       monthlySales,
-      monthlyOrdersCount: monthlyOrders.length
+      monthlyOrdersCount: monthlyOrders.length,
+      lowStockCount: lowStockItems.length
     };
-  }, [orders, inventory, finishedWeight, recentRates, rate]);
+  }, [orders, inventory, finishedWeight, recentRates, rate, products]);
 
   const gstPayable = useMemo(() => {
     const currentMonth = new Date().getMonth();
@@ -186,40 +207,63 @@ export function Dashboard() {
         <h2 className="text-xl font-bold text-gray-900">Dashboard</h2>
         <p className="text-xs text-gray-500 mt-0.5">
           Real-time business performance overview
+          {settings.system_settings?.lastBackupAt && (
+            <span className="ml-3 text-emerald-600 font-bold">
+              • Last Backup: {new Date(settings.system_settings.lastBackupAt).toLocaleDateString()}
+            </span>
+          )}
+          {stats.lowStockCount > 0 && (
+            <Link to="/stock" className="ml-3 px-2 py-0.5 bg-rose-50 text-rose-600 font-bold rounded border border-rose-100 uppercase animate-pulse">
+              • {stats.lowStockCount} Items Low Stock
+            </Link>
+          )}
         </p>
       </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard
-          label="Monthly Sales"
-          value={`₹${stats.monthlySales.toLocaleString()}`}
-          subLabel={`${stats.monthlyOrdersCount} orders this month`}
-          icon={<DollarSign className="w-5 h-5 text-emerald-600" />}
-          trend={stats.rateChangePercent}
-          loading={loading}
+
+      {/* Financial KPIs Grid (2 rows) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <KpiCard
+          label="Total Receivable (उधारी)"
+          value={kpis?.total_receivable || 0}
+          icon={<ArrowUpRight className="w-5 h-5 text-rose-600" />}
+          loading={loading && !kpis}
+          color="rose"
         />
-        <SummaryCard
-          label="Pending Orders"
-          value={stats.pendingCount.toString()}
-          subLabel={`Worth ₹${stats.pendingValue.toLocaleString()}`}
-          icon={<ShoppingBag className="w-5 h-5 text-orange-600" />}
-          loading={loading}
+        <KpiCard
+          label="Total Advance (जमा)"
+          value={kpis?.total_advance || 0}
+          icon={<ArrowDownLeft className="w-5 h-5 text-emerald-600" />}
+          loading={loading && !kpis}
+          color="emerald"
         />
-        <SummaryCard
-          label="Total Silver Stock"
-          value={`${stats.totalSilverStockKg.toFixed(2)} kg`}
-          subLabel="In Hand + Finished"
-          icon={<Scale className="w-5 h-5 text-indigo-600" />}
-          loading={loading}
+        <KpiCard
+          label="Today's Sales (आज की बिक्री)"
+          value={kpis?.today_sales || 0}
+          icon={<ShoppingCart className="w-5 h-5 text-indigo-600" />}
+          loading={loading && !kpis}
+          color="indigo"
         />
-        <SummaryCard
-          label="Today's Rate (1kg)"
-          value={`₹${stats.currentRateKg.toLocaleString()}`}
-          subLabel="Live Market Rate"
-          icon={<TrendingUp className="w-5 h-5 text-blue-600" />}
-          trend={stats.rateChangePercent}
-          loading={loading}
+        <KpiCard
+          label="Job Work Income (Monthly)"
+          value={kpis?.monthly_job_work_income || 0}
+          icon={<Wrench className="w-5 h-5 text-amber-600" />}
+          loading={loading && !kpis}
+          color="amber"
+        />
+        <KpiCard
+          label="Raw Silver Stock Value"
+          value={kpis?.raw_silver_stock_value || 0}
+          icon={<Package className="w-5 h-5 text-blue-600" />}
+          loading={loading && !kpis}
+          color="blue"
+        />
+        <KpiCard
+          label="Finished Goods Stock Value"
+          value={kpis?.finished_goods_stock_value || 0}
+          icon={<ShoppingBag className="w-5 h-5 text-violet-600" />}
+          loading={loading && !kpis}
+          color="violet"
         />
       </div>
 
@@ -457,24 +501,22 @@ export function Dashboard() {
 }
 
 // Components
-const SummaryCard = ({ label, value, subLabel, icon, trend, loading }: any) => (
-  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-    <div className="flex justify-between items-start mb-4">
-      <div className="p-2.5 rounded-lg bg-gray-50 text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+
+const KpiCard = ({ label, value, icon, loading, color }: any) => (
+  <div className={`bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-xl hover:shadow-${color}-100/50 transition-all`}>
+    <div className="flex justify-between items-start mb-6">
+      <div className={`p-4 rounded-2xl bg-${color}-50 text-${color}-600 group-hover:scale-110 transition-transform`}>
         {icon}
       </div>
-      {trend !== undefined && (
-        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${trend >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-700'}`}>
-          {trend > 0 ? '▲' : '▼'} {Math.abs(trend).toFixed(1)}%
-        </span>
-      )}
     </div>
     <div className="relative z-10">
-      <div className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">{label}</div>
+      <div className="text-gray-400 text-xs font-black uppercase tracking-[0.1em] mb-2">{label}</div>
       <CardSkeleton loading={loading}>
-        <div className="text-xl font-bold text-gray-900 mb-0.5 leading-none">{value}</div>
-        <div className="text-[11px] text-gray-500 font-medium">{subLabel}</div>
+        <div className="text-4xl font-black text-gray-900 leading-tight">
+          ₹{Math.round(value).toLocaleString()}
+        </div>
       </CardSkeleton>
     </div>
+    <div className={`absolute top-0 right-0 w-32 h-32 bg-${color}-50/30 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700`}></div>
   </div>
 );

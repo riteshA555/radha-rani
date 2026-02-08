@@ -652,13 +652,26 @@ export function CreateOrder() {
                                 <input
                                     {...register('customer_name', { required: true })}
                                     list="customer_options"
-                                    className={`w-full p-2.5 rounded-lg border \${errors.customer_name ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'} transition-all text-gray-900 font-medium`}
+                                    className={`w-full p-2.5 rounded-lg border ${errors.customer_name ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'} transition-all text-gray-900 font-medium`}
                                     placeholder="Search or Type Customer Name"
                                     autoFocus
                                 />
                                 <datalist id="customer_options">
                                     {savedCustomers.map(c => <option key={c.id} value={c.name} />)}
                                 </datalist>
+
+                                {/* LIVE BALANCE DISPLAY */}
+                                {customerName && savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase()) && (
+                                    <div className="mt-2 flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-100">
+                                        <div className="flex items-center gap-2">
+                                            <Wallet size={14} className="text-gray-400" />
+                                            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Current Balance:</span>
+                                        </div>
+                                        <span className={`text-sm font-black ${savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                            {savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance > 0 ? 'Receivable' : 'Advance'}: ₹{formatIndianRupees(Math.abs(savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance || 0))}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-gray-500 mb-1">Order Date</label>
@@ -1098,6 +1111,20 @@ export function CreateOrder() {
                                             ₹{formatIndianRupees(Math.max(0, grandTotal - (watch('advance_amount') || 0)))}
                                         </span>
                                     </div>
+
+                                    {/* AFTER ORDER BALANCE SUMMARY */}
+                                    {customerName && savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase()) && (
+                                        <div className="mt-3 pt-3 border-t border-dashed border-indigo-100 flex justify-between items-center bg-indigo-50/50 -mx-4 px-4 py-2">
+                                            <div className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">After Order Balance</div>
+                                            <div className="text-sm font-black text-indigo-700">
+                                                ₹{formatIndianRupees(
+                                                    Number(savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance || 0) +
+                                                    Number(grandTotal) -
+                                                    Number(watch('advance_amount') || 0)
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

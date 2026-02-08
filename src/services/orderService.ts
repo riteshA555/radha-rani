@@ -184,3 +184,21 @@ export const deleteOrders = async (orderIds: string[]) => {
     cacheStore.invalidate('dashboard_stats')
     cacheStore.invalidatePattern('stock_')
 }
+
+export const getDashboardKPIs = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    return cacheStore.getOrFetch('dashboard_kpis', async () => {
+        const { data, error } = await supabase.rpc('get_dashboard_kpis');
+        if (error) throw error;
+        return data as {
+            total_receivable: number;
+            total_advance: number;
+            today_sales: number;
+            monthly_job_work_income: number;
+            raw_silver_stock_value: number;
+            finished_goods_stock_value: number;
+        };
+    }, 1000 * 60 * 1); // 1 minute TTL
+}

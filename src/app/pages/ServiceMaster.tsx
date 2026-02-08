@@ -212,6 +212,7 @@ export function ServiceMaster() {
                                         <option value="GRAMS">GRAMS</option>
                                         <option value="SET">SET</option>
                                         <option value="JODI">JODI</option>
+                                        <option value="FIXED">FIXED</option>
                                     </select>
                                 </div>
                                 <div>

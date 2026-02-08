@@ -18,6 +18,12 @@ const Accounting = lazy(() => import('./pages/Accounting').then(m => ({ default:
 const Expenses = lazy(() => import('./pages/Expenses').then(m => ({ default: m.Expenses })));
 const Ledger = lazy(() => import('./pages/Ledger').then(m => ({ default: m.Ledger })));
 const GSTReports = lazy(() => import('./pages/GSTReports').then(m => ({ default: m.GSTReports })));
+const ClientStatement = lazy(() => import('./pages/ClientStatement').then(m => ({ default: m.ClientStatement })));
+const KarigarSettlement = lazy(() => import('./pages/KarigarSettlement').then(m => ({ default: m.KarigarSettlement })));
+const ProfitLoss = lazy(() => import('./pages/ProfitLoss').then(m => ({ default: m.ProfitLoss })));
+const BackupRestore = lazy(() => import('./pages/BackupRestore').then(m => ({ default: m.BackupRestore })));
+const AuditLogs = lazy(() => import('./pages/AuditLogs').then(m => ({ default: m.AuditLogs })));
+const FactoryReset = lazy(() => import('./pages/FactoryReset').then(m => ({ default: m.FactoryReset })));
 const Customers = lazy(() => import('./pages/Customers').then(m => ({ default: m.Customers })));
 const Vendors = lazy(() => import('./pages/Vendors').then(m => ({ default: m.Vendors })));
 const ClientMaterialLedger = lazy(() => import('./pages/ClientMaterialLedger').then(m => ({ default: m.ClientMaterialLedger })));
@@ -73,11 +79,15 @@ const LayoutWrapper = () => {
           <Route path="service-master" element={<ServiceMaster />} />
           <Route path="catalog" element={<Catalog />} />
           <Route path="karigar" element={<Karigars />} />
+          <Route path="karigar-settlement" element={<KarigarSettlement />} />
           <Route path="settlement" element={<Karigars defaultTab="SETTLEMENT" />} />
-          <Route path="rates" element={<Rates />} />
-          <Route path="accounting" element={<Accounting />} />
+          <Route path="audit" element={<AuditLogs />} />
+          <Route path="backup-restore" element={<BackupRestore />} />
+          <Route path="factory-reset" element={<FactoryReset />} />
+          <Route path="profit-loss" element={<ProfitLoss />} />
           <Route path="expenses" element={<Expenses />} />
           <Route path="ledger" element={<Ledger />} />
+          <Route path="client-statement" element={<ClientStatement />} />
           <Route path="gst-reports" element={<GSTReports />} />
           <Route path="customers" element={<Customers />} />
           <Route path="vendors" element={<Vendors />} />

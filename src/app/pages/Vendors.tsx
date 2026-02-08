@@ -17,7 +17,7 @@ export function Vendors() {
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
-  const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', gstNumber: '' });
+  const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', gstNumber: '', openingBalance: '', openingType: 'PAYABLE' });
 
   // Payment Form
   const [payAmount, setPayAmount] = useState('');
@@ -57,7 +57,9 @@ export function Vendors() {
       phone: vendor.phone,
       email: vendor.email,
       address: vendor.address,
-      gstNumber: vendor.gstNumber || ''
+      gstNumber: vendor.gstNumber || '',
+      openingBalance: '',
+      openingType: 'PAYABLE'
     });
     setShowModal(true);
   };
@@ -77,16 +79,18 @@ export function Vendors() {
       } else {
         await addVendor({
           name: formData.name,
-          companyName: formData.name,
+          companyName: formData.name, // Using name as companyName
           phone: formData.phone,
           email: formData.email,
           address: formData.address,
-          gstNumber: formData.gstNumber
+          gstNumber: formData.gstNumber,
+          openingBalance: Math.abs(Number(formData.openingBalance)) || 0,
+          openingBalanceType: formData.openingType as 'PAYABLE' | 'ADVANCE'
         });
       }
       setShowModal(false);
       setEditingVendor(null);
-      setFormData({ name: '', phone: '', email: '', address: '', gstNumber: '' });
+      setFormData({ name: '', phone: '', email: '', address: '', gstNumber: '', openingBalance: '', openingType: 'PAYABLE' });
       loadVendors();
     } catch (err: any) {
       alert("Failed to save vendor: " + err.message);
@@ -274,7 +278,7 @@ export function Vendors() {
 
       {/* Floating Action Button */}
       <button
-        onClick={() => { setEditingVendor(null); setFormData({ name: '', phone: '', email: '', address: '', gstNumber: '' }); setShowModal(true); }}
+        onClick={() => { setEditingVendor(null); setFormData({ name: '', phone: '', email: '', address: '', gstNumber: '', openingBalance: '', openingType: 'PAYABLE' }); setShowModal(true); }}
         className="fixed bottom-24 right-6 lg:bottom-8 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 flex items-center justify-center z-20"
       >
         <Plus className="w-6 h-6" />
@@ -308,6 +312,35 @@ export function Vendors() {
                   <input type="text" value={formData.gstNumber} onChange={e => setFormData({ ...formData, gstNumber: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-medium text-gray-700 outline-none uppercase" placeholder="GSTIN" />
                 </div>
               </div>
+
+              {!editingVendor && (
+                <div className="grid grid-cols-2 gap-4 border-l-4 border-rose-500 bg-rose-50/30 p-4 rounded-xl">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Opening Balance (₹)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.openingBalance}
+                      onChange={e => setFormData({ ...formData, openingBalance: e.target.value })}
+                      className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-bold text-rose-600 outline-none"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Balance Type</label>
+                    <select
+                      value={formData.openingType}
+                      onChange={e => setFormData({ ...formData, openingType: e.target.value })}
+                      className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-bold text-gray-700 outline-none"
+                    >
+                      <option value="PAYABLE">Payable (Due)</option>
+                      <option value="ADVANCE">Advance (Debit)</option>
+                    </select>
+                  </div>
+                  <p className="col-span-2 text-[9px] text-gray-400 mt-1 ml-1 leading-tight uppercase font-bold tracking-tighter">Initial amount to be paid to this vendor</p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Address</label>
                 <textarea value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-medium text-gray-700 outline-none" rows={3} placeholder="Warehouse/Office address..." />
