@@ -24,10 +24,10 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
         }
 
         const config = {
-            fps: 30, // Max for high performance
+            fps: 25, // Optimized balance
             qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
                 const minSide = Math.min(viewfinderWidth, viewfinderHeight);
-                const qrboxSize = Math.max(200, Math.floor(minSide * 0.7)); // Sufficiently large box
+                const qrboxSize = Math.max(200, Math.floor(minSide * 0.75));
                 return { width: qrboxSize, height: qrboxSize };
             },
             aspectRatio: 1.0,
@@ -35,10 +35,11 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
                 Html5QrcodeSupportedFormats.DATA_MATRIX,
                 Html5QrcodeSupportedFormats.QR_CODE
             ],
+            // Removed strict 'min' constraints to prevent OverconstrainedError
             videoConstraints: {
                 facingMode: "environment",
-                width: { min: 1280, ideal: 1920 },
-                height: { min: 720, ideal: 1080 }
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
             }
         };
 
@@ -46,6 +47,7 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
             await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
 
             try {
+                // Try with ideal constraints first
                 await scannerRef.current.start(
                     { facingMode: "environment" },
                     config,
@@ -57,19 +59,35 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
                     },
                     () => { }
                 );
-            } catch (envErr) {
-                // Fallback: Just open any camera
-                await scannerRef.current.start(
-                    { facingMode: "user" }, // Try front as fallback
-                    config,
-                    (decodedText) => {
-                        scannerRef.current?.stop().then(() => {
-                            onScan(decodedText);
-                            onClose();
-                        }).catch(err => console.error("Stop failed", err));
-                    },
-                    () => { }
-                );
+            } catch (envErr: any) {
+                console.warn("Primary camera access failed, trying fallback...", envErr);
+                // Fallback 1: Try without specific resolution constraints
+                try {
+                    await scannerRef.current.start(
+                        { facingMode: "environment" },
+                        { ...config, videoConstraints: { facingMode: "environment" } },
+                        (decodedText) => {
+                            scannerRef.current?.stop().then(() => {
+                                onScan(decodedText);
+                                onClose();
+                            }).catch(err => console.error("Stop failed", err));
+                        },
+                        () => { }
+                    );
+                } catch (fallbackErr) {
+                    // Fallback 2: Any available camera
+                    await scannerRef.current.start(
+                        { facingMode: "user" },
+                        { fps: 15, qrbox: 250 },
+                        (decodedText) => {
+                            scannerRef.current?.stop().then(() => {
+                                onScan(decodedText);
+                                onClose();
+                            }).catch(err => console.error("Stop failed", err));
+                        },
+                        () => { }
+                    );
+                }
             }
 
             setIsScanning(true);
@@ -79,6 +97,8 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
                 setError("PERMISSION_DENIED");
             } else if (errStr.includes("NotFoundException") || err.name === "NotFoundError") {
                 setError("No camera found. Please check physical connections.");
+            } else if (err.name === "OverconstrainedError" || errStr.includes("Constraints could not be satisfied")) {
+                setError("Camera resolution not supported. Try refreshing.");
             } else {
                 setError(`Scanner Error: ${err.message || "Hardware Access Failed"}`);
             }
