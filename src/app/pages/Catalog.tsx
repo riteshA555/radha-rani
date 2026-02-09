@@ -367,9 +367,6 @@ export function Catalog() {
                       )}
 
                       <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
-                        <button onClick={() => handlePrintTag(item)} className="p-2 bg-white/90 backdrop-blur-sm text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white border border-gray-100 shadow-sm transition-all" title="Print Tag">
-                          <Printer size={14} />
-                        </button>
                         <button onClick={() => handleEdit(item)} className="p-2 bg-white/90 backdrop-blur-sm text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white border border-gray-100 shadow-sm transition-all">
                           <Edit2 size={14} />
                         </button>

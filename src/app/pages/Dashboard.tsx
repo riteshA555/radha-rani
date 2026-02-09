@@ -51,11 +51,6 @@ export function Dashboard() {
 
   // ... (rest of the component)
 
-  const handleScan = useCallback((result: string) => {
-    // This is now handled inside PriceCheckerModal, so we don't need logic here
-    // But we keep the state to show/hide the modal
-    setShowScanner(false);
-  }, []);
 
   // Data States
   const [dashboardData, setDashboardData] = useState<DashboardCompositeData | null>(null);
