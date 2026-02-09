@@ -13,13 +13,22 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
     const scannerRef = useRef<Html5Qrcode | null>(null);
 
     useEffect(() => {
-        // Use the engine version for better React compatibility
+        // Detect Insecure Context (HTTP instead of HTTPS)
+        if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            setError("Camera usage requires a secure connection (HTTPS). Mobile browsers block camera on plain HTTP for security.");
+            return;
+        }
+
         const html5QrCode = new Html5Qrcode('reader');
         scannerRef.current = html5QrCode;
 
         const config = {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
+            fps: 15, // Slightly higher for smoother mobile experience
+            qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+                const minSide = Math.min(viewfinderWidth, viewfinderHeight);
+                const qrboxSize = Math.floor(minSide * 0.7);
+                return { width: qrboxSize, height: qrboxSize };
+            },
             aspectRatio: 1.0,
             formatsToSupport: [
                 Html5QrcodeSupportedFormats.QR_CODE,
@@ -30,7 +39,6 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
 
         const startScanner = async () => {
             try {
-                // Try facingMode: environment for mobile back camera
                 await html5QrCode.start(
                     { facingMode: "environment" },
                     config,
@@ -40,14 +48,18 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
                             onClose();
                         }).catch(err => console.error("Stop failed", err));
                     },
-                    (errorMessage) => {
-                        // Silent during scan
-                    }
+                    () => { }
                 );
                 setIsScanning(true);
             } catch (err: any) {
-                console.error("Failed to start scanner", err);
-                setError("Could not access camera. Please check permissions.");
+                console.error("Scanner Error:", err);
+                if (err.toString().includes("Permission denied")) {
+                    setError("PERMISSION_DENIED");
+                } else if (err.toString().includes("NotFoundException")) {
+                    setError("No camera found on this device.");
+                } else {
+                    setError("Could not access camera. Please check if another app is using it.");
+                }
             }
         };
 
@@ -58,7 +70,7 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
                 scannerRef.current.stop().catch(err => console.error("Cleanup stop failed", err));
             }
         };
-    }, []);
+    }, [onScan, onClose]);
 
     return (
         <div className="fixed inset-0 bg-gray-900/80 z-[100] flex items-center justify-center p-4 backdrop-blur-md">
@@ -85,10 +97,45 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
 
                         {/* ERROR STATE */}
                         {error && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-white px-8 text-center bg-rose-900/40 backdrop-blur-sm z-30">
-                                <Camera size={32} className="mb-3 text-rose-200" />
-                                <p className="text-xs font-bold uppercase tracking-wider mb-2">Camera Error</p>
-                                <p className="text-[11px] leading-relaxed opacity-90">{error}</p>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-white px-6 text-center bg-gray-900/95 backdrop-blur-md z-30 transition-all duration-500 overflow-y-auto pt-10 pb-10">
+                                <Camera size={40} className="mb-4 text-rose-400 animate-pulse" />
+
+                                {error === "PERMISSION_DENIED" ? (
+                                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                        <h3 className="text-sm font-black uppercase tracking-widest text-rose-400">Permission Required</h3>
+                                        <p className="text-[11px] leading-relaxed opacity-80">You need to allow camera access in your browser settings to scan codes.</p>
+
+                                        <div className="bg-white/5 rounded-2xl p-4 text-left border border-white/10">
+                                            <p className="text-[10px] font-bold text-indigo-400 uppercase mb-3">How to enable:</p>
+                                            <ul className="space-y-3 text-[10px] opacity-90">
+                                                <li className="flex gap-2">
+                                                    <span className="bg-indigo-500 text-white w-4 h-4 rounded-full flex items-center justify-center shrink-0">1</span>
+                                                    <span>Click the <b>Lock (🔒)</b> or <b>Settings</b> icon next to the website URL.</span>
+                                                </li>
+                                                <li className="flex gap-2">
+                                                    <span className="bg-indigo-500 text-white w-4 h-4 rounded-full flex items-center justify-center shrink-0">2</span>
+                                                    <span>Find <b>Camera</b> and switch it to <b>Allow</b>.</span>
+                                                </li>
+                                                <li className="flex gap-2">
+                                                    <span className="bg-indigo-500 text-white w-4 h-4 rounded-full flex items-center justify-center shrink-0">3</span>
+                                                    <span>Refresh the page and try again.</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="animate-in fade-in duration-500">
+                                        <p className="text-xs font-bold uppercase tracking-wider mb-2 text-rose-400">Camera Error</p>
+                                        <p className="text-[11px] leading-relaxed opacity-90 mx-4">{error}</p>
+
+                                        {error.includes("HTTPS") && (
+                                            <div className="mt-4 p-3 bg-amber-500/20 border border-amber-500/30 rounded-xl">
+                                                <p className="text-[9px] text-amber-200 uppercase font-black mb-1">Security Warning</p>
+                                                <p className="text-[10px] text-amber-100/80 leading-tight">Browsers block camera on insecure IP addresses. Please use <b>localhost</b> or deploy with <b>SSL/HTTPS</b>.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
 

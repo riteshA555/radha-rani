@@ -45,6 +45,7 @@ export function Catalog() {
     min_stock: '10',
     gst_rate: '3',
     size: '',
+    barcode: '',
     image_url: ''
   });
 
@@ -146,6 +147,7 @@ export function Catalog() {
           min_stock: Number(form.min_stock || 0),
           gst_rate: Number(form.gst_rate || 3),
           is_active: true,
+          barcode: form.barcode,
           image_url: form.image_url
         };
 
@@ -248,7 +250,9 @@ export function Catalog() {
     setForm({
       name: '', category: '', unit: 'Gram', default_weight: '',
       wastage_percent: '', labour_cost: '', default_rate: '',
-      current_stock: '', gst_rate: gstSettings?.defaultGstRateSale || '3', size: '', image_url: ''
+      current_stock: '', gst_rate: gstSettings?.defaultGstRateSale || '3', size: '',
+      barcode: '',
+      image_url: ''
     });
   };
 
