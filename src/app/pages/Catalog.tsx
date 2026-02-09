@@ -290,50 +290,53 @@ export function Catalog() {
               }
               .grid {
                 display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 15px;
-                padding: 10px;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+                padding: 5px;
               }
               .label { 
                 border: 0.5pt solid #000; 
-                padding: 15px; 
+                padding: 10px 5px; 
                 text-align: center;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                border-radius: 8px;
+                border-radius: 4px;
                 break-inside: avoid;
-                height: 42mm;
+                height: 31mm;
                 background: white;
               }
               .name { 
                 font-weight: 800; 
-                font-size: 13px; 
-                margin-bottom: 6px; 
+                font-size: 11px; 
+                margin-bottom: 3px; 
                 text-transform: uppercase; 
                 color: #000;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
               }
               .barcode-text { 
-                font-family: 'JetBrains Mono', monospace; 
-                font-size: 10px; 
+                font-family: 'Inter', sans-serif; 
+                font-size: 8.5px; 
                 font-weight: 700;
                 color: #000; 
-                margin-top: 6px;
-                letter-spacing: 0.8px;
+                margin-top: 3px;
               }
               canvas { 
                 display: block;
-                margin: 5px auto;
-                max-width: 110px;
-                max-height: 110px;
+                margin: 2px auto;
+                max-width: 65px;
+                max-height: 65px;
               }
               @media print {
                 body { background: none; }
                 .label { border: 0.5pt solid #000; }
               }
             </style>
-            <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/bwip-js@3.2.1/dist/bwip-js-min.js"></script>
           </head>
           <body>
             <div class="grid">
@@ -345,13 +348,13 @@ export function Catalog() {
                 let processed = 0;
                 canvases.forEach(canvas => {
                   const barcode = canvas.getAttribute('data-barcode');
-                  QRCode.toCanvas(canvas, barcode, { 
-                    width: 150,
-                    margin: 1,
-                    errorCorrectionLevel: 'H',
-                    color: { dark: '#000000', light: '#ffffff' }
-                  }, function (error) {
-                    if (error) console.error(error);
+                  try {
+                    bwipjs.toCanvas(canvas, {
+                      bcid: 'datamatrix',
+                      text: barcode,
+                      scale: 3,
+                      includetext: false,
+                    });
                     processed++;
                     if (processed === canvases.length) {
                       setTimeout(() => {
@@ -359,7 +362,9 @@ export function Catalog() {
                         window.close();
                       }, 500);
                     }
-                  });
+                  } catch (e) {
+                    console.error(e);
+                  }
                 });
               };
             </script>
@@ -772,29 +777,29 @@ export function Catalog() {
                                                             <style>
                                                               @page { size: A4; margin: 10mm; }
                                                               body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: white; }
-                                                              .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding: 10px; }
+                                                              .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 5px; }
                                                               .label { 
                                                                 border: 0.5pt solid #000; 
-                                                                padding: 15px; 
+                                                                padding: 10px 5px; 
                                                                 text-align: center;
                                                                 display: flex;
                                                                 flex-direction: column;
                                                                 align-items: center;
                                                                 justify-content: center;
-                                                                border-radius: 8px;
+                                                                border-radius: 4px;
                                                                 break-inside: avoid;
-                                                                height: 42mm;
+                                                                height: 31mm;
                                                                 background: white;
                                                               }
-                                                              .name { font-weight: 800; font-size: 13px; margin-bottom: 6px; text-transform: uppercase; color: #000; }
-                                                              .barcode-text { font-family: monospace; font-size: 10px; font-weight: 700; color: #000; margin-top: 6px; }
-                                                              canvas { display: block; margin: 5px auto; max-width: 110px; max-height: 110px; }
+                                                              .name { font-weight: 800; font-size: 11px; margin-bottom: 3px; text-transform: uppercase; color: #000; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+                                                              .barcode-text { font-family: sans-serif; font-size: 8.5px; font-weight: 700; color: #000; margin-top: 3px; }
+                                                              canvas { display: block; margin: 2px auto; max-width: 65px; max-height: 65px; }
                                                               @media print {
                                                                 body { background: none; }
                                                                 .label { border: 0.5pt solid #000; }
                                                               }
                                                             </style>
-                                                            <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+                                                            <script src="https://cdn.jsdelivr.net/npm/bwip-js@3.2.1/dist/bwip-js-min.js"></script>
                                                         </head>
                                                         <body>
                                                             <div class="grid">
@@ -806,12 +811,13 @@ export function Catalog() {
                                                                   let processed = 0;
                                                                   canvases.forEach(canvas => {
                                                                     const barcode = canvas.getAttribute('data-barcode');
-                                                                    QRCode.toCanvas(canvas, barcode, { 
-                                                                      width: 150,
-                                                                      margin: 1,
-                                                                      errorCorrectionLevel: 'H'
-                                                                    }, function (error) {
-                                                                      if (error) console.error(error);
+                                                                    try {
+                                                                      bwipjs.toCanvas(canvas, {
+                                                                        bcid: 'datamatrix',
+                                                                        text: barcode,
+                                                                        scale: 3,
+                                                                        includetext: false,
+                                                                      });
                                                                       processed++;
                                                                       if (processed === canvases.length) {
                                                                         setTimeout(() => {
@@ -819,7 +825,9 @@ export function Catalog() {
                                                                           window.close();
                                                                         }, 500);
                                                                       }
-                                                                    });
+                                                                    } catch (e) {
+                                                                      console.error(e);
+                                                                    }
                                                                   });
                                                                 };
                                                             </script>
