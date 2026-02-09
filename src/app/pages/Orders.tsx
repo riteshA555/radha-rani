@@ -6,6 +6,7 @@ import { Order as APIOrder } from '../../types'; // Adjust path if needed
 import { formatIndianRupees } from '../../shared/utils/formatters';
 import { t } from '../../shared/utils/i18n';
 import { useSettings } from '../../context/SettingsContext';
+import { triggerHaptic } from '../../utils/haptics';
 
 export function Orders() {
   const navigate = useNavigate();
@@ -115,7 +116,7 @@ export function Orders() {
             (status) => (
               <button
                 key={status}
-                onClick={() => setFilterStatus(status)}
+                onClick={() => { triggerHaptic('light'); setFilterStatus(status); }}
                 className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${filterStatus === status
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
@@ -155,7 +156,7 @@ export function Orders() {
                 <div
                   key={order.id}
                   className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 hover:shadow-md transition-all cursor-pointer group hover:border-indigo-100"
-                  onClick={() => navigate(`/orders/${order.id}`)}
+                  onClick={() => { triggerHaptic('light'); navigate(`/orders/${order.id}`); }}
                 >
                   {/* Order Header */}
                   <div className="flex items-start justify-between mb-3 sm:mb-4 gap-2">

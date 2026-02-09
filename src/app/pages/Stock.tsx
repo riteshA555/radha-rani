@@ -11,6 +11,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Tabs } from '../components/ui/tabs';
 import { t } from '../../shared/utils/i18n';
 import { useSettings } from '../../context/SettingsContext';
+import { triggerHaptic } from '../../utils/haptics';
 
 export function Stock() {
   // Data State
@@ -181,7 +182,7 @@ export function Stock() {
         subtitle="Track raw silver, wastage & finished goods"
         actions={
           <button
-            onClick={() => setShowModal(true)}
+            onClick={() => { triggerHaptic('light'); setShowModal(true); }}
             className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow-sm font-medium"
           >
             <Plus className="w-5 h-5" /> Add Stock Entry
@@ -390,7 +391,7 @@ export function Stock() {
                 <h2 className="text-xl font-bold text-gray-900">{t('stock_entry', lang)}</h2>
                 <p className="text-sm text-gray-500 font-medium">Record movements for silvers & products</p>
               </div>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={() => { triggerHaptic('light'); setShowModal(false); }} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -406,7 +407,7 @@ export function Stock() {
                   <button
                     key={type.id}
                     type="button"
-                    onClick={() => setForm({ ...form, item_type: type.id as any })}
+                    onClick={() => { triggerHaptic('light'); setForm({ ...form, item_type: type.id as any }); }}
                     className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${form.item_type === type.id
                       ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700 shadow-sm'
                       : 'border-gray-100 hover:border-gray-200 text-gray-400'
@@ -431,7 +432,7 @@ export function Stock() {
                   <button
                     key={mode.id}
                     type="button"
-                    onClick={() => setForm({ ...form, type: mode.id as any })}
+                    onClick={() => { triggerHaptic('light'); setForm({ ...form, type: mode.id as any }); }}
                     className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all ${form.type === mode.id
                       ? 'bg-white text-gray-900 shadow-sm border border-gray-100'
                       : 'text-gray-400 hover:text-gray-600'
@@ -574,7 +575,7 @@ export function Stock() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => { triggerHaptic('light'); setShowModal(false); }}
                   className="flex-1 py-3 text-gray-500 font-bold bg-gray-50 hover:bg-gray-100 rounded-xl transition text-sm"
                 >
                   Discard
@@ -582,6 +583,7 @@ export function Stock() {
                 <button
                   type="submit"
                   disabled={submitting}
+                  onClick={() => triggerHaptic('medium')}
                   className="flex-[2] py-3 text-white font-bold bg-indigo-600 hover:bg-indigo-700 rounded-xl transition flex items-center justify-center gap-2 text-sm"
                 >
                   {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <Database size={16} />}

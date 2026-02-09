@@ -20,6 +20,7 @@ import {
   clearSettingsCache
 } from '../../services/settingsService';
 import { formatIndianRupees } from '../../shared/utils/formatters';
+import { triggerHaptic } from '../../utils/haptics';
 
 const TABS = [
   { id: 'business_profile', label: 'Business Profile', labelKey: 'business_profile', icon: Building2, color: 'text-blue-600', bg: 'bg-blue-50', description: 'Company branding & contact' },
@@ -341,7 +342,7 @@ export function SettingsPage() {
               </h4>
               <p className="text-xs text-gray-400 mb-6 font-medium">Backup includes all Orders, Inventory, Contacts, Karigar ledgers, and Application Settings.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <button onClick={handleExport} className="flex items-center justify-center gap-3 p-6 bg-gray-50 rounded-2xl border border-gray-200 hover:bg-white hover:border-indigo-300 transition-all font-bold group">
+                <button onClick={() => { triggerHaptic('light'); handleExport(); }} className="flex items-center justify-center gap-3 p-6 bg-gray-50 rounded-2xl border border-gray-200 hover:bg-white hover:border-indigo-300 transition-all font-bold group">
                   <Download size={20} className="text-gray-400 group-hover:text-indigo-600" />
                   <div className="text-left">
                     <div className="text-sm">Download Full Backup</div>
@@ -372,6 +373,7 @@ export function SettingsPage() {
 
                   <button
                     onClick={() => {
+                      triggerHaptic('medium');
                       if (window.confirm("CRITICAL WARNING: This will PERMANENTLY delete ALL your data. Proceed to authorization?")) {
                         setShowReAuth(true);
                       }
@@ -389,7 +391,7 @@ export function SettingsPage() {
         {activeTab !== 'advanced' && (
           <div className="pt-8 pb-24">
             <button
-              onClick={handleSave}
+              onClick={() => { triggerHaptic('medium'); handleSave(); }}
               disabled={saving}
               className="w-full sm:w-auto px-12 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-70"
             >
@@ -418,7 +420,7 @@ export function SettingsPage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => { triggerHaptic('light'); setActiveTab(tab.id); }}
                 className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all ${activeTab === tab.id
                   ? 'bg-white shadow-md shadow-gray-200/50 border border-gray-100'
                   : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
@@ -500,7 +502,7 @@ const Select = ({ label, value, onChange, children }: any) => (
 )
 
 const Toggle = ({ label, checked, onChange }: any) => (
-  <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-2xl hover:bg-white hover:border-indigo-500 transition-all group cursor-pointer" onClick={() => onChange(!checked)}>
+  <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-2xl hover:bg-white hover:border-indigo-500 transition-all group cursor-pointer" onClick={() => { triggerHaptic('selection'); onChange(!checked); }}>
     <span className="text-sm font-bold text-gray-700 group-hover:text-indigo-700 transition-colors">{label}</span>
     <div className={`w-12 h-6 flex items-center rounded-full p-1 duration-300 ease-in-out ${checked ? 'bg-indigo-600' : 'bg-gray-300'}`}>
       <div className={`bg-white w-4 h-4 rounded-full shadow-lg transform duration-300 ease-in-out ${checked ? 'translate-x-6' : ''}`}></div>
