@@ -214,7 +214,7 @@ BEGIN
                 jsonb_build_object(
                     'id', k.id,
                     'name', k.name,
-                    'work_type', k.type,
+                    'work_type', k.work_type,
                     'current_balance', COALESCE(k.current_balance, 0),
                     'current_metal_balance', 0
                 )
