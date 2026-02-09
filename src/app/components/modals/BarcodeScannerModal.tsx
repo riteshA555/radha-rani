@@ -12,57 +12,81 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
     const [error, setError] = useState<string | null>(null);
     const [manualEntry, setManualEntry] = useState('');
     const [isInAppBrowser, setIsInAppBrowser] = useState(false);
+    const [debugLog, setDebugLog] = useState<string[]>([]);
     const scannerRef = useRef<Html5Qrcode | null>(null);
+
+    const addLog = (msg: string) => {
+        console.log(`[Scanner Debug] ${msg}`);
+        setDebugLog(prev => [...prev.slice(-4), msg]);
+    };
 
     const startScanner = async () => {
         if (!scannerRef.current) return;
         setError(null);
+        addLog("Starting scanner sequence...");
 
-        // Detect potential in-app browser
         const ua = navigator.userAgent;
         if ((ua.includes('FBAN') || ua.includes('FBAV') || ua.includes('Instagram') || ua.includes('WhatsApp'))) {
             setIsInAppBrowser(true);
+            addLog("In-App Browser detected");
         }
 
         const config = {
-            fps: 15,
+            fps: 10,
             qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
                 const minSide = Math.min(viewfinderWidth, viewfinderHeight);
-                const qrboxSize = Math.floor(minSide * 0.75);
+                const qrboxSize = Math.floor(minSide * 0.8);
                 return { width: qrboxSize, height: qrboxSize };
             },
             aspectRatio: 1.0,
-            formatsToSupport: [
-                Html5QrcodeSupportedFormats.QR_CODE,
-                Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.EAN_13
-            ]
         };
 
         try {
+            addLog("Requesting getUserMedia...");
             await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            addLog("Permission granted by browser");
 
-            await scannerRef.current.start(
-                { facingMode: "environment" },
-                config,
-                (decodedText) => {
-                    scannerRef.current?.stop().then(() => {
-                        onScan(decodedText);
-                        onClose();
-                    }).catch(err => console.error("Stop failed", err));
-                },
-                () => { }
-            );
+            try {
+                addLog("Attempting 'environment' camera...");
+                await scannerRef.current.start(
+                    { facingMode: "environment" },
+                    config,
+                    (decodedText) => {
+                        scannerRef.current?.stop().then(() => {
+                            onScan(decodedText);
+                            onClose();
+                        }).catch(err => console.error("Stop failed", err));
+                    },
+                    () => { }
+                );
+            } catch (envErr) {
+                addLog(`Env camera failed: ${String(envErr)}`);
+                addLog("Trying ANY available camera...");
+                // Fallback: Just open any camera
+                await scannerRef.current.start(
+                    { facingMode: "user" }, // Try front as fallback
+                    config,
+                    (decodedText) => {
+                        scannerRef.current?.stop().then(() => {
+                            onScan(decodedText);
+                            onClose();
+                        }).catch(err => console.error("Stop failed", err));
+                    },
+                    () => { }
+                );
+            }
+
             setIsScanning(true);
+            addLog("Scanner is live!");
         } catch (err: any) {
-            console.error("Scanner Error:", err);
+            addLog(`CRITICAL ERROR: ${err.name} - ${err.message}`);
             const errStr = err.toString();
             if (errStr.includes("Permission denied") || err.name === "NotAllowedError" || errStr.includes("Permission dismissed")) {
                 setError("PERMISSION_DENIED");
             } else if (errStr.includes("NotFoundException") || err.name === "NotFoundError") {
-                setError("No camera found on this device.");
+                setError("No camera found. Please check physical connections.");
             } else {
-                setError(`Scanner Error: ${err.message || "Failed to access camera"}`);
+                setError(`Scanner Error: ${err.message || "Hardware Access Failed"}`);
             }
         }
     };
@@ -73,11 +97,10 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
             return;
         }
 
-        const html5QrCode = new Html5Qrcode('reader');
+        const html5QrCode = new Html5Qrcode('reader', { verbose: false });
         scannerRef.current = html5QrCode;
 
-        // Small delay to ensure DOM is ready
-        const timer = setTimeout(() => startScanner(), 500);
+        const timer = setTimeout(() => startScanner(), 1000); // 1s delay for hardware settling
 
         return () => {
             clearTimeout(timer);
@@ -240,6 +263,20 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
                         <Zap size={14} className="text-amber-400" />
                         Align code in the square frame
                     </p>
+
+                    {/* DEBUG LOG OVERLAY (Visible only if there are logs) */}
+                    {debugLog.length > 0 && (
+                        <div className="w-full bg-black/5 p-3 rounded-xl border border-dashed border-gray-200">
+                            <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Debug Console:</p>
+                            <div className="space-y-1">
+                                {debugLog.map((log, i) => (
+                                    <p key={i} className="text-[9px] font-mono text-gray-500 break-all leading-tight">
+                                        &gt; {log}
+                                    </p>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="p-6 bg-white border-t border-gray-100 grid grid-cols-2 gap-4 sticky bottom-0 z-50">
