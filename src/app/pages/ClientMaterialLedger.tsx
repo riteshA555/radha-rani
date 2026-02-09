@@ -977,96 +977,160 @@ export function ClientMaterialLedger() {
                                             <div className="text-xl font-bold text-rose-700">{historyTotals.loss.toFixed(3)} KG</div>
                                         </div>
                                     </div>
-                                    <table className="w-full text-sm text-left">
-                                        <thead className="bg-gray-50/50 text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
-                                            <tr>
-                                                <th className="px-6 py-4 w-10">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                        checked={selectedConsumptions.length > 0 && selectedConsumptions.length === filteredTransactions.filter(t => t.transaction_type === 'CONSUMPTION').length}
-                                                        onChange={(e) => {
-                                                            if (e.target.checked) {
-                                                                const allCons = filteredTransactions.filter(t => t.transaction_type === 'CONSUMPTION').map(t => t.id);
-                                                                setSelectedConsumptions(allCons);
-                                                            } else {
-                                                                setSelectedConsumptions([]);
-                                                            }
-                                                        }}
-                                                    />
-                                                </th>
-                                                <th className="px-6 py-4">Date</th>
-                                                <th className="px-6 py-4">Client</th>
-                                                <th className="px-6 py-4">Type</th>
-                                                <th className="px-6 py-4">Category</th>
-                                                <th className="px-6 py-4">Base Material</th>
-                                                <th className="px-6 py-4 text-right">PCS</th>
-                                                <th className="px-6 py-4 text-right">Quantity</th>
-                                                <th className="px-6 py-4">Remarks</th>
-                                                <th className="px-6 py-4 text-right">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-50">
-                                            {filteredTransactions.map((t) => (
-                                                <tr key={t.id} className={`hover:bg-gray-50/30 transition-colors ${selectedConsumptions.includes(t.id) ? 'bg-indigo-50/30' : ''}`}>
-                                                    <td className="px-6 py-5">
+                                    {/* Table for Desktop */}
+                                    <div className="hidden lg:block">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="bg-gray-50/50 text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
+                                                <tr>
+                                                    <th className="px-6 py-4 w-10">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                            checked={selectedConsumptions.length > 0 && selectedConsumptions.length === filteredTransactions.filter(t => t.transaction_type === 'CONSUMPTION').length}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    const allCons = filteredTransactions.filter(t => t.transaction_type === 'CONSUMPTION').map(t => t.id);
+                                                                    setSelectedConsumptions(allCons);
+                                                                } else {
+                                                                    setSelectedConsumptions([]);
+                                                                }
+                                                            }}
+                                                        />
+                                                    </th>
+                                                    <th className="px-6 py-4">Date</th>
+                                                    <th className="px-6 py-4">Client</th>
+                                                    <th className="px-6 py-4">Type</th>
+                                                    <th className="px-6 py-4">Category</th>
+                                                    <th className="px-6 py-4">Base Material</th>
+                                                    <th className="px-6 py-4 text-right">PCS</th>
+                                                    <th className="px-6 py-4 text-right">Quantity</th>
+                                                    <th className="px-6 py-4">Remarks</th>
+                                                    <th className="px-6 py-4 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-50">
+                                                {filteredTransactions.map((t) => (
+                                                    <tr key={t.id} className={`hover:bg-gray-50/30 transition-colors ${selectedConsumptions.includes(t.id) ? 'bg-indigo-50/30' : ''}`}>
+                                                        <td className="px-6 py-5">
+                                                            {t.transaction_type === 'CONSUMPTION' && (
+                                                                <input
+                                                                    type="checkbox"
+                                                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                                    checked={selectedConsumptions.includes(t.id)}
+                                                                    onChange={() => handleToggleSelection(t.id)}
+                                                                />
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-5 whitespace-nowrap">
+                                                            <div className="font-semibold text-gray-900">{format(new Date(t.transaction_date), 'dd MMM yyyy')}</div>
+                                                        </td>
+                                                        <td className="px-6 py-5 font-bold text-gray-800">{t.client_name}</td>
+                                                        <td className="px-6 py-5">
+                                                            <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${t.transaction_type === 'RECEIPT' ? 'bg-blue-50 text-blue-700' :
+                                                                t.transaction_type === 'CONSUMPTION' ? 'bg-emerald-50 text-emerald-700' :
+                                                                    'bg-rose-50 text-rose-700'
+                                                                }`}>
+                                                                {t.transaction_type}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-5 text-gray-600 font-medium">{t.material_type}</td>
+                                                        <td className="px-6 py-5">
+                                                            <span className="text-xs font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">
+                                                                {(t.remarks || '').split(' - ')[0] || '—'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-5 text-right font-bold text-indigo-600">{t.pcs || 0}</td>
+                                                        <td className="px-6 py-5 text-right font-bold text-gray-900">{t.quantity.toFixed(3)} KG</td>
+                                                        <td className="px-6 py-5">
+                                                            <div className="text-xs text-gray-500 max-w-xs">{(t.remarks || '').split(' - ').slice(1).join(' - ') || t.reason || '—'}</div>
+                                                        </td>
+                                                        <td className="px-6 py-5 text-right">
+                                                            <div className="flex justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => handleEdit(t)}
+                                                                    className="text-gray-400 hover:text-indigo-600 p-1.5 hover:bg-indigo-50 rounded-lg transition"
+                                                                    title="Edit Entry"
+                                                                >
+                                                                    <Pencil size={16} />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDelete(t.id)}
+                                                                    className="text-gray-400 hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg transition"
+                                                                    title="Delete Entry"
+                                                                >
+                                                                    <X size={16} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {filteredTransactions.length === 0 && (
+                                                    <tr><td colSpan={10} className="py-20 text-center text-gray-400 italic">No transactions found.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Cards for Mobile */}
+                                    <div className="lg:hidden space-y-4">
+                                        {filteredTransactions.map((t) => (
+                                            <div key={t.id} className={`p-4 rounded-xl border ${selectedConsumptions.includes(t.id) ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-100'} shadow-sm space-y-3`}>
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex items-center gap-3">
                                                         {t.transaction_type === 'CONSUMPTION' && (
                                                             <input
                                                                 type="checkbox"
-                                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-5 h-5"
                                                                 checked={selectedConsumptions.includes(t.id)}
                                                                 onChange={() => handleToggleSelection(t.id)}
                                                             />
                                                         )}
-                                                    </td>
-                                                    <td className="px-6 py-5 whitespace-nowrap">
-                                                        <div className="font-semibold text-gray-900">{format(new Date(t.transaction_date), 'dd MMM yyyy')}</div>
-                                                    </td>
-                                                    <td className="px-6 py-5 font-bold text-gray-800">{t.client_name}</td>
-                                                    <td className="px-6 py-5">
-                                                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${t.transaction_type === 'RECEIPT' ? 'bg-blue-50 text-blue-700' :
-                                                            t.transaction_type === 'CONSUMPTION' ? 'bg-emerald-50 text-emerald-700' :
-                                                                'bg-rose-50 text-rose-700'
-                                                            }`}>
-                                                            {t.transaction_type}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-5 text-gray-600 font-medium">{t.material_type}</td>
-                                                    <td className="px-6 py-5">
-                                                        <span className="text-xs font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">
-                                                            {(t.remarks || '').split(' - ')[0] || '—'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-5 text-right font-bold text-indigo-600">{t.pcs || 0}</td>
-                                                    <td className="px-6 py-5 text-right font-bold text-gray-900">{t.quantity.toFixed(3)} KG</td>
-                                                    <td className="px-6 py-5">
-                                                        <div className="text-xs text-gray-500 max-w-xs">{(t.remarks || '').split(' - ').slice(1).join(' - ') || t.reason || '—'}</div>
-                                                    </td>
-                                                    <td className="px-6 py-5 text-right">
-                                                        <div className="flex justify-end gap-2">
-                                                            <button
-                                                                onClick={() => handleEdit(t)}
-                                                                className="text-gray-400 hover:text-indigo-600 p-1.5 hover:bg-indigo-50 rounded-lg transition"
-                                                                title="Edit Entry"
-                                                            >
-                                                                <Pencil size={16} />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDelete(t.id)}
-                                                                className="text-gray-400 hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg transition"
-                                                                title="Delete Entry"
-                                                            >
-                                                                <X size={16} />
-                                                            </button>
+                                                        <div>
+                                                            <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">{format(new Date(t.transaction_date), 'dd MMM yyyy')}</div>
+                                                            <div className="font-bold text-gray-900">{t.client_name}</div>
                                                         </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                            {filteredTransactions.length === 0 && (
-                                                <tr><td colSpan={7} className="py-20 text-center text-gray-400 italic">No transactions found.</td></tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                                                    </div>
+                                                    <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${t.transaction_type === 'RECEIPT' ? 'bg-blue-50 text-blue-700' :
+                                                        t.transaction_type === 'CONSUMPTION' ? 'bg-emerald-50 text-emerald-700' :
+                                                            'bg-rose-50 text-rose-700'
+                                                        }`}>
+                                                        {t.transaction_type}
+                                                    </span>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-50">
+                                                    <div>
+                                                        <div className="text-[10px] font-bold text-gray-400 uppercase">Material</div>
+                                                        <div className="text-sm font-bold text-gray-800">{(t.remarks || '').split(' - ')[0] || '—'}</div>
+                                                        <div className="text-[10px] text-gray-500">{t.material_type}</div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-[10px] font-bold text-gray-400 uppercase">Quantity</div>
+                                                        <div className="text-sm font-black text-gray-900">{t.quantity.toFixed(3)} KG</div>
+                                                        {t.pcs > 0 && <div className="text-[10px] font-bold text-indigo-600">{t.pcs} PCS</div>}
+                                                    </div>
+                                                </div>
+
+                                                {t.remarks && (
+                                                    <div className="bg-gray-50 p-2 rounded-lg text-[11px] text-gray-600 italic">
+                                                        {(t.remarks || '').split(' - ').slice(1).join(' - ') || t.reason || 'No remarks'}
+                                                    </div>
+                                                )}
+
+                                                <div className="flex justify-end gap-3 pt-2">
+                                                    <button onClick={() => handleEdit(t)} className="flex items-center gap-1.5 text-indigo-600 font-bold text-xs bg-indigo-50 px-3 py-2 rounded-lg">
+                                                        <Pencil size={14} /> EDIT
+                                                    </button>
+                                                    <button onClick={() => handleDelete(t.id)} className="flex items-center gap-1.5 text-rose-600 font-bold text-xs bg-rose-50 px-3 py-2 rounded-lg">
+                                                        <X size={14} /> DELETE
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {filteredTransactions.length === 0 && (
+                                            <div className="py-20 text-center text-gray-400 italic bg-gray-50 rounded-xl">No transactions found.</div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>

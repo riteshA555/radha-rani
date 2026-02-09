@@ -17,6 +17,7 @@ import {
 import { formatIndianRupees } from '../../shared/utils/formatters'
 import { useSettings } from '../../context/SettingsContext'
 import { PageHeader } from '../components/ui/PageHeader'
+import { Combobox } from '../components/ui/combobox'
 
 type FormValues = {
     customer_name: string
@@ -727,49 +728,37 @@ export function CreateOrder() {
                                     {materialType === 'CLIENT' ? 'Select Job Work Service' : 'Select Item (Product or Service)'}
                                 </label>
 
-                                <div className="flex gap-2">
+                                <div className="flex flex-col sm:flex-row gap-2">
                                     {/* ITEM TYPE DROPDOWN (Only for OWN Material) */}
                                     {materialType === 'OWN' && (
                                         <select
                                             value={draftItem.item_type}
                                             onChange={(e) => handleDraftItemChange('item_type', e.target.value)}
-                                            className="w-1/3 p-3.5 rounded-lg border-2 border-gray-200 text-base bg-gray-50 font-semibold text-gray-700 focus:border-indigo-500 transition-colors"
+                                            className="w-full sm:w-1/3 p-3.5 rounded-lg border-2 border-gray-200 text-base bg-gray-50 font-semibold text-gray-700 focus:border-indigo-500 transition-colors"
                                         >
                                             <option value="PRODUCT">Product</option>
                                             <option value="SERVICE">Service</option>
                                         </select>
                                     )}
 
-                                    {/* ITEM DROPDOWN */}
-                                    <select
-                                        id="item-select-input"
-                                        value={
-                                            materialType === 'CLIENT' ? draftItem.description :
-                                                (draftItem.item_type === 'PRODUCT' ? (draftItem.product_id || '') : (draftItem.service_id || ''))
-                                        }
-                                        onChange={(e) => handleDraftItemChange(
-                                            materialType === 'CLIENT' ? 'description' :
-                                                (draftItem.item_type === 'PRODUCT' ? 'product_id' : 'service_id'),
-                                            e.target.value
-                                        )}
-                                        className="flex-1 p-3.5 rounded-lg border-2 border-gray-200 text-base bg-white focus:border-indigo-500 focus:ring-0 transition-colors text-gray-900 font-bold"
-                                    >
-                                        <option value="">-- Select Item --</option>
-                                        {/* CLIENT MODE (Always Service) */}
-                                        {materialType === 'CLIENT' && jobWorkItems.map(j => (
-                                            <option key={j.id} value={j.name} className="text-gray-900">{j.name} (Service) - ₹{j.default_rate}</option>
-                                        ))}
-
-                                        {/* OWN MODE - PRODUCT */}
-                                        {materialType === 'OWN' && draftItem.item_type === 'PRODUCT' && products.map(p => (
-                                            <option key={p.id} value={p.id} disabled={p.current_stock <= 0} className="text-gray-900">{p.name} - Stock: {p.current_stock}{p.current_stock <= 0 ? ' (OUT)' : ''}</option>
-                                        ))}
-
-                                        {/* OWN MODE - SERVICE */}
-                                        {materialType === 'OWN' && draftItem.item_type === 'SERVICE' && jobWorkItems.map(j => (
-                                            <option key={j.id} value={j.id} className="text-gray-900">{j.name} (Service) - ₹{j.default_rate}</option>
-                                        ))}
-                                    </select>
+                                    {/* ITEM DROPDOWN - PREDIUM COMBOBOX */}
+                                    <div className="flex-1 min-w-0">
+                                        <Combobox
+                                            options={[
+                                                ...(materialType === 'CLIENT' ? jobWorkItems.map(j => ({ value: j.name, label: `${j.name} (Service) - ₹${j.default_rate}` })) : []),
+                                                ...(materialType === 'OWN' && draftItem.item_type === 'PRODUCT' ? products.filter(p => p.current_stock > 0).map(p => ({ value: p.id, label: `${p.name} - Stock: ${p.current_stock}` })) : []),
+                                                ...(materialType === 'OWN' && draftItem.item_type === 'SERVICE' ? jobWorkItems.map(j => ({ value: j.id, label: `${j.name} (Service) - ₹${j.default_rate}` })) : [])
+                                            ]}
+                                            value={materialType === 'CLIENT' ? draftItem.description : (draftItem.item_type === 'PRODUCT' ? (draftItem.product_id || '') : (draftItem.service_id || ''))}
+                                            onValueChange={(val) => handleDraftItemChange(
+                                                materialType === 'CLIENT' ? 'description' : (draftItem.item_type === 'PRODUCT' ? 'product_id' : 'service_id'),
+                                                val
+                                            )}
+                                            placeholder="-- Select Item --"
+                                            searchPlaceholder="Search product or service..."
+                                            className="h-[54px] text-lg font-bold border-2 border-gray-200 rounded-xl"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -1003,8 +992,8 @@ export function CreateOrder() {
                                         </div>
 
                                         <div className="flex justify-between items-center mt-3 pt-2 border-t border-gray-100">
-                                            <span className="text-xs text-gray-400 font-bold uppercase tracking-widest">Total</span>
-                                            <span className="font-black text-gray-900 text-lg">
+                                            <span className="text-xs text-gray-400 font-bold uppercase tracking-widest">Total / कुल</span>
+                                            <span className="font-black text-gray-900 text-lg sm:text-xl">
                                                 ₹{formatIndianRupees(
                                                     ((item.base_quantity || item.quantity) * (item.base_rate || item.rate)) +
                                                     ((item.addon_quantity || 0) * (item.addon_rate || 0))
@@ -1025,129 +1014,111 @@ export function CreateOrder() {
 
                         {/* Totals Footer */}
                         <div className="bg-white p-6 border-t border-gray-100 mt-auto">
-                            <div className="flex flex-col gap-3 mb-6">
-                                {/* Subtotal Row */}
-                                <div className="flex justify-between items-center text-gray-800">
-                                    <label className="flex items-center gap-2 cursor-pointer text-sm font-medium hover:text-indigo-600 transition-colors">
-                                        <input
-                                            type="checkbox"
-                                            {...register('gst_enabled')}
-                                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300"
-                                        />
-                                        Apply GST?
-                                    </label>
-                                    <div className="text-right text-sm font-medium">Subtotal: ₹{formatIndianRupees(subtotal)}</div>
+                            <div className="flex flex-col lg:flex-row gap-8">
+                                {/* Left Side: Details & Options */}
+                                <div className="flex-1 space-y-4">
+                                    <div className="flex flex-wrap items-center gap-4">
+                                        <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                {...register('gst_enabled')}
+                                                id="gst-toggle"
+                                                className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 cursor-pointer"
+                                            />
+                                            <label htmlFor="gst-toggle" className="text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer">GST</label>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
+                                            <input
+                                                type="checkbox"
+                                                {...register('include_ledger_balance')}
+                                                id="incl-bal"
+                                                className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                            />
+                                            <label htmlFor="incl-bal" className="text-xs font-bold text-gray-600 uppercase tracking-wider cursor-pointer">Incl. Old Bal</label>
+                                        </div>
+
+                                        <select
+                                            {...register('payment_mode')}
+                                            className="bg-gray-50 border border-gray-100 text-xs font-bold rounded-lg px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all"
+                                        >
+                                            <option value="CASH">CASH</option>
+                                            <option value="ONLINE">ONLINE</option>
+                                            <option value="BANK">BANK</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Advance Input */}
+                                    <div className="max-w-xs">
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.1em] mb-1.5 ml-1">Advance Payment</label>
+                                        <div className="flex items-center bg-gray-50 rounded-xl px-4 py-2 border border-gray-100 focus-within:border-indigo-300 focus-within:bg-white transition-all">
+                                            <span className="text-gray-400 font-bold mr-2">₹</span>
+                                            <input
+                                                type="number"
+                                                {...register('advance_amount', { valueAsNumber: true })}
+                                                className="w-full bg-transparent border-none p-0 text-xl font-black text-gray-900 focus:ring-0 placeholder-gray-300"
+                                                placeholder="0"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setValue('advance_amount', grandTotal)}
+                                                className="ml-2 text-[10px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-widest px-2 py-1"
+                                            >
+                                                Full
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                {/* Discount Field */}
-                                <div className="flex justify-between items-center text-sm text-red-500">
-                                    <span>Discount (-)</span>
-                                    <div className="flex items-center gap-1">
-                                        <span className="text-gray-400 text-xs">₹</span>
+                                {/* Right Side: Values & Summary */}
+                                <div className="w-full lg:w-80 space-y-3">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-500 font-medium">Subtotal</span>
+                                        <span className="text-gray-900 font-bold">₹{formatIndianRupees(subtotal)}</span>
+                                    </div>
+
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-gray-500 font-medium whitespace-nowrap">Discount (-)</span>
                                         <input
                                             type="number"
                                             {...register('discount_amount', { valueAsNumber: true })}
-                                            className="w-24 bg-white border border-red-200 rounded px-2 py-1 text-right text-red-600 focus:border-red-500 focus:ring-1 focus:ring-red-200 text-sm placeholder-red-200"
+                                            className="w-20 bg-transparent border-b border-gray-200 text-right text-rose-600 font-bold focus:border-rose-500 focus:ring-0 p-0"
                                             placeholder="0"
                                         />
                                     </div>
-                                </div>
 
-                                {/* GST Field */}
-                                {gstEnabled && (
-                                    <div className="flex justify-between items-center animate-fade-in pl-6">
-                                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                                            <span>Rate:</span>
-                                            <input
-                                                type="number"
-                                                step="0.1"
-                                                className="w-16 bg-white border border-gray-300 rounded px-1 text-center text-gray-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 text-sm"
-                                                placeholder={String(defaultGstRate)}
-                                                {...register('custom_gst_rate', { valueAsNumber: true })}
-                                            />
-                                            <span>%</span>
-                                        </div>
-                                        <div className="text-sm text-amber-600 font-medium">+ GST: ₹{formatIndianRupees(gstAmount)}</div>
-                                    </div>
-                                )}
-
-                                {/* Round Off */}
-                                <div className="flex justify-between items-center text-xs text-gray-400 pl-6">
-                                    <span>Round Off</span>
-                                    <span>{roundOffDiff > 0 ? '+' : ''}{roundOffDiff.toFixed(2)}</span>
-                                </div>
-                            </div>
-
-                            {/* Enhanced Professional Summary Card (Light Theme) */}
-                            <div className="bg-white border-2 border-indigo-50 p-6 rounded-[2.5rem] shadow-2xl shadow-indigo-100/40 mt-6 overflow-hidden relative group transition-all hover:shadow-indigo-100/60">
-                                <div className="relative z-10 flex flex-col gap-5">
-                                    {/* Grand Total Row */}
-                                    <div className="flex justify-between items-end border-b border-gray-100 pb-5">
-                                        <div>
-                                            <div className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1 px-1">Grand Total / कुल देय</div>
-                                            <div className="text-4xl font-black tracking-tight text-gray-900">₹{formatIndianRupees(grandTotal)}</div>
-                                        </div>
-                                        <div className="flex flex-col items-end gap-3">
-                                            <div className="flex items-center gap-3 bg-indigo-50/50 px-4 py-2 rounded-full border border-indigo-100/50">
-                                                <input
-                                                    type="checkbox"
-                                                    {...register('include_ledger_balance')}
-                                                    id="incl-bal"
-                                                    className="w-4 h-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer"
-                                                />
-                                                <label htmlFor="incl-bal" className="text-[10px] font-black text-indigo-900 uppercase tracking-wider cursor-pointer hover:text-indigo-600 transition-colors">
-                                                    Include Balance?
-                                                </label>
-                                            </div>
-                                            <select
-                                                {...register('payment_mode')}
-                                                className="bg-gray-900 border-none text-[10px] font-black rounded-full px-4 py-2 text-white focus:outline-none focus:ring-4 focus:ring-indigo-100 shadow-lg cursor-pointer transition-all hover:scale-105"
-                                            >
-                                                <option value="CASH">💵 CASH</option>
-                                                <option value="ONLINE">📱 ONLINE</option>
-                                                <option value="BANK">🏦 BANK</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    {/* Advance Payment Input Integrated */}
-                                    <div className="flex items-center gap-6 py-1">
-                                        <div className="flex-1">
-                                            <div className="text-[11px] font-black text-indigo-400 uppercase tracking-wider mb-2 px-1 text-center sm:text-left">Advance Payment / एडवांस</div>
-                                            <div className="flex items-center gap-3 bg-gray-50 rounded-2xl p-3 border-2 border-transparent focus-within:border-indigo-100 focus-within:bg-white transition-all shadow-inner">
-                                                <div className="bg-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100">
-                                                    <span className="text-white font-black text-xl">₹</span>
-                                                </div>
+                                    {gstEnabled && (
+                                        <div className="flex justify-between items-center text-sm animate-fade-in">
+                                            <div className="flex items-center gap-1 text-[10px] text-gray-400 font-bold">
+                                                GST (
                                                 <input
                                                     type="number"
-                                                    {...register('advance_amount', { valueAsNumber: true })}
-                                                    className="w-full bg-transparent border-none p-0 text-3xl font-black text-gray-900 focus:ring-0 placeholder-gray-200"
-                                                    placeholder="0.00"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setValue('advance_amount', grandTotal)}
-                                                    className="bg-white hover:bg-gray-900 text-indigo-600 hover:text-white text-[10px] font-black px-4 py-2.5 rounded-xl transition-all border border-indigo-100 hover:border-gray-900 uppercase tracking-widest shadow-sm hover:shadow-md"
-                                                >
-                                                    Full
-                                                </button>
+                                                    step="0.1"
+                                                    className="w-8 bg-transparent border-none p-0 text-center focus:ring-0 text-[10px] font-bold"
+                                                    {...register('custom_gst_rate', { valueAsNumber: true })}
+                                                    placeholder={String(defaultGstRate)}
+                                                />%)
                                             </div>
+                                            <span className="text-gray-900 font-bold">₹{formatIndianRupees(gstAmount)}</span>
+                                        </div>
+                                    )}
+
+                                    <div className="pt-3 border-t border-gray-100">
+                                        <div className="flex justify-between items-end mb-2">
+                                            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Grand Total</div>
+                                            <div className="text-3xl font-black text-gray-900 leading-none">₹{formatIndianRupees(grandTotal)}</div>
                                         </div>
 
-                                        {/* Status Indicators */}
-                                        <div className="flex flex-col gap-3 min-w-[140px]">
-                                            <div className="bg-gray-50/50 p-3 rounded-2xl border border-gray-100">
-                                                <div className="text-[9px] text-gray-400 font-black uppercase mb-1">Due / बाकी</div>
-                                                <div className={`text-lg font-black tracking-tight ${Math.max(0, grandTotal - (watch('advance_amount') || 0)) > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                                                    ₹{formatIndianRupees(Math.max(0, grandTotal - (watch('advance_amount') || 0)))}
-                                                </div>
+                                        {/* Status Row */}
+                                        <div className="flex justify-between items-center gap-2">
+                                            <div className="text-[10px] font-bold text-rose-500 uppercase flex items-center gap-1">
+                                                Due: <span className="text-sm font-black">₹{formatIndianRupees(Math.max(0, grandTotal - (watch('advance_amount') || 0)))}</span>
                                             </div>
+
                                             {customerName && savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase()) && (
-                                                <div className="bg-indigo-600 p-3 rounded-2xl border border-indigo-700 shadow-lg shadow-indigo-100">
-                                                    <div className="text-[9px] text-indigo-200 font-black uppercase mb-1">
-                                                        {watch('include_ledger_balance') ? 'Final Balance (Inc. Old)' : 'Bill Balance (Only Today)'}
-                                                    </div>
-                                                    <div className="text-lg font-black text-white tracking-tight">
+                                                <div className="text-[10px] font-bold text-indigo-600 uppercase text-right">
+                                                    {watch('include_ledger_balance') ? 'Final: ' : 'Today: '}
+                                                    <span className="text-sm font-black">
                                                         ₹{formatIndianRupees(
                                                             (watch('include_ledger_balance')
                                                                 ? Number(savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance || 0)
@@ -1155,35 +1126,36 @@ export function CreateOrder() {
                                                             Number(grandTotal) -
                                                             Number(watch('advance_amount') || 0)
                                                         )}
-                                                    </div>
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
                                 </div>
-                                <Wallet className="absolute -right-12 -bottom-12 text-indigo-50/30 -rotate-12 group-hover:scale-110 transition-transform duration-700" size={240} />
                             </div>
 
                             {/* Error Message */}
                             {submissionError && (
-                                <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-100 flex items-center gap-2">
+                                <div className="mt-6 bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-100 flex items-center gap-2">
                                     <AlertTriangle size={16} /> {submissionError}
                                 </div>
                             )}
 
                             {/* Submit Button */}
-                            <button
-                                type="button"
-                                onClick={handleSubmit(onSubmit)}
-                                disabled={isSubmitting || fields.length === 0}
-                                className={`w-full p-4 rounded-xl text-lg font-bold flex items-center justify-center gap-3 transition-all shadow-lg hover:shadow-xl active:scale-95 ${(isSubmitting || fields.length === 0)
-                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
-                                    : 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white'
-                                    }`}
-                            >
-                                {isSubmitting ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={24} />}
-                                {isSubmitting ? 'Processing...' : 'Save & Print Order'}
-                            </button>
+                            <div className="mt-6">
+                                <button
+                                    type="button"
+                                    onClick={handleSubmit(onSubmit)}
+                                    disabled={isSubmitting || fields.length === 0}
+                                    className={`w-full p-4 rounded-xl text-lg font-bold flex items-center justify-center gap-3 transition-all ${(isSubmitting || fields.length === 0)
+                                        ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100 active:scale-[0.98]'
+                                        }`}
+                                >
+                                    {isSubmitting ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={24} />}
+                                    {isSubmitting ? 'Saving Order...' : 'Save & Print Invoice'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

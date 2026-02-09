@@ -18,6 +18,9 @@ export interface Order {
     ledger_balance_before?: number;
     ledger_balance_after?: number;
     status: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
+    discount_amount?: number;
+    delivery_date?: string;
+    notes?: string;
     created_at: string;
     updated_at: string;
     items?: OrderItem[];

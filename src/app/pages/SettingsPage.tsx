@@ -173,6 +173,14 @@ export function SettingsPage() {
               <Input label="State" value={localData.state} onChange={(v: string) => setLocalData({ ...localData, state: v })} />
               <Input label="Pincode" value={localData.pincode} onChange={(v: string) => setLocalData({ ...localData, pincode: v })} />
             </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Terms & Conditions (Invoice)</label>
+              <textarea
+                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all"
+                rows={4} value={localData.termsAndConditions} onChange={(e: any) => setLocalData({ ...localData, termsAndConditions: e.target.value })}
+                placeholder="Write your business terms here..."
+              />
+            </div>
           </div>
         )}
 
