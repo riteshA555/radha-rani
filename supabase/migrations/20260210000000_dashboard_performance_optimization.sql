@@ -38,19 +38,29 @@ BEGIN
         -- KPIs Section
         'kpis', (
             SELECT jsonb_build_object(
-                -- Financial KPIs
+                -- Financial KPIs (Fixed: Grouped by Ledger, Excludes System Accounts)
                 'total_receivable', COALESCE((
-                    SELECT SUM(CASE WHEN debit > credit THEN debit - credit ELSE 0 END)
-                    FROM transactions t
-                    JOIN ledgers l ON t.ledger_id = l.id
-                    WHERE t.user_id = v_user_id AND l.type = 'ASSET'
+                    SELECT SUM(balance)
+                    FROM (
+                        SELECT SUM(CAST(debit AS NUMERIC)) - SUM(CAST(credit AS NUMERIC)) as balance
+                        FROM transactions t
+                        JOIN ledgers l ON t.ledger_id = l.id
+                        WHERE t.user_id = v_user_id AND l.type = 'ASSET' AND l.is_system = false
+                        GROUP BY l.id
+                    ) as lr
+                    WHERE balance > 0
                 ), 0),
                 
                 'total_advance', COALESCE((
-                    SELECT SUM(CASE WHEN credit > debit THEN credit - debit ELSE 0 END)
-                    FROM transactions t
-                    JOIN ledgers l ON t.ledger_id = l.id
-                    WHERE t.user_id = v_user_id AND l.type = 'LIABILITY'
+                    SELECT SUM(ABS(balance))
+                    FROM (
+                        SELECT SUM(CAST(debit AS NUMERIC)) - SUM(CAST(credit AS NUMERIC)) as balance
+                        FROM transactions t
+                        JOIN ledgers l ON t.ledger_id = l.id
+                        WHERE t.user_id = v_user_id AND l.type = 'ASSET' AND l.is_system = false
+                        GROUP BY l.id
+                    ) as lr
+                    WHERE balance < 0
                 ), 0),
                 
                 'today_sales', COALESCE((
