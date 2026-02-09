@@ -261,49 +261,110 @@ export function Catalog() {
       alert("Pehle product edit karke barcode/QR generate karein!");
       return;
     }
+
+    const qtyStr = prompt("How many tags to print?", "1");
+    const qty = parseInt(qtyStr || "0");
+    if (isNaN(qty) || qty <= 0) return;
+
     const printWindow = window.open('', '_blank');
     if (printWindow) {
+      const labelsHtml = Array(qty).fill(0).map(() => `
+        <div class="label">
+          <div class="name">${item.name}</div>
+          <canvas class="qrcode" data-barcode="${item.barcode}"></canvas>
+          <div class="barcode-text">${item.barcode}</div>
+        </div>
+      `).join('');
+
       printWindow.document.write(`
         <html>
           <head>
-            <title>Print Label - ${item.name}</title>
+            <title>Print Labels - ${item.name}</title>
             <style>
-              body { font-family: 'Inter', sans-serif; text-align: center; padding: 10px; margin: 0; }
-              .label { 
-                border: 1px solid #000; 
-                padding: 10px; 
-                display: inline-block; 
-                width: 180px;
-                border-radius: 8px;
+              @page { size: A4; margin: 10mm; }
+              body { 
+                font-family: 'Inter', system-ui, sans-serif; 
+                margin: 0; 
+                padding: 0;
+                background: white;
               }
-              .name { font-weight: 800; font-size: 14px; margin-bottom: 2px; text-transform: uppercase; }
-              .category { font-size: 9px; color: #666; margin-bottom: 5px; font-weight: bold; }
-              .meta { font-size: 10px; font-weight: bold; margin-top: 2px; }
-              .barcode-text { font-family: monospace; font-size: 8px; color: #888; margin-top: 4px; }
-              canvas { margin: 5px 0; }
+              .grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 8px;
+                width: 100%;
+              }
+              .label { 
+                border: 0.5pt solid #e5e7eb; 
+                padding: 12px 8px; 
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                border-radius: 6px;
+                break-inside: avoid;
+                height: 32mm;
+                background: white;
+              }
+              .name { 
+                font-weight: 800; 
+                font-size: 11px; 
+                margin-bottom: 4px; 
+                text-transform: uppercase; 
+                color: #000;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+              }
+              .barcode-text { 
+                font-family: 'JetBrains Mono', monospace; 
+                font-size: 9px; 
+                font-weight: 700;
+                color: #000; 
+                margin-top: 4px;
+                letter-spacing: 0.5px;
+              }
+              canvas { 
+                display: block;
+                margin: 2px auto;
+                max-width: 60px;
+                max-height: 60px;
+              }
+              @media print {
+                body { background: none; }
+                .label { border: 0.5pt solid #000; }
+              }
             </style>
             <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
           </head>
           <body>
-            <div class="label">
-              <div class="name">${item.name}</div>
-              <div class="category">${item.category}</div>
-              <canvas id="qrcode"></canvas>
-              <div class="meta">${item.default_weight}g | ₹${item.labour_cost} MC</div>
-              <div class="barcode-text">${item.barcode}</div>
+            <div class="grid">
+              ${labelsHtml}
             </div>
             <script>
-              QRCode.toCanvas(document.getElementById('qrcode'), '${item.barcode}', { 
-                width: 100,
-                margin: 1,
-                color: { dark: '#000000', light: '#ffffff' }
-              }, function (error) {
-                if (error) console.error(error);
-                setTimeout(() => {
-                  window.print();
-                  window.close();
-                }, 500);
-              });
+              window.onload = function() {
+                const canvases = document.querySelectorAll('.qrcode');
+                let processed = 0;
+                canvases.forEach(canvas => {
+                  const barcode = canvas.getAttribute('data-barcode');
+                  QRCode.toCanvas(canvas, barcode, { 
+                    width: 70,
+                    margin: 1,
+                    color: { dark: '#000000', light: '#ffffff' }
+                  }, function (error) {
+                    if (error) console.error(error);
+                    processed++;
+                    if (processed === canvases.length) {
+                      setTimeout(() => {
+                        window.print();
+                        window.close();
+                      }, 500);
+                    }
+                  });
+                });
+              };
             </script>
           </body>
         </html>
@@ -693,43 +754,73 @@ export function Catalog() {
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    const qtyStr = prompt("How many tags to print?", "1");
+                                    const qty = parseInt(qtyStr || "0");
+                                    if (isNaN(qty) || qty <= 0) return;
+
                                     const printWindow = window.open('', '_blank');
                                     if (printWindow) {
+                                      const labelsHtml = Array(qty).fill(0).map(() => `
+                                        <div class="label">
+                                          <div class="name">${form.name || 'Product'}</div>
+                                          <canvas class="qrcode" data-barcode="${form.barcode}"></canvas>
+                                          <div class="barcode-text">${form.barcode}</div>
+                                        </div>
+                                      `).join('');
+
                                       printWindow.document.write(`
                                                     <html>
                                                         <head>
-                                                            <title>Print Label</title>
+                                                            <title>Print Labels</title>
                                                             <style>
-                                                              body { font-family: 'Inter', sans-serif; text-align: center; padding: 10px; margin: 0; }
+                                                              @page { size: A4; margin: 10mm; }
+                                                              body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: white; }
+                                                              .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
                                                               .label { 
-                                                                border: 1px solid #000; 
-                                                                padding: 10px; 
-                                                                display: inline-block; 
-                                                                width: 180px;
-                                                                border-radius: 8px;
+                                                                border: 0.5pt solid #e5e7eb; 
+                                                                padding: 12px 8px; 
+                                                                text-align: center;
+                                                                display: flex;
+                                                                flex-direction: column;
+                                                                align-items: center;
+                                                                justify-content: center;
+                                                                border-radius: 6px;
+                                                                break-inside: avoid;
+                                                                height: 32mm;
+                                                                background: white;
                                                               }
-                                                              .name { font-weight: 800; font-size: 14px; margin-bottom: 2px; text-transform: uppercase; }
-                                                              .category { font-size: 9px; color: #666; margin-bottom: 5px; font-weight: bold; }
-                                                              .meta { font-size: 10px; font-weight: bold; margin-top: 2px; }
-                                                              .barcode-text { font-family: monospace; font-size: 8px; color: #888; margin-top: 4px; }
-                                                              canvas { margin: 5px 0; }
+                                                              .name { font-weight: 800; font-size: 11px; margin-bottom: 4px; text-transform: uppercase; color: #000; }
+                                                              .barcode-text { font-family: monospace; font-size: 9px; font-weight: 700; color: #000; margin-top: 4px; }
+                                                              canvas { display: block; margin: 2px auto; max-width: 60px; max-height: 60px; }
+                                                              @media print {
+                                                                body { background: none; }
+                                                                .label { border: 0.5pt solid #000; }
+                                                              }
                                                             </style>
                                                             <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
                                                         </head>
                                                         <body>
-                                                            <div class="label">
-                                                              <div class="name">${form.name || 'Product'}</div>
-                                                              <div class="category">${form.category || 'Category'}</div>
-                                                              <canvas id="qrcode"></canvas>
-                                                              <div class="meta">${form.default_weight}g | GST ${form.gst_rate}%</div>
-                                                              <div class="barcode-text">${form.barcode}</div>
+                                                            <div class="grid">
+                                                              ${labelsHtml}
                                                             </div>
                                                             <script>
-                                                                QRCode.toCanvas(document.getElementById('qrcode'), '${form.barcode}', { width: 100, margin: 1 }, function (error) {
-                                                                    if (error) console.error(error);
-                                                                    window.print();
-                                                                    window.close();
-                                                                });
+                                                                window.onload = function() {
+                                                                  const canvases = document.querySelectorAll('.qrcode');
+                                                                  let processed = 0;
+                                                                  canvases.forEach(canvas => {
+                                                                    const barcode = canvas.getAttribute('data-barcode');
+                                                                    QRCode.toCanvas(canvas, barcode, { width: 70, margin: 1 }, function (error) {
+                                                                      if (error) console.error(error);
+                                                                      processed++;
+                                                                      if (processed === canvases.length) {
+                                                                        setTimeout(() => {
+                                                                          window.print();
+                                                                          window.close();
+                                                                        }, 500);
+                                                                      }
+                                                                    });
+                                                                  });
+                                                                };
                                                             </script>
                                                         </body>
                                                     </html>
