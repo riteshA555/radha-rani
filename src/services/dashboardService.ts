@@ -16,28 +16,44 @@ export interface DashboardCompositeData {
     recent_rates: any[];
     karigar_overview: any[];
     live_rate: number;
+    live_rate_gold: number;
     local_rate?: {
         selling_rate: number;
         buying_rate: number;
         rate_date: string;
         purity: string;
+        metal_type: string;
     } | null;
+    local_rate_gold?: {
+        selling_rate: number;
+        buying_rate: number;
+        rate_date: string;
+        purity: string;
+        metal_type: string;
+    } | null;
+    debug_user_id?: string;
 }
 
 const DASHBOARD_CACHE_KEY = 'dashboard_full_bundle';
 
-export const getDashboardFullData = async (): Promise<DashboardCompositeData> => {
+export const getDashboardFullData = async (forceRefresh: boolean = false): Promise<DashboardCompositeData> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    return cacheStore.getOrFetch(DASHBOARD_CACHE_KEY, async () => {
+    const fetchFn = async () => {
         const { data, error } = await supabase.rpc('get_dashboard_composite_data');
         if (error) {
             console.error('Super RPC Failed:', error);
             throw error;
         }
         return data as DashboardCompositeData;
-    }, 1000 * 60 * 1, true); // 1 min TTL (reduced from 10 mins) for better responsiveness
+    };
+
+    if (forceRefresh) {
+        invalidateDashboardCache();
+    }
+
+    return cacheStore.getOrFetch(DASHBOARD_CACHE_KEY, fetchFn, 1000 * 60 * 1, true); // 1 min TTL
 };
 
 export const invalidateDashboardCache = () => {

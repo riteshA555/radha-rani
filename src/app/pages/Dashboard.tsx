@@ -64,17 +64,27 @@ export function Dashboard() {
   const [karigarBalances, setKarigarBalances] = useState<{ [key: string]: { cash: number, metal: number } }>({});
   const [kpis, setKpis] = useState<any>(null);
   const [localRate, setLocalRate] = useState<any>(null);
+  const [localRateGold, setLocalRateGold] = useState<any>(null);
+  const [rateGold, setRateGold] = useState<MetalRate | null>(null);
   const [isUpdatingRate, setIsUpdatingRate] = useState(false);
-  const [newLocalRate, setNewLocalRate] = useState({ selling: '', buying: '' });
+  const [newLocalRate, setNewLocalRate] = useState({ selling: '', buying: '', metal: 'SILVER' as 'SILVER' | 'GOLD' });
 
-  const refreshAll = useCallback(async (showLoader = false) => {
+  const refreshAll = useCallback(async (showLoader = false, force = false) => {
     if (showLoader) setLoading(true);
     setError(null);
 
     try {
-      const data = await getDashboardFullData();
+      const data = await getDashboardFullData(force || showLoader);
 
       if (!data) throw new Error("No data received");
+
+      console.log("Dashboard Data Loaded:", {
+        user: data.debug_user_id,
+        silver: data.live_rate,
+        gold: data.live_rate_gold,
+        localSilver: data.local_rate,
+        localGold: data.local_rate_gold
+      });
 
       setDashboardData(data);
 
@@ -109,11 +119,29 @@ export function Dashboard() {
       setKarigarBalances(balances);
       setKarigars(data.karigar_overview || []);
       setLocalRate(data.local_rate);
-      if (data.local_rate) {
-        setNewLocalRate({
-          selling: data.local_rate.selling_rate.toString(),
-          buying: (data.local_rate.buying_rate || '').toString()
-        });
+      setLocalRateGold(data.local_rate_gold);
+      if (data.live_rate_gold) {
+        setRateGold({
+          id: 'live_gold',
+          metal_type: 'GOLD',
+          selling_rate: data.live_rate_gold,
+          rate_date: new Date().toISOString(),
+          source: 'Market'
+        } as any);
+      }
+
+      if (data.local_rate && newLocalRate.metal === 'SILVER') {
+        setNewLocalRate(prev => ({
+          ...prev,
+          selling: data.local_rate!.selling_rate.toString(),
+          buying: (data.local_rate!.buying_rate || '').toString()
+        }));
+      } else if (data.local_rate_gold && newLocalRate.metal === 'GOLD') {
+        setNewLocalRate(prev => ({
+          ...prev,
+          selling: data.local_rate_gold!.selling_rate.toString(),
+          buying: (data.local_rate_gold!.buying_rate || '').toString()
+        }));
       }
 
       // Fetch products separately (still 1 extra call, but improved)
@@ -132,15 +160,15 @@ export function Dashboard() {
     setIsUpdatingRate(true);
     try {
       await addMetalRate({
-        metal_type: 'SILVER',
-        purity: '999',
+        metal_type: newLocalRate.metal,
+        purity: newLocalRate.metal === 'SILVER' ? '999' : '916',
         selling_rate: parseFloat(newLocalRate.selling),
         buying_rate: newLocalRate.buying ? parseFloat(newLocalRate.buying) : undefined,
         rate_date: new Date().toISOString().split('T')[0],
         source: 'Local Dealer'
       });
       invalidateDashboardCache();
-      await refreshAll(false);
+      await refreshAll(false, true); // Force fresh load
       setIsUpdatingRate(false);
     } catch (err) {
       console.error('Failed to update rate', err);
@@ -157,7 +185,7 @@ export function Dashboard() {
     let timer: any;
     const dRefresh = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => refreshAll(false), 3000); // 3 second debounce, no loader
+      timer = setTimeout(() => refreshAll(false, true), 3000); // 3 second debounce, force fresh
     };
 
     const dashboardChannel = supabase
@@ -266,7 +294,7 @@ export function Dashboard() {
             </p>
           </div>
           <button
-            onClick={() => refreshAll(true)}
+            onClick={() => refreshAll(true, true)}
             className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors"
             title="Refresh Data"
           >
@@ -535,16 +563,40 @@ export function Dashboard() {
           <div className="p-5">
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                <div className="text-[9px] text-gray-400 font-bold uppercase mb-1">Live Market (1g)</div>
+                <div className="text-[9px] text-gray-400 font-bold uppercase mb-1">Live Silver (1g)</div>
                 <div className="text-lg font-black text-gray-900">₹{rate?.selling_rate || '---'}</div>
               </div>
+              <div className="p-3 rounded-xl bg-orange-50 border border-orange-100">
+                <div className="text-[9px] text-orange-600 font-bold uppercase mb-1">Live Gold (1g)</div>
+                <div className="text-lg font-black text-orange-700">₹{rateGold?.selling_rate || '---'}</div>
+              </div>
               <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-                <div className="text-[9px] text-emerald-600 font-bold uppercase mb-1">Your Shop Rate</div>
-                <div className="text-lg font-black text-emerald-700">₹{localRate?.selling_rate || rate?.selling_rate || '---'}</div>
+                <div className="text-[9px] text-emerald-600 font-bold uppercase mb-1">Shop Silver</div>
+                <div className="text-lg font-black text-emerald-700">₹{localRate?.selling_rate || '---'}</div>
+              </div>
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
+                <div className="text-[9px] text-amber-600 font-bold uppercase mb-1">Shop Gold</div>
+                <div className="text-lg font-black text-amber-700">₹{localRateGold?.selling_rate || '---'}</div>
               </div>
             </div>
 
             <div className="space-y-4">
+              <div className="mb-2">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setNewLocalRate(prev => ({ ...prev, metal: 'SILVER' }))}
+                    className={`flex-1 py-1 text-[10px] font-bold rounded uppercase transition-all ${newLocalRate.metal === 'SILVER' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-500'}`}
+                  >
+                    Silver 999
+                  </button>
+                  <button
+                    onClick={() => setNewLocalRate(prev => ({ ...prev, metal: 'GOLD' }))}
+                    className={`flex-1 py-1 text-[10px] font-bold rounded uppercase transition-all ${newLocalRate.metal === 'GOLD' ? 'bg-amber-600 text-white shadow-sm' : 'bg-gray-100 text-gray-500'}`}
+                  >
+                    Gold 916
+                  </button>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Selling Rate</label>

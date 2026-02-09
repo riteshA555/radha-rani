@@ -15,7 +15,8 @@ AS $$
 DECLARE
     v_user_id UUID;
     v_result JSONB;
-    v_current_rate NUMERIC;
+    v_current_silver_rate NUMERIC;
+    v_current_gold_rate NUMERIC;
 BEGIN
     v_user_id := auth.uid();
     
@@ -23,23 +24,37 @@ BEGIN
         RAISE EXCEPTION 'Not authenticated';
     END IF;
     
-    -- Get current silver rate (999 Purity) for calculations
-    SELECT selling_rate INTO v_current_rate 
+    -- Get current silver rate (999 Purity)
+    SELECT selling_rate INTO v_current_silver_rate 
     FROM metal_rates 
     WHERE metal_type = 'SILVER' AND purity = '999' AND user_id = v_user_id
     ORDER BY rate_date DESC, created_at DESC 
     LIMIT 1;
     
-    IF v_current_rate IS NULL THEN 
-        v_current_rate := 0; 
-    END IF;
+    -- Get current gold rate (916 Purity - Most Common)
+    SELECT selling_rate INTO v_current_gold_rate 
+    FROM metal_rates 
+    WHERE metal_type = 'GOLD' AND purity = '916' AND user_id = v_user_id
+    ORDER BY rate_date DESC, created_at DESC 
+    LIMIT 1;
     
-    -- Build composite result with all dashboard data
+    -- Fallback to any latest gold if 916 is missing
+    IF v_current_gold_rate IS NULL THEN
+        SELECT selling_rate INTO v_current_gold_rate 
+        FROM metal_rates 
+        WHERE metal_type = 'GOLD' AND user_id = v_user_id
+        ORDER BY rate_date DESC, created_at DESC 
+        LIMIT 1;
+    END IF;
+
+    IF v_current_silver_rate IS NULL THEN v_current_silver_rate := 0; END IF;
+    IF v_current_gold_rate IS NULL THEN v_current_gold_rate := 0; END IF;
+    
+    -- Build composite result
     SELECT jsonb_build_object(
-        -- KPIs Section
+        'debug_user_id', v_user_id,
         'kpis', (
             SELECT jsonb_build_object(
-                -- Financial KPIs (Fixed: Grouped by Ledger, Excludes System Accounts)
                 'total_receivable', COALESCE((
                     SELECT SUM(balance)
                     FROM (
@@ -51,7 +66,6 @@ BEGIN
                     ) as lr
                     WHERE balance > 0
                 ), 0),
-                
                 'total_advance', COALESCE((
                     SELECT SUM(ABS(balance))
                     FROM (
@@ -63,199 +77,40 @@ BEGIN
                     ) as lr
                     WHERE balance < 0
                 ), 0),
-                
-                'today_sales', COALESCE((
-                    SELECT SUM(total_amount) 
-                    FROM orders 
-                    WHERE order_date = CURRENT_DATE AND user_id = v_user_id
-                ), 0),
-                
-                'monthly_job_work_income', COALESCE((
-                    SELECT SUM(total_amount) 
-                    FROM orders 
-                    WHERE material_type = 'CLIENT' 
-                        AND EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE)
-                        AND EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE)
-                        AND user_id = v_user_id
-                ), 0),
-                
-                -- Stock Value KPIs
-                'raw_silver_stock_value', COALESCE((
-                    SELECT SUM(
-                        CASE 
-                            WHEN type IN ('STOCK_IN', 'PRODUCTION') THEN weight_gm 
-                            WHEN type IN ('STOCK_OUT', 'ORDER_DEDUCTION') THEN -weight_gm 
-                            ELSE 0 
-                        END
-                    ) * v_current_rate
-                    FROM stock_transactions 
-                    WHERE item_type = 'RAW_SILVER' AND user_id = v_user_id
-                ), 0),
-                
-                'finished_goods_stock_value', COALESCE((
-                    SELECT SUM(current_stock * default_weight) * v_current_rate 
-                    FROM products
-                ), 0),
-                
-                -- Order Stats
-                'stats_pending_count', COALESCE((
-                    SELECT COUNT(*) 
-                    FROM orders 
-                    WHERE status = 'Pending' AND user_id = v_user_id
-                ), 0),
-                
-                'stats_pending_value', COALESCE((
-                    SELECT SUM(total_amount) 
-                    FROM orders 
-                    WHERE status = 'Pending' AND user_id = v_user_id
-                ), 0),
-                
-                'stats_monthly_sales', COALESCE((
-                    SELECT SUM(total_amount) 
-                    FROM orders 
-                    WHERE EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE)
-                        AND EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE)
-                        AND user_id = v_user_id
-                ), 0),
-                
-                'stats_monthly_count', COALESCE((
-                    SELECT COUNT(*) 
-                    FROM orders 
-                    WHERE EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE)
-                        AND EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE)
-                        AND user_id = v_user_id
-                ), 0),
-                
-                'stats_monthly_gst', COALESCE((
-                    SELECT SUM(gst_amount) 
-                    FROM orders 
-                    WHERE EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE)
-                        AND EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE)
-                        AND user_id = v_user_id
-                ), 0)
+                'today_sales', COALESCE((SELECT SUM(total_amount) FROM orders WHERE order_date = CURRENT_DATE AND user_id = v_user_id), 0),
+                'monthly_job_work_income', COALESCE((SELECT SUM(total_amount) FROM orders WHERE material_type = 'CLIENT' AND EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE) AND user_id = v_user_id), 0),
+                'raw_silver_stock_value', COALESCE((SELECT SUM(CASE WHEN type IN ('STOCK_IN', 'PRODUCTION') THEN weight_gm WHEN type IN ('STOCK_OUT', 'ORDER_DEDUCTION') THEN -weight_gm ELSE 0 END) * v_current_silver_rate FROM stock_transactions WHERE item_type = 'RAW_SILVER' AND user_id = v_user_id), 0),
+                'finished_goods_stock_value', COALESCE((SELECT SUM(current_stock * default_weight) * v_current_silver_rate FROM products), 0),
+                'stats_pending_count', COALESCE((SELECT COUNT(*) FROM orders WHERE status = 'Pending' AND user_id = v_user_id), 0),
+                'stats_pending_value', COALESCE((SELECT SUM(total_amount) FROM orders WHERE status = 'Pending' AND user_id = v_user_id), 0),
+                'stats_monthly_sales', COALESCE((SELECT SUM(total_amount) FROM orders WHERE EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE) AND user_id = v_user_id), 0),
+                'stats_monthly_count', COALESCE((SELECT COUNT(*) FROM orders WHERE EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE) AND user_id = v_user_id), 0),
+                'stats_monthly_gst', COALESCE((SELECT SUM(gst_amount) FROM orders WHERE EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE) AND user_id = v_user_id), 0)
             )
         ),
-        
-        -- Stock Section
         'stock', (
             SELECT jsonb_build_object(
-                'raw_silver', COALESCE((
-                    SELECT SUM(
-                        CASE 
-                            WHEN type IN ('STOCK_IN', 'PRODUCTION') THEN weight_gm 
-                            WHEN type IN ('STOCK_OUT', 'ORDER_DEDUCTION') THEN -weight_gm 
-                            ELSE 0 
-                        END
-                    )
-                    FROM stock_transactions 
-                    WHERE item_type = 'RAW_SILVER' AND user_id = v_user_id
-                ), 0),
-                
-                'wastage', COALESCE((
-                    SELECT SUM(
-                        CASE 
-                            WHEN type IN ('STOCK_IN', 'PRODUCTION') THEN weight_gm 
-                            WHEN type IN ('STOCK_OUT', 'ORDER_DEDUCTION') THEN -weight_gm 
-                            ELSE 0 
-                        END
-                    )
-                    FROM stock_transactions 
-                    WHERE item_type = 'WASTAGE' AND user_id = v_user_id
-                ), 0),
-                
-                'finished_goods_weight', COALESCE((
-                    SELECT SUM(current_stock * default_weight) 
-                    FROM products
-                ), 0)
+                'raw_silver', COALESCE((SELECT SUM(CASE WHEN type IN ('STOCK_IN', 'PRODUCTION') THEN weight_gm WHEN type IN ('STOCK_OUT', 'ORDER_DEDUCTION') THEN -weight_gm ELSE 0 END) FROM stock_transactions WHERE item_type = 'RAW_SILVER' AND user_id = v_user_id), 0),
+                'wastage', COALESCE((SELECT SUM(CASE WHEN type IN ('STOCK_IN', 'PRODUCTION') THEN weight_gm WHEN type IN ('STOCK_OUT', 'ORDER_DEDUCTION') THEN -weight_gm ELSE 0 END) FROM stock_transactions WHERE item_type = 'WASTAGE' AND user_id = v_user_id), 0),
+                'finished_goods_weight', COALESCE((SELECT SUM(current_stock * default_weight) FROM products), 0)
             )
         ),
-        
-        -- Recent Orders (Last 10)
         'recent_orders', COALESCE((
-            SELECT jsonb_agg(
-                jsonb_build_object(
-                    'id', o.id,
-                    'order_number', o.order_number,
-                    'customer_name', o.customer_name,
-                    'total_amount', o.total_amount,
-                    'status', COALESCE(o.status, 'Pending'),
-                    'order_date', o.order_date,
-                    'material_type', o.material_type,
-                    'items', COALESCE((
-                        SELECT jsonb_agg(
-                            jsonb_build_object(
-                                'description', oi.description,
-                                'quantity', oi.quantity,
-                                'rate', oi.rate
-                            )
-                        )
-                        FROM order_items oi
-                        WHERE oi.order_id = o.id
-                    ), '[]'::jsonb)
-                )
-            )
-            FROM (
-                SELECT * FROM orders 
-                WHERE user_id = v_user_id 
-                ORDER BY order_date DESC, created_at DESC
-                LIMIT 10
-            ) o
+            SELECT jsonb_agg(jsonb_build_object('id', o.id, 'order_number', o.order_number, 'customer_name', o.customer_name, 'total_amount', o.total_amount, 'status', COALESCE(o.status, 'Pending'), 'order_date', o.order_date, 'material_type', o.material_type, 'items', COALESCE((SELECT jsonb_agg(jsonb_build_object('description', oi.description, 'quantity', oi.quantity, 'rate', oi.rate)) FROM order_items oi WHERE oi.order_id = o.id), '[]'::jsonb)))
+            FROM (SELECT * FROM orders WHERE user_id = v_user_id ORDER BY order_date DESC, created_at DESC LIMIT 10) o
         ), '[]'::jsonb),
-        
-        -- Recent Rates (Last 10 - SILVER 999)
         'recent_rates', COALESCE((
-            SELECT jsonb_agg(
-                jsonb_build_object(
-                    'id', id,
-                    'rate_date', rate_date,
-                    'source', source,
-                    'selling_rate', selling_rate
-                )
-            )
-            FROM (
-                SELECT * FROM metal_rates 
-                WHERE metal_type = 'SILVER' AND purity = '999' AND user_id = v_user_id
-                ORDER BY rate_date DESC, created_at DESC 
-                LIMIT 10
-            ) r
+            SELECT jsonb_agg(jsonb_build_object('id', id, 'rate_date', rate_date, 'source', source, 'selling_rate', selling_rate, 'metal_type', metal_type, 'purity', purity))
+            FROM (SELECT * FROM metal_rates WHERE user_id = v_user_id ORDER BY rate_date DESC, created_at DESC LIMIT 10) r
         ), '[]'::jsonb),
-        
-        -- Karigar Overview (Top 10)
         'karigar_overview', COALESCE((
-            SELECT jsonb_agg(
-                jsonb_build_object(
-                    'id', k.id,
-                    'name', k.name,
-                    'work_type', k.work_type,
-                    'current_balance', COALESCE(k.current_balance, 0),
-                    'current_metal_balance', 0
-                )
-            )
-            FROM (
-                SELECT * FROM karigars 
-                WHERE status = 'Active'
-                ORDER BY name 
-                LIMIT 10
-            ) k
+            SELECT jsonb_agg(jsonb_build_object('id', k.id, 'name', k.name, 'work_type', k.work_type, 'current_balance', COALESCE(k.current_balance, 0), 'current_metal_balance', 0))
+            FROM (SELECT * FROM karigars WHERE status = 'Active' ORDER BY name LIMIT 10) k
         ), '[]'::jsonb),
-        
-        -- Live Rate (Latest Silver 999)
-        'live_rate', v_current_rate,
-
-        -- Local Rate (Latest Local Dealer)
-        'local_rate', (
-            SELECT jsonb_build_object(
-                'selling_rate', selling_rate,
-                'buying_rate', buying_rate,
-                'rate_date', rate_date,
-                'purity', purity
-            )
-            FROM metal_rates 
-            WHERE source = 'Local Dealer' AND user_id = v_user_id
-            ORDER BY rate_date DESC, created_at DESC
-            LIMIT 1
-        )
-        
+        'live_rate', v_current_silver_rate, -- Retro-compatibility
+        'live_rate_gold', v_current_gold_rate,
+        'local_rate', (SELECT jsonb_build_object('selling_rate', selling_rate, 'buying_rate', buying_rate, 'rate_date', rate_date, 'purity', purity, 'metal_type', metal_type) FROM metal_rates WHERE source = 'Local Dealer' AND metal_type = 'SILVER' AND purity = '999' AND user_id = v_user_id ORDER BY rate_date DESC, created_at DESC LIMIT 1),
+        'local_rate_gold', (SELECT jsonb_build_object('selling_rate', selling_rate, 'buying_rate', buying_rate, 'rate_date', rate_date, 'purity', purity, 'metal_type', metal_type) FROM metal_rates WHERE source = 'Local Dealer' AND metal_type = 'GOLD' AND user_id = v_user_id ORDER BY rate_date DESC, created_at DESC LIMIT 1)
     ) INTO v_result;
     
     RETURN v_result;

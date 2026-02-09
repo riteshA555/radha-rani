@@ -15,6 +15,20 @@ class CacheStore {
     constructor() {
         // Hydrate from localStorage on initialization for specific keys
         this.hydrate();
+
+        // Handle cross-tab invalidation
+        if (typeof window !== 'undefined') {
+            window.addEventListener('storage', (event) => {
+                if (event.key && event.key.startsWith(this.STORAGE_PREFIX)) {
+                    // Extract the un-prefixed key (e.g. 'userId_dashboard_full_bundle')
+                    const fullKey = event.key.replace(this.STORAGE_PREFIX, '');
+                    // Clear internal memory cache if the localStorage was changed by another tab
+                    if (event.newValue === null) {
+                        this.cache.delete(fullKey);
+                    }
+                }
+            });
+        }
     }
 
     /**
