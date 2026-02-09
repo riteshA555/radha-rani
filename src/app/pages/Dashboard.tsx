@@ -60,7 +60,9 @@ export function Dashboard() {
   const [karigarBalances, setKarigarBalances] = useState<{ [key: string]: { cash: number, metal: number } }>({});
   const [kpis, setKpis] = useState<any>(null);
 
-  const refreshAll = useCallback(async () => {
+  const refreshAll = useCallback(async (showLoader = false) => {
+    if (showLoader) setLoading(true);
+
     try {
       const data = await getDashboardFullData();
       setDashboardData(data);
@@ -100,39 +102,28 @@ export function Dashboard() {
   }, []);
 
   useEffect(() => {
-    refreshAll();
+    // Progressive Loading: Show cached data first, then fetch fresh
+    refreshAll(true); // Initial load with loader
 
-    // Debounced Refresh Helper
+    // Consolidated Real-time Subscription (4 channels → 1 channel)
+    // Debounce increased from 1s to 3s to reduce overhead
     let timer: any;
-    const dRefresh = () => { clearTimeout(timer); timer = setTimeout(refreshAll, 1000); };
+    const dRefresh = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => refreshAll(false), 3000); // 3 second debounce, no loader
+    };
 
-    const ordersChannel = supabase
-      .channel('dashboard_order_updates')
+    const dashboardChannel = supabase
+      .channel('dashboard_realtime_updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, dRefresh)
-      .subscribe();
-
-    const stockChannel = supabase
-      .channel('dashboard_stock_updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_transactions' }, dRefresh)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'products' }, dRefresh)
-      .subscribe();
-
-    const ledgerChannel = supabase
-      .channel('dashboard_ledger_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ledgers' }, dRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, dRefresh)
-      .subscribe();
-
-    const rateChannel = supabase
-      .channel('dashboard_rate_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'metal_rates' }, dRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'silver_rates' }, dRefresh)
       .subscribe();
 
     return () => {
-      supabase.removeChannel(ordersChannel);
-      supabase.removeChannel(stockChannel);
-      supabase.removeChannel(ledgerChannel);
-      supabase.removeChannel(rateChannel);
+      supabase.removeChannel(dashboardChannel);
       clearTimeout(timer);
     };
   }, [refreshAll]);
@@ -487,7 +478,7 @@ export function Dashboard() {
 
 // Components
 
-const KpiCard = ({ label, value, icon, loading, color }: any) => (
+const KpiCard = memo(({ label, value, icon, loading, color }: any) => (
   <div className={`bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-xl hover:shadow-${color}-100/50 transition-all`}>
     <div className="flex justify-between items-start mb-4 sm:mb-6">
       <div className={`p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-${color}-50 text-${color}-600 group-hover:scale-110 transition-transform`}>
@@ -504,4 +495,4 @@ const KpiCard = ({ label, value, icon, loading, color }: any) => (
     </div>
     <div className={`absolute top-0 right-0 w-32 h-32 bg-${color}-50/30 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700`}></div>
   </div>
-);
+), (prev, next) => prev.value === next.value && prev.loading === next.loading);

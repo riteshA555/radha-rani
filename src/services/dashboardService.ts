@@ -31,7 +31,7 @@ export const getDashboardFullData = async (): Promise<DashboardCompositeData> =>
             throw error;
         }
         return data as DashboardCompositeData;
-    }, 1000 * 60 * 2, true); // 2 mins TTL, persistent
+    }, 1000 * 60 * 10, true); // 10 mins TTL (extended from 2 mins), persistent
 };
 
 export const invalidateDashboardCache = () => {
