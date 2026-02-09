@@ -166,7 +166,7 @@ export function Dashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_transactions' }, dRefresh)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'products' }, dRefresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, dRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'silver_rates' }, dRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'metal_rates' }, dRefresh)
       .subscribe();
 
     return () => {

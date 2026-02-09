@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient'
 import { cacheStore } from './cacheStore'
+import { invalidateDashboardCache } from './dashboardService'
 
 export type MetalType = 'GOLD' | 'SILVER';
 
@@ -93,6 +94,7 @@ export const addMetalRate = async (rate: Omit<MetalRate, 'id' | 'created_at'>) =
     cacheStore.invalidate(CACHE_KEYS.LATEST_RATES);
     cacheStore.invalidatePattern(CACHE_KEYS.RATE_HISTORY);
     cacheStore.invalidatePattern('stock_summary');
+    invalidateDashboardCache();
 
     return data as MetalRate;
 }
@@ -112,4 +114,5 @@ export const deleteMetalRate = async (id: string) => {
     cacheStore.invalidate(CACHE_KEYS.LATEST_RATES);
     cacheStore.invalidatePattern(CACHE_KEYS.RATE_HISTORY);
     cacheStore.invalidatePattern('stock_summary');
+    invalidateDashboardCache();
 }

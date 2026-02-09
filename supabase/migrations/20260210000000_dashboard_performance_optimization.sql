@@ -23,10 +23,11 @@ BEGIN
         RAISE EXCEPTION 'Not authenticated';
     END IF;
     
-    -- Get current silver rate for calculations
-    SELECT rate_1g INTO v_current_rate 
-    FROM silver_rates 
-    ORDER BY rate_date DESC 
+    -- Get current silver rate (999 Purity) for calculations
+    SELECT selling_rate INTO v_current_rate 
+    FROM metal_rates 
+    WHERE metal_type = 'SILVER' AND purity = '999' AND user_id = v_user_id
+    ORDER BY rate_date DESC, created_at DESC 
     LIMIT 1;
     
     IF v_current_rate IS NULL THEN 
@@ -201,19 +202,20 @@ BEGIN
             ) o
         ), '[]'::jsonb),
         
-        -- Recent Rates (Last 10)
+        -- Recent Rates (Last 10 - SILVER 999)
         'recent_rates', COALESCE((
             SELECT jsonb_agg(
                 jsonb_build_object(
                     'id', id,
                     'rate_date', rate_date,
                     'source', source,
-                    'selling_rate', rate_1g
+                    'selling_rate', selling_rate
                 )
             )
             FROM (
-                SELECT * FROM silver_rates 
-                ORDER BY rate_date DESC 
+                SELECT * FROM metal_rates 
+                WHERE metal_type = 'SILVER' AND purity = '999' AND user_id = v_user_id
+                ORDER BY rate_date DESC, created_at DESC 
                 LIMIT 10
             ) r
         ), '[]'::jsonb),
@@ -237,8 +239,22 @@ BEGIN
             ) k
         ), '[]'::jsonb),
         
-        -- Live Rate
-        'live_rate', v_current_rate
+        -- Live Rate (Latest Silver 999)
+        'live_rate', v_current_rate,
+
+        -- Local Rate (Latest Local Dealer)
+        'local_rate', (
+            SELECT jsonb_build_object(
+                'selling_rate', selling_rate,
+                'buying_rate', buying_rate,
+                'rate_date', rate_date,
+                'purity', purity
+            )
+            FROM metal_rates 
+            WHERE source = 'Local Dealer' AND user_id = v_user_id
+            ORDER BY rate_date DESC, created_at DESC
+            LIMIT 1
+        )
         
     ) INTO v_result;
     
