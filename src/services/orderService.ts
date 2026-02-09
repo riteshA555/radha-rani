@@ -25,7 +25,7 @@ export const getOrders = async () => {
 
 // Updated type definition implicitly via the arguments
 export const createOrder = async (
-    order: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_number' | 'user_id' | 'gst_enabled' | 'gst_rate' | 'gst_amount' | 'subtotal' | 'total_amount'> & {
+    order: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_number' | 'user_id' | 'gst_enabled' | 'gst_rate' | 'gst_amount' | 'subtotal' | 'total_amount' | 'advance_amount' | 'payment_mode'> & {
         discount_amount?: number,
         delivery_date?: string,
         notes?: string
