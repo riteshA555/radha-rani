@@ -46,6 +46,7 @@ const CardSkeleton = memo(({ loading, children }: { loading: boolean, children: 
 export function Dashboard() {
   const { settings } = useSettings();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showGstCalc, setShowGstCalc] = useState(false);
 
   // Data States
@@ -180,20 +181,38 @@ export function Dashboard() {
     <div className="p-4 space-y-6 max-w-7xl mx-auto">
       {/* Page Title */}
       <div>
-        <h2 className="text-xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-xs text-gray-500 mt-0.5">
-          Real-time business performance overview
-          {settings.system_settings?.lastBackupAt && (
-            <span className="ml-3 text-emerald-600 font-bold">
-              • Last Backup: {new Date(settings.system_settings.lastBackupAt).toLocaleDateString()}
-            </span>
-          )}
-          {stats.lowStockCount > 0 && (
-            <Link to="/stock" className="ml-3 px-2 py-0.5 bg-rose-50 text-rose-600 font-bold rounded border border-rose-100 uppercase animate-pulse">
-              • {stats.lowStockCount} Items Low Stock
-            </Link>
-          )}
-        </p>
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Dashboard</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Real-time business performance overview
+              {settings.system_settings?.lastBackupAt && (
+                <span className="ml-3 text-emerald-600 font-bold">
+                  • Last Backup: {new Date(settings.system_settings.lastBackupAt).toLocaleDateString()}
+                </span>
+              )}
+              {stats.lowStockCount > 0 && (
+                <Link to="/stock" className="ml-3 px-2 py-0.5 bg-rose-50 text-rose-600 font-bold rounded border border-rose-100 uppercase animate-pulse">
+                  • {stats.lowStockCount} Items Low Stock
+                </Link>
+              )}
+            </p>
+          </div>
+          <button
+            onClick={() => refreshAll(true)}
+            className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors"
+            title="Refresh Data"
+          >
+            <Clock size={18} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
+
+        {error && (
+          <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between text-rose-700 text-sm">
+            <span>Error: {error}</span>
+            <button onClick={() => refreshAll(true)} className="underline font-bold">Retry</button>
+          </div>
+        )}
       </div>
 
 
