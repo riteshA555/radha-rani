@@ -12,23 +12,15 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
     const [error, setError] = useState<string | null>(null);
     const [manualEntry, setManualEntry] = useState('');
     const [isInAppBrowser, setIsInAppBrowser] = useState(false);
-    const [debugLog, setDebugLog] = useState<string[]>([]);
     const scannerRef = useRef<Html5Qrcode | null>(null);
-
-    const addLog = (msg: string) => {
-        console.log(`[Scanner Debug] ${msg}`);
-        setDebugLog(prev => [...prev.slice(-4), msg]);
-    };
 
     const startScanner = async () => {
         if (!scannerRef.current) return;
         setError(null);
-        addLog("Starting scanner sequence...");
 
         const ua = navigator.userAgent;
         if ((ua.includes('FBAN') || ua.includes('FBAV') || ua.includes('Instagram') || ua.includes('WhatsApp'))) {
             setIsInAppBrowser(true);
-            addLog("In-App Browser detected");
         }
 
         const config = {
@@ -42,12 +34,9 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
         };
 
         try {
-            addLog("Requesting getUserMedia...");
             await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-            addLog("Permission granted by browser");
 
             try {
-                addLog("Attempting 'environment' camera...");
                 await scannerRef.current.start(
                     { facingMode: "environment" },
                     config,
@@ -60,8 +49,6 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
                     () => { }
                 );
             } catch (envErr) {
-                addLog(`Env camera failed: ${String(envErr)}`);
-                addLog("Trying ANY available camera...");
                 // Fallback: Just open any camera
                 await scannerRef.current.start(
                     { facingMode: "user" }, // Try front as fallback
@@ -77,9 +64,7 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
             }
 
             setIsScanning(true);
-            addLog("Scanner is live!");
         } catch (err: any) {
-            addLog(`CRITICAL ERROR: ${err.name} - ${err.message}`);
             const errStr = err.toString();
             if (errStr.includes("Permission denied") || err.name === "NotAllowedError" || errStr.includes("Permission dismissed")) {
                 setError("PERMISSION_DENIED");
@@ -264,19 +249,6 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
                         Align code in the square frame
                     </p>
 
-                    {/* DEBUG LOG OVERLAY (Visible only if there are logs) */}
-                    {debugLog.length > 0 && (
-                        <div className="w-full bg-black/5 p-3 rounded-xl border border-dashed border-gray-200">
-                            <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Debug Console:</p>
-                            <div className="space-y-1">
-                                {debugLog.map((log, i) => (
-                                    <p key={i} className="text-[9px] font-mono text-gray-500 break-all leading-tight">
-                                        &gt; {log}
-                                    </p>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 <div className="p-6 bg-white border-t border-gray-100 grid grid-cols-2 gap-4 sticky bottom-0 z-50">
