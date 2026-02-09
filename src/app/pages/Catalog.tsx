@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus, Search, Grid3x3, List, Gem, Eye, Edit2, Trash2, Hammer, Package, Calculator, X, Check, Loader2, RefreshCw, Printer } from 'lucide-react';
+import { Plus, Search, Grid3x3, List, Gem, Eye, Edit2, Trash2, Hammer, Package, Calculator, X, Check, Loader2, RefreshCw } from 'lucide-react';
 import { getProducts, updateProduct, deleteProduct, addProduct } from '../../services/productService';
 import { getJobWorkItems, updateJobWorkItem, deleteJobWorkItem, addJobWorkItem } from '../../services/jobWorkService';
 import { getLatestRates } from '../../services/rateService';
@@ -256,125 +256,6 @@ export function Catalog() {
     });
   };
 
-  const handlePrintTag = (item: any) => {
-    if (!item.barcode) {
-      alert("Pehle product edit karke barcode/QR generate karein!");
-      return;
-    }
-
-    const qtyStr = prompt("How many tags to print?", "1");
-    const qty = parseInt(qtyStr || "0");
-    if (isNaN(qty) || qty <= 0) return;
-
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      const labelsHtml = Array(qty).fill(0).map(() => `
-        <div class="label">
-          <div class="name">${item.name}</div>
-          <canvas class="qrcode" data-barcode="${item.barcode}"></canvas>
-          <div class="barcode-text">${item.barcode}</div>
-        </div>
-      `).join('');
-
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Print Labels - ${item.name}</title>
-            <style>
-              @page { size: A4; margin: 10mm; }
-              body { 
-                font-family: 'Inter', system-ui, sans-serif; 
-                margin: 0; 
-                padding: 0;
-                background: white;
-              }
-              .grid {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 6px;
-                padding: 5px;
-              }
-              .label { 
-                border: 0.5pt solid #000; 
-                padding: 10px 5px; 
-                text-align: center;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                border-radius: 4px;
-                break-inside: avoid;
-                height: 31mm;
-                background: white;
-              }
-              .name { 
-                font-weight: 800; 
-                font-size: 11px; 
-                margin-bottom: 3px; 
-                text-transform: uppercase; 
-                color: #000;
-                display: -webkit-box;
-                -webkit-line-clamp: 2;
-                -webkit-box-orient: vertical;
-                overflow: hidden;
-              }
-              .barcode-text { 
-                font-family: 'Inter', sans-serif; 
-                font-size: 8.5px; 
-                font-weight: 700;
-                color: #000; 
-                margin-top: 3px;
-              }
-              canvas { 
-                display: block;
-                margin: 2px auto;
-                max-width: 65px;
-                max-height: 65px;
-              }
-              @media print {
-                body { background: none; }
-                .label { border: 0.5pt solid #000; }
-              }
-            </style>
-            <script src="https://cdn.jsdelivr.net/npm/bwip-js@3.2.1/dist/bwip-js-min.js"></script>
-          </head>
-          <body>
-            <div class="grid">
-              ${labelsHtml}
-            </div>
-            <script>
-              window.onload = function() {
-                const canvases = document.querySelectorAll('.qrcode');
-                let processed = 0;
-                canvases.forEach(canvas => {
-                  const barcode = canvas.getAttribute('data-barcode');
-                  try {
-                    bwipjs.toCanvas(canvas, {
-                      bcid: 'datamatrix',
-                      text: barcode,
-                      scale: 3,
-                      includetext: false,
-                    });
-                    processed++;
-                    if (processed === canvases.length) {
-                      setTimeout(() => {
-                        window.print();
-                        window.close();
-                      }, 500);
-                    }
-                  } catch (e) {
-                    console.error(e);
-                  }
-                });
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-    }
-  };
-
   const filteredItems = useMemo(() => {
     if (activeTab === 'Products') {
       return products.filter(p =>
@@ -571,9 +452,6 @@ export function Catalog() {
                         <td className="px-6 py-4 text-right font-bold text-gray-700">₹{item.labour_cost}</td>
                         <td className="px-6 py-4 text-center">
                           <div className="flex justify-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handlePrintTag(item)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors bg-emerald-50/50 sm:bg-transparent" title="Print Tag">
-                              <Printer size={16} />
-                            </button>
                             <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors bg-indigo-50/50 sm:bg-transparent">
                               <Edit2 size={16} />
                             </button>
@@ -622,16 +500,10 @@ export function Catalog() {
                           Active
                         </span>
                       </div>
-                      <div className="space-y-1.5 mt-4 text-[11px] text-gray-600">
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-400 font-bold uppercase tracking-tighter">Unit</span>
-                          <span className="font-bold text-gray-900">Per {item.unit}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-3 border-t border-gray-50 mt-3">
+                      <div className="space-y-2 mt-4">
+                        <div className="flex justify-between items-center text-xs">
                           <span className="text-gray-400 font-bold uppercase tracking-tight">Rate</span>
-                          <span className="font-bold text-indigo-600 text-base">
-                            ₹{formatIndianRupees(item.default_rate)}
-                          </span>
+                          <span className="font-bold text-gray-900">₹{item.default_rate}</span>
                         </div>
                       </div>
                     </div>
@@ -644,7 +516,6 @@ export function Catalog() {
                   <thead className="bg-gray-50/50 text-gray-400 font-bold uppercase tracking-wider border-b border-gray-100">
                     <tr>
                       <th className="px-6 py-4">Service</th>
-                      <th className="px-6 py-4">Unit</th>
                       <th className="px-6 py-4 text-right">Rate</th>
                       <th className="px-6 py-4 text-center">Action</th>
                     </tr>
@@ -664,10 +535,9 @@ export function Catalog() {
                             <span className="font-bold text-gray-900">{item.name}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{item.unit}</td>
                         <td className="px-6 py-4 text-right font-bold text-indigo-600 text-base">₹{formatIndianRupees(item.default_rate)}</td>
                         <td className="px-6 py-4 text-center">
-                          <div className="flex justify-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          <div className="flex justify-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                             <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors bg-indigo-50/50 sm:bg-transparent">
                               <Edit2 size={16} />
                             </button>
@@ -687,262 +557,154 @@ export function Catalog() {
       )}
 
       {/* Add Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-gray-900/60 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm overflow-hidden">
-          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-xl max-w-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in duration-300 flex flex-col">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white shrink-0 pt-safe sm:pt-6">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">{editingId ? 'Edit' : 'Add New'} {activeTab === 'Products' ? 'Product' : 'Service'}</h2>
-                <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-0.5">Catalog management</p>
+      {
+        showModal && (
+          <div className="fixed inset-0 bg-gray-900/60 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm overflow-hidden">
+            <div className="bg-white w-full h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl shadow-xl max-w-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in duration-300 flex flex-col">
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white shrink-0 pt-safe sm:pt-6">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">{editingId ? 'Edit' : 'Add New'} {activeTab === 'Products' ? 'Product' : 'Service'}</h2>
+                  <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-0.5">Catalog management</p>
+                </div>
+                <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"><X size={20} /></button>
               </div>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors"><X size={20} /></button>
-            </div>
 
-            <form onSubmit={handleCreate} className="flex-1 flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                <div className="flex flex-col sm:flex-row gap-6">
-                  {/* Left Column: Image */}
-                  <div className="w-full sm:w-1/3 shrink-0">
-                    <ImageUpload
-                      currentImageUrl={form.image_url}
-                      onImageUploaded={(url: string) => setForm({ ...form, image_url: url })}
-                      bucketName="product-images"
-                    />
-                  </div>
-
-                  {/* Right Column: Basic Info */}
-                  <div className="flex-1 space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Name</label>
-                      <input
-                        required
-                        type="text"
-                        value={form.name}
-                        onChange={e => setForm({ ...form, name: e.target.value })}
-                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm"
-                        placeholder={activeTab === 'Products' ? "e.g. Silver Ring" : "e.g. Polishing"}
+              <form onSubmit={handleCreate} className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  <div className="flex flex-col sm:flex-row gap-6">
+                    {/* Left Column: Image */}
+                    <div className="w-full sm:w-1/3 shrink-0">
+                      <ImageUpload
+                        currentImageUrl={form.image_url}
+                        onImageUploaded={(url: string) => setForm({ ...form, image_url: url })}
+                        bucketName="product-images"
                       />
                     </div>
 
-                    {activeTab === 'Products' ? (
-                      <>
+                    {/* Right Column: Basic Info */}
+                    <div className="flex-1 space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Name</label>
+                        <input
+                          required
+                          type="text"
+                          value={form.name}
+                          onChange={e => setForm({ ...form, name: e.target.value })}
+                          className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm"
+                          placeholder={activeTab === 'Products' ? "e.g. Silver Ring" : "e.g. Polishing"}
+                        />
+                      </div>
+
+                      {activeTab === 'Products' ? (
+                        <>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Category</label>
+                              <input required type="text" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" placeholder="e.g. Ring" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Size</label>
+                              <input type="text" value={form.size} onChange={e => setForm({ ...form, size: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" placeholder='Optional' />
+                            </div>
+                          </div>
+                        </>
+                      ) : (
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Category</label>
-                            <input required type="text" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" placeholder="e.g. Ring" />
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Unit</label>
+                            <select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm">
+                              <option value="GRAMS">GRAMS</option>
+                              <option value="PCS">PCS</option>
+                              <option value="KG">KG</option>
+                              <option value="SET">SET</option>
+                              <option value="JODI">JODI</option>
+                              <option value="FIXED">FIXED</option>
+                            </select>
                           </div>
                           <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Size</label>
-                            <input type="text" value={form.size} onChange={e => setForm({ ...form, size: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" placeholder='Optional' />
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Rate (₹)</label>
+                            <input required type="number" value={form.default_rate} onChange={e => setForm({ ...form, default_rate: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
                           </div>
-                          <div className="col-span-2 sm:col-span-2">
-                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Barcode / QR Code</label>
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                value={form.barcode || ''}
-                                onChange={e => setForm({ ...form, barcode: e.target.value })}
-                                className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm uppercase tracking-wide"
-                                placeholder="Scan or Generate"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setForm({ ...form, barcode: `ITEM-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}` })}
-                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 font-bold text-xs uppercase transition-colors"
-                              >
-                                Auto Generate
-                              </button>
-                              {form.barcode && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const qtyStr = prompt("How many tags to print?", "1");
-                                    const qty = parseInt(qtyStr || "0");
-                                    if (isNaN(qty) || qty <= 0) return;
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-                                    const printWindow = window.open('', '_blank');
-                                    if (printWindow) {
-                                      const labelsHtml = Array(qty).fill(0).map(() => `
-                                        <div class="label">
-                                          <div class="name">${form.name || 'Product'}</div>
-                                          <canvas class="qrcode" data-barcode="${form.barcode}"></canvas>
-                                          <div class="barcode-text">${form.barcode}</div>
-                                        </div>
-                                      `).join('');
+                  {activeTab === 'Products' && (
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Weight (g)</label>
+                          <input required type="number" step="any" value={form.default_weight} onChange={e => setForm({ ...form, default_weight: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Wastage %</label>
+                          <input required type="number" step="any" value={form.wastage_percent} onChange={e => setForm({ ...form, wastage_percent: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Making (₹)</label>
+                          <input required type="number" value={form.labour_cost} onChange={e => setForm({ ...form, labour_cost: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">GST %</label>
+                          <input type="number" step="any" value={form.gst_rate} onChange={e => setForm({ ...form, gst_rate: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
+                        </div>
+                      </div>
 
-                                      printWindow.document.write(`
-                                                    <html>
-                                                        <head>
-                                                            <title>Print Labels</title>
-                                                            <style>
-                                                              @page { size: A4; margin: 10mm; }
-                                                              body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: white; }
-                                                              .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 5px; }
-                                                              .label { 
-                                                                border: 0.5pt solid #000; 
-                                                                padding: 10px 5px; 
-                                                                text-align: center;
-                                                                display: flex;
-                                                                flex-direction: column;
-                                                                align-items: center;
-                                                                justify-content: center;
-                                                                border-radius: 4px;
-                                                                break-inside: avoid;
-                                                                height: 31mm;
-                                                                background: white;
-                                                              }
-                                                              .name { font-weight: 800; font-size: 11px; margin-bottom: 3px; text-transform: uppercase; color: #000; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-                                                              .barcode-text { font-family: sans-serif; font-size: 8.5px; font-weight: 700; color: #000; margin-top: 3px; }
-                                                              canvas { display: block; margin: 2px auto; max-width: 65px; max-height: 65px; }
-                                                              @media print {
-                                                                body { background: none; }
-                                                                .label { border: 0.5pt solid #000; }
-                                                              }
-                                                            </style>
-                                                            <script src="https://cdn.jsdelivr.net/npm/bwip-js@3.2.1/dist/bwip-js-min.js"></script>
-                                                        </head>
-                                                        <body>
-                                                            <div class="grid">
-                                                              ${labelsHtml}
-                                                            </div>
-                                                            <script>
-                                                                window.onload = function() {
-                                                                  const canvases = document.querySelectorAll('.qrcode');
-                                                                  let processed = 0;
-                                                                  canvases.forEach(canvas => {
-                                                                    const barcode = canvas.getAttribute('data-barcode');
-                                                                    try {
-                                                                      bwipjs.toCanvas(canvas, {
-                                                                        bcid: 'datamatrix',
-                                                                        text: barcode,
-                                                                        scale: 3,
-                                                                        includetext: false,
-                                                                      });
-                                                                      processed++;
-                                                                      if (processed === canvases.length) {
-                                                                        setTimeout(() => {
-                                                                          window.print();
-                                                                          window.close();
-                                                                        }, 500);
-                                                                      }
-                                                                    } catch (e) {
-                                                                      console.error(e);
-                                                                    }
-                                                                  });
-                                                                };
-                                                            </script>
-                                                        </body>
-                                                    </html>
-                                                `);
-                                      printWindow.document.close();
-                                    }
-                                  }}
-                                  className="px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 font-bold text-xs uppercase transition-colors flex items-center gap-2"
-                                >
-                                  Print
-                                </button>
-                              )}
+                      <div className="grid grid-cols-1 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Opening Stock Qty</label>
+                          <input type="number" value={form.current_stock} onChange={e => setForm({ ...form, current_stock: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Min Stock Alert Limit</label>
+                          <input type="number" value={form.min_stock} onChange={e => setForm({ ...form, min_stock: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
+                        </div>
+                      </div>
+
+                      {/* Price Estimator (Live) */}
+                      <div className="mt-4 p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+                        <div className="flex items-center gap-2 mb-4 text-indigo-700 font-bold text-xs uppercase tracking-widest">
+                          <Calculator size={16} /> Price Estimator (Live)
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          <div>
+                            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">Silver Value</div>
+                            <div className="text-sm font-black text-gray-900">₹{formatIndianRupees((Number(form.default_weight) || 0) * silverRate)}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">Labour</div>
+                            <div className="text-sm font-black text-gray-900">₹{formatIndianRupees(Number(form.labour_cost || 0))}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">GST ({form.gst_rate}%)</div>
+                            <div className="text-sm font-black text-gray-900">
+                              ₹{formatIndianRupees(((Number(form.default_weight) || 0) * silverRate + (Number(form.labour_cost) || 0)) * (Number(form.gst_rate) || 3) / 100)}
+                            </div>
+                          </div>
+                          <div className="sm:border-l sm:border-indigo-100 sm:pl-4">
+                            <div className="text-[10px] text-indigo-400 font-bold uppercase tracking-tight mb-1">Approx Price</div>
+                            <div className="text-lg font-black text-indigo-600">
+                              ₹{formatIndianRupees(((Number(form.default_weight) || 0) * silverRate + (Number(form.labour_cost) || 0)) * (1 + (Number(form.gst_rate) || 3) / 100))}
                             </div>
                           </div>
                         </div>
-                      </>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Unit</label>
-                          <select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm">
-                            <option value="GRAMS">GRAMS</option>
-                            <option value="PCS">PCS</option>
-                            <option value="KG">KG</option>
-                            <option value="SET">SET</option>
-                            <option value="JODI">JODI</option>
-                            <option value="FIXED">FIXED</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Rate (₹)</label>
-                          <input required type="number" value={form.default_rate} onChange={e => setForm({ ...form, default_rate: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
-                        </div>
                       </div>
-                    )}
-                  </div>
+                    </>
+                  )}
                 </div>
 
-                {activeTab === 'Products' && (
-                  <>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Weight (g)</label>
-                        <input required type="number" step="any" value={form.default_weight} onChange={e => setForm({ ...form, default_weight: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Wastage %</label>
-                        <input required type="number" step="any" value={form.wastage_percent} onChange={e => setForm({ ...form, wastage_percent: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Making (₹)</label>
-                        <input required type="number" value={form.labour_cost} onChange={e => setForm({ ...form, labour_cost: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">GST %</label>
-                        <input type="number" step="any" value={form.gst_rate} onChange={e => setForm({ ...form, gst_rate: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Opening Stock Qty</label>
-                        <input type="number" value={form.current_stock} onChange={e => setForm({ ...form, current_stock: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Min Stock Alert Limit</label>
-                        <input type="number" value={form.min_stock} onChange={e => setForm({ ...form, min_stock: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" />
-                      </div>
-                    </div>
-
-                    {/* Price Estimator (Live) */}
-                    <div className="mt-4 p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100">
-                      <div className="flex items-center gap-2 mb-4 text-indigo-700 font-bold text-xs uppercase tracking-widest">
-                        <Calculator size={16} /> Price Estimator (Live)
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div>
-                          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">Silver Value</div>
-                          <div className="text-sm font-black text-gray-900">₹{formatIndianRupees((Number(form.default_weight) || 0) * silverRate)}</div>
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">Labour</div>
-                          <div className="text-sm font-black text-gray-900">₹{formatIndianRupees(Number(form.labour_cost || 0))}</div>
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">GST ({form.gst_rate}%)</div>
-                          <div className="text-sm font-black text-gray-900">
-                            ₹{formatIndianRupees(((Number(form.default_weight) || 0) * silverRate + (Number(form.labour_cost) || 0)) * (Number(form.gst_rate) || 3) / 100)}
-                          </div>
-                        </div>
-                        <div className="sm:border-l sm:border-indigo-100 sm:pl-4">
-                          <div className="text-[10px] text-indigo-400 font-bold uppercase tracking-tight mb-1">Approx Price</div>
-                          <div className="text-lg font-black text-indigo-600">
-                            ₹{formatIndianRupees(((Number(form.default_weight) || 0) * silverRate + (Number(form.labour_cost) || 0)) * (1 + (Number(form.gst_rate) || 3) / 100))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="p-6 border-t border-gray-100 bg-white shrink-0 flex gap-3 pb-safe sm:pb-6">
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 bg-gray-50 hover:bg-gray-100 text-gray-500 font-bold text-xs uppercase tracking-widest rounded-xl transition-all">Cancel</button>
-                <button type="submit" disabled={submitting} className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm shadow-indigo-100">
-                  {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <Check size={16} />}
-                  Save Item
-                </button>
-              </div>
-            </form>
+                <div className="p-6 border-t border-gray-100 bg-white shrink-0 flex gap-3 pb-safe sm:pb-6">
+                  <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 bg-gray-50 hover:bg-gray-100 text-gray-500 font-bold text-xs uppercase tracking-widest rounded-xl transition-all">Cancel</button>
+                  <button type="submit" disabled={submitting} className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm shadow-indigo-100">
+                    {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <Check size={16} />}
+                    Save Item
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div >
-      )
+        )
       }
     </div >
   );

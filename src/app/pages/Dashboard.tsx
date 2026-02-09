@@ -30,8 +30,6 @@ import { Karigar } from '../../services/karigarService';
 import { Order, Product } from '../../types';
 import { useSettings } from '../../context/SettingsContext';
 import { GstCalculatorModal } from '@/app/components/modals/GstCalculatorModal';
-import { PriceCheckerModal } from '@/app/components/modals/PriceCheckerModal';
-import { Scan } from 'lucide-react';
 
 // Helper Components
 const CardSkeleton = memo(({ loading, children }: { loading: boolean, children: React.ReactNode }) => {
@@ -50,7 +48,6 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showGstCalc, setShowGstCalc] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
 
   // ... (rest of the component)
 
@@ -427,12 +424,6 @@ export function Dashboard() {
                 <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">GST Calc</span>
               </button>
 
-              <button onClick={() => setShowScanner(true)} className="flex flex-col items-center gap-2 p-3 rounded-lg bg-orange-50 border border-orange-100 hover:bg-orange-100 transition-colors text-center group">
-                <div className="p-2 text-orange-600">
-                  <Scan size={18} />
-                </div>
-                <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider">Scan Code</span>
-              </button>
 
               <div className="col-span-2 bg-blue-50/50 rounded-lg p-3 border border-blue-100 flex items-center justify-between">
                 <div>
@@ -638,11 +629,6 @@ export function Dashboard() {
       </div>
 
       {showGstCalc && <GstCalculatorModal onClose={() => setShowGstCalc(false)} />}
-      {showScanner && (
-        <PriceCheckerModal
-          onClose={() => setShowScanner(false)}
-        />
-      )}
     </div>
   );
 }
