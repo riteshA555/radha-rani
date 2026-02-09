@@ -24,13 +24,18 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
         }
 
         const config = {
-            fps: 10,
+            fps: 20, // Faster scanning
             qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
                 const minSide = Math.min(viewfinderWidth, viewfinderHeight);
-                const qrboxSize = Math.floor(minSide * 0.8);
+                const qrboxSize = Math.floor(minSide * 0.85);
                 return { width: qrboxSize, height: qrboxSize };
             },
             aspectRatio: 1.0,
+            videoConstraints: {
+                facingMode: "environment",
+                width: { min: 640, ideal: 1280, max: 1920 },
+                height: { min: 480, ideal: 720, max: 1080 }
+            }
         };
 
         try {

@@ -350,8 +350,8 @@ export function Catalog() {
                 canvases.forEach(canvas => {
                   const barcode = canvas.getAttribute('data-barcode');
                   QRCode.toCanvas(canvas, barcode, { 
-                    width: 70,
-                    margin: 1,
+                    width: 120, // Enlarged for better scanning
+                    margin: 2,  // Extra white border for contrast
                     color: { dark: '#000000', light: '#ffffff' }
                   }, function (error) {
                     if (error) console.error(error);
@@ -809,7 +809,10 @@ export function Catalog() {
                                                                   let processed = 0;
                                                                   canvases.forEach(canvas => {
                                                                     const barcode = canvas.getAttribute('data-barcode');
-                                                                    QRCode.toCanvas(canvas, barcode, { width: 70, margin: 1 }, function (error) {
+                                                                    QRCode.toCanvas(canvas, barcode, { 
+                                                                      width: 120, // Enlarged
+                                                                      margin: 2   // Added margin
+                                                                    }, function (error) {
                                                                       if (error) console.error(error);
                                                                       processed++;
                                                                       if (processed === canvases.length) {
