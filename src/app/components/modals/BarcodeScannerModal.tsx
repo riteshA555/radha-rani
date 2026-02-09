@@ -11,11 +11,18 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
     const [isScanning, setIsScanning] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [manualEntry, setManualEntry] = useState('');
+    const [isInAppBrowser, setIsInAppBrowser] = useState(false);
     const scannerRef = useRef<Html5Qrcode | null>(null);
 
     const startScanner = async () => {
         if (!scannerRef.current) return;
         setError(null);
+
+        // Detect potential in-app browser
+        const ua = navigator.userAgent;
+        if ((ua.includes('FBAN') || ua.includes('FBAV') || ua.includes('Instagram') || ua.includes('WhatsApp'))) {
+            setIsInAppBrowser(true);
+        }
 
         const config = {
             fps: 15,
@@ -33,7 +40,6 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
         };
 
         try {
-            // FORCE BROWSER PROMPT: Try to get user media directly first
             await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
 
             await scannerRef.current.start(
@@ -50,9 +56,10 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
             setIsScanning(true);
         } catch (err: any) {
             console.error("Scanner Error:", err);
-            if (err.toString().includes("Permission denied") || err.name === "NotAllowedError") {
+            const errStr = err.toString();
+            if (errStr.includes("Permission denied") || err.name === "NotAllowedError" || errStr.includes("Permission dismissed")) {
                 setError("PERMISSION_DENIED");
-            } else if (err.toString().includes("NotFoundException") || err.name === "NotFoundError") {
+            } else if (errStr.includes("NotFoundException") || err.name === "NotFoundError") {
                 setError("No camera found on this device.");
             } else {
                 setError(`Scanner Error: ${err.message || "Failed to access camera"}`);
@@ -61,7 +68,6 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
     };
 
     useEffect(() => {
-        // Detect Insecure Context (HTTP instead of HTTPS)
         if (!window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
             setError("INSECURE_CONTEXT");
             return;
@@ -70,9 +76,11 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
         const html5QrCode = new Html5Qrcode('reader');
         scannerRef.current = html5QrCode;
 
-        startScanner();
+        // Small delay to ensure DOM is ready
+        const timer = setTimeout(() => startScanner(), 500);
 
         return () => {
+            clearTimeout(timer);
             if (scannerRef.current && scannerRef.current.isScanning) {
                 scannerRef.current.stop().catch(err => console.error("Cleanup stop failed", err));
             }
@@ -105,8 +113,19 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto bg-gray-50 flex flex-col items-center p-6 space-y-8">
-                    <div className="w-full max-w-[280px] aspect-square border-4 border-white rounded-3xl shadow-2xl overflow-hidden bg-black relative">
+                <div className="flex-1 overflow-y-auto bg-gray-50 flex flex-col p-6 space-y-6">
+                    {/* IN-APP BROWSER WARNING */}
+                    {isInAppBrowser && !error && (
+                        <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                            <Zap size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-[11px] font-bold text-amber-900 uppercase tracking-tight">Open in Chrome/Safari</p>
+                                <p className="text-[10px] text-amber-700 leading-normal mt-1">WhatsApp/Instagram browsers block camera access. Google Chrome mein link open karein.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="w-full max-w-[280px] mx-auto aspect-square border-8 border-white rounded-[40px] shadow-2xl overflow-hidden bg-black relative ring-1 ring-gray-200">
                         <div id="reader" className="w-full h-full"></div>
 
                         {/* HUD (Always on top during scan) */}
@@ -125,16 +144,21 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
 
                         {/* ERROR OVERLAY */}
                         {error && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 text-center bg-gray-950 z-30">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 text-center bg-gray-950/95 z-30 overflow-y-auto pt-10 pb-10">
                                 <Camera size={32} className="mb-4 text-rose-500 opacity-80" />
                                 {error === "PERMISSION_DENIED" ? (
                                     <div className="space-y-4">
                                         <p className="text-[11px] font-black uppercase tracking-widest text-rose-400">Permission Denied</p>
-                                        <p className="text-[10px] leading-relaxed opacity-70">
-                                            Browser settings mein <b>Lock (🔒)</b> icon par click karke camera <b>Allow</b> karein.
-                                        </p>
-                                        <button onClick={startScanner} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-indigo-600/20 active:scale-95 transition-all">
-                                            Request Permission Again
+                                        <div className="bg-white/5 p-4 rounded-xl text-left border border-white/10 space-y-2">
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase">Reset Permission:</p>
+                                            <p className="text-[10px] leading-relaxed opacity-70">
+                                                1. Browser ke <b>Three Dots (⋮)</b> tap karein.<br />
+                                                2. <b>Settings → Site Settings</b> mein jayein.<br />
+                                                3. <b>Camera</b> select karke <b>Reset Permission</b> karein.
+                                            </p>
+                                        </div>
+                                        <button onClick={() => window.location.reload()} className="w-full py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all">
+                                            Reload & Retry
                                         </button>
                                     </div>
                                 ) : error === "INSECURE_CONTEXT" ? (
@@ -143,14 +167,17 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
                                         <p className="text-[10px] leading-relaxed opacity-70">
                                             Security ki wajah se camera sirf <b>HTTPS</b> par chalta hai.
                                         </p>
-                                        <button onClick={() => window.location.href = window.location.href.replace('http:', 'https:')} className="px-5 py-2.5 bg-amber-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-amber-600/20 active:scale-95 transition-all">
+                                        <button onClick={() => window.location.href = window.location.href.replace('http:', 'https:')} className="w-full py-3 bg-amber-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all">
                                             Switch to HTTPS
                                         </button>
                                     </div>
                                 ) : (
                                     <div className="space-y-2">
-                                        <p className="text-[11px] font-black uppercase tracking-widest text-gray-400">Camera Error</p>
+                                        <p className="text-[11px] font-black uppercase tracking-widest text-gray-400">Scanner Error</p>
                                         <p className="text-[10px] leading-relaxed opacity-70">{error}</p>
+                                        <button onClick={startScanner} className="w-full py-3 bg-white/10 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest active:scale-95">
+                                            Try Again
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -158,7 +185,7 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
 
                         {!isScanning && !error && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center text-white gap-3 bg-black/50 z-10">
-                                <Loader2 className="w-8 h-8 animate-spin opacity-30" />
+                                <Loader2 className="w-8 h-8 animate-spin opacity-30 text-indigo-500" />
                             </div>
                         )}
                     </div>
@@ -182,9 +209,9 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
                             />
                             <button
                                 type="submit"
-                                className="px-6 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-600/20 active:scale-95"
+                                className="px-6 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-600/20 active:scale-95 flex items-center justify-center"
                             >
-                                <Loader2 className="animate-spin" size={20} />
+                                <Scan size={20} />
                             </button>
                         </form>
                     </div>
