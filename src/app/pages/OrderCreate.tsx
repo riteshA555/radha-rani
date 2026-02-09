@@ -254,6 +254,7 @@ export function CreateOrder() {
             if (prefilled.ledger_id) setValue('ledger_id', prefilled.ledger_id);
             if (prefilled.order_date) setValue('order_date', prefilled.order_date);
             if (prefilled.material_type) setValue('material_type', prefilled.material_type);
+            if (prefilled.gst_enabled !== undefined) setValue('gst_enabled', prefilled.gst_enabled);
             if (prefilled.items && prefilled.items.length > 0) {
                 replace(prefilled.items);
             }

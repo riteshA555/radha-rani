@@ -20,16 +20,18 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
-import { getDashboardFullData, DashboardCompositeData } from '../../services/dashboardService';
+import { getDashboardFullData, DashboardCompositeData, invalidateDashboardCache } from '../../services/dashboardService';
 import { getProducts } from '../../services/productService';
-import { updateOrderStatus } from '../../services/orderService';
-import { MetalRate } from '../../services/rateService';
+import { updateOrderStatus, getOrderById } from '../../services/orderService';
+import { generateInvoicePDF } from '../../services/pdfService';
+import { MetalRate, addMetalRate } from '../../services/rateService';
 import { MetalInventory } from '../../services/inventoryService';
 import { Karigar } from '../../services/karigarService';
 import { Order, Product } from '../../types';
 import { useSettings } from '../../context/SettingsContext';
-import { t } from '../../shared/utils/i18n';
 import { GstCalculatorModal } from '@/app/components/modals/GstCalculatorModal';
+import { PriceCheckerModal } from '@/app/components/modals/PriceCheckerModal';
+import { Scan } from 'lucide-react';
 
 // Helper Components
 const CardSkeleton = memo(({ loading, children }: { loading: boolean, children: React.ReactNode }) => {
@@ -48,6 +50,15 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showGstCalc, setShowGstCalc] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+
+  // ... (rest of the component)
+
+  const handleScan = useCallback((result: string) => {
+    // This is now handled inside PriceCheckerModal, so we don't need logic here
+    // But we keep the state to show/hide the modal
+    setShowScanner(false);
+  }, []);
 
   // Data States
   const [dashboardData, setDashboardData] = useState<DashboardCompositeData | null>(null);
@@ -60,6 +71,9 @@ export function Dashboard() {
   const [karigars, setKarigars] = useState<Karigar[]>([]);
   const [karigarBalances, setKarigarBalances] = useState<{ [key: string]: { cash: number, metal: number } }>({});
   const [kpis, setKpis] = useState<any>(null);
+  const [localRate, setLocalRate] = useState<any>(null);
+  const [isUpdatingRate, setIsUpdatingRate] = useState(false);
+  const [newLocalRate, setNewLocalRate] = useState({ selling: '', buying: '' });
 
   const refreshAll = useCallback(async (showLoader = false) => {
     if (showLoader) setLoading(true);
@@ -102,6 +116,13 @@ export function Dashboard() {
       });
       setKarigarBalances(balances);
       setKarigars(data.karigar_overview || []);
+      setLocalRate(data.local_rate);
+      if (data.local_rate) {
+        setNewLocalRate({
+          selling: data.local_rate.selling_rate.toString(),
+          buying: (data.local_rate.buying_rate || '').toString()
+        });
+      }
 
       // Fetch products separately (still 1 extra call, but improved)
       getProducts().then(setProducts).catch(err => console.warn("Product fetch warn", err));
@@ -113,6 +134,27 @@ export function Dashboard() {
       setLoading(false);
     }
   }, []);
+
+  const handleUpdateLocalRate = async () => {
+    if (!newLocalRate.selling) return;
+    setIsUpdatingRate(true);
+    try {
+      await addMetalRate({
+        metal_type: 'SILVER',
+        purity: '999',
+        selling_rate: parseFloat(newLocalRate.selling),
+        buying_rate: newLocalRate.buying ? parseFloat(newLocalRate.buying) : undefined,
+        rate_date: new Date().toISOString().split('T')[0],
+        source: 'Local Dealer'
+      });
+      invalidateDashboardCache();
+      await refreshAll(false);
+      setIsUpdatingRate(false);
+    } catch (err) {
+      console.error('Failed to update rate', err);
+      setIsUpdatingRate(false);
+    }
+  };
 
   useEffect(() => {
     // Progressive Loading: Show cached data first, then fetch fresh
@@ -188,6 +230,27 @@ export function Dashboard() {
       refreshAll(); // Revert on failure
     }
   }, [refreshAll]);
+
+  const handleDownloadInvoice = async (orderId: string) => {
+    try {
+      const fullOrder = await getOrderById(orderId);
+      if (!fullOrder) throw new Error('Order not found');
+
+      generateInvoicePDF({
+        order_number: fullOrder.order_number,
+        customer_name: fullOrder.customer_name,
+        order_date: fullOrder.order_date,
+        items: (fullOrder as any).items || [],
+        subtotal: fullOrder.subtotal || 0,
+        gst_amount: fullOrder.gst_amount || 0,
+        total_amount: fullOrder.total_amount || 0,
+        notes: (fullOrder as any).notes
+      });
+    } catch (err) {
+      console.error('Invoice generation failed', err);
+      alert('Could not generate invoice. Please try again.');
+    }
+  };
 
   return (
     <div className="p-4 space-y-6 max-w-7xl mx-auto">
@@ -328,6 +391,13 @@ export function Dashboard() {
                       <span className="text-sm font-bold text-gray-900">
                         ₹{order.total_amount.toLocaleString()}
                       </span>
+                      <button
+                        onClick={() => handleDownloadInvoice(order.id)}
+                        className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all"
+                        title="Download Invoice"
+                      >
+                        <FileText size={14} />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -355,6 +425,13 @@ export function Dashboard() {
                   <Calculator size={18} />
                 </div>
                 <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">GST Calc</span>
+              </button>
+
+              <button onClick={() => setShowScanner(true)} className="flex flex-col items-center gap-2 p-3 rounded-lg bg-orange-50 border border-orange-100 hover:bg-orange-100 transition-colors text-center group">
+                <div className="p-2 text-orange-600">
+                  <Scan size={18} />
+                </div>
+                <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider">Scan Code</span>
               </button>
 
               <div className="col-span-2 bg-blue-50/50 rounded-lg p-3 border border-blue-100 flex items-center justify-between">
@@ -460,6 +537,64 @@ export function Dashboard() {
           </div>
         </div>
 
+        {/* Rate Control Center */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-indigo-50/30">
+            <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+              <Scale size={16} />
+              Shop Rate Control
+            </h3>
+            <span className="text-[9px] font-bold uppercase text-indigo-600 bg-white px-2 py-0.5 rounded border border-indigo-100">Local PRICING</span>
+          </div>
+          <div className="p-5">
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                <div className="text-[9px] text-gray-400 font-bold uppercase mb-1">Live Market (1g)</div>
+                <div className="text-lg font-black text-gray-900">₹{rate?.selling_rate || '---'}</div>
+              </div>
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                <div className="text-[9px] text-emerald-600 font-bold uppercase mb-1">Your Shop Rate</div>
+                <div className="text-lg font-black text-emerald-700">₹{localRate?.selling_rate || rate?.selling_rate || '---'}</div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Selling Rate</label>
+                  <input
+                    type="number"
+                    value={newLocalRate.selling}
+                    onChange={(e) => setNewLocalRate(prev => ({ ...prev, selling: e.target.value }))}
+                    placeholder="e.g. 75.50"
+                    className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase ml-1">Buying Rate</label>
+                  <input
+                    type="number"
+                    value={newLocalRate.buying}
+                    onChange={(e) => setNewLocalRate(prev => ({ ...prev, buying: e.target.value }))}
+                    placeholder="e.g. 72.00"
+                    className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleUpdateLocalRate}
+                disabled={isUpdatingRate || !newLocalRate.selling}
+                className="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md shadow-indigo-100"
+              >
+                {isUpdatingRate ? 'Updating...' : 'Set Local Rates'}
+              </button>
+              <p className="text-[9px] text-center text-gray-400 font-medium">
+                This rate will be used for all new billing and calculations.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Live Metal Rates History */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
           <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/30">
@@ -503,6 +638,11 @@ export function Dashboard() {
       </div>
 
       {showGstCalc && <GstCalculatorModal onClose={() => setShowGstCalc(false)} />}
+      {showScanner && (
+        <PriceCheckerModal
+          onClose={() => setShowScanner(false)}
+        />
+      )}
     </div>
   );
 }

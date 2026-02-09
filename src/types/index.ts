@@ -74,6 +74,7 @@ export interface Product {
     current_stock: number;
     min_stock: number;
     gst_rate?: number;
+    barcode?: string; // New: Unique Product Code
     is_active: boolean;
     image_url?: string;
 }

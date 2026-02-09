@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus, Search, Grid3x3, List, Gem, Eye, Edit2, Trash2, Hammer, Package, Calculator, X, Check, Loader2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Grid3x3, List, Gem, Eye, Edit2, Trash2, Hammer, Package, Calculator, X, Check, Loader2, RefreshCw, Printer } from 'lucide-react';
 import { getProducts, updateProduct, deleteProduct, addProduct } from '../../services/productService';
 import { getJobWorkItems, updateJobWorkItem, deleteJobWorkItem, addJobWorkItem } from '../../services/jobWorkService';
 import { getLatestRates } from '../../services/rateService';
@@ -208,6 +208,7 @@ export function Catalog() {
         min_stock: item.min_stock || 0,
         gst_rate: item.gst_rate ?? 3,
         size: item.size ?? '',
+        barcode: item.barcode || '',
         image_url: item.image_url || ''
       });
     } else {
@@ -249,6 +250,62 @@ export function Catalog() {
       wastage_percent: '', labour_cost: '', default_rate: '',
       current_stock: '', gst_rate: gstSettings?.defaultGstRateSale || '3', size: '', image_url: ''
     });
+  };
+
+  const handlePrintTag = (item: any) => {
+    if (!item.barcode) {
+      alert("Pehle product edit karke barcode/QR generate karein!");
+      return;
+    }
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Print Label - ${item.name}</title>
+            <style>
+              body { font-family: 'Inter', sans-serif; text-align: center; padding: 10px; margin: 0; }
+              .label { 
+                border: 1px solid #000; 
+                padding: 10px; 
+                display: inline-block; 
+                width: 180px;
+                border-radius: 8px;
+              }
+              .name { font-weight: 800; font-size: 14px; margin-bottom: 2px; text-transform: uppercase; }
+              .category { font-size: 9px; color: #666; margin-bottom: 5px; font-weight: bold; }
+              .meta { font-size: 10px; font-weight: bold; margin-top: 2px; }
+              .barcode-text { font-family: monospace; font-size: 8px; color: #888; margin-top: 4px; }
+              canvas { margin: 5px 0; }
+            </style>
+            <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+          </head>
+          <body>
+            <div class="label">
+              <div class="name">${item.name}</div>
+              <div class="category">${item.category}</div>
+              <canvas id="qrcode"></canvas>
+              <div class="meta">${item.default_weight}g | ₹${item.labour_cost} MC</div>
+              <div class="barcode-text">${item.barcode}</div>
+            </div>
+            <script>
+              QRCode.toCanvas(document.getElementById('qrcode'), '${item.barcode}', { 
+                width: 100,
+                margin: 1,
+                color: { dark: '#000000', light: '#ffffff' }
+              }, function (error) {
+                if (error) console.error(error);
+                setTimeout(() => {
+                  window.print();
+                  window.close();
+                }, 500);
+              });
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
   };
 
   const filteredItems = useMemo(() => {
@@ -361,11 +418,14 @@ export function Catalog() {
                         <Gem className="w-12 h-12 text-gray-200" />
                       )}
 
-                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => handleEdit(item)} className="p-2 bg-white text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white border border-gray-100 shadow-sm transition-all">
+                      <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
+                        <button onClick={() => handlePrintTag(item)} className="p-2 bg-white/90 backdrop-blur-sm text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white border border-gray-100 shadow-sm transition-all" title="Print Tag">
+                          <Printer size={14} />
+                        </button>
+                        <button onClick={() => handleEdit(item)} className="p-2 bg-white/90 backdrop-blur-sm text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white border border-gray-100 shadow-sm transition-all">
                           <Edit2 size={14} />
                         </button>
-                        <button onClick={() => handleDelete(item.id, item.name)} className="p-2 bg-white text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white border border-gray-100 shadow-sm transition-all">
+                        <button onClick={() => handleDelete(item.id, item.name)} className="p-2 bg-white/90 backdrop-blur-sm text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white border border-gray-100 shadow-sm transition-all">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -443,12 +503,15 @@ export function Catalog() {
                         <td className="px-6 py-4 text-right font-bold text-gray-700">{item.wastage_percent}%</td>
                         <td className="px-6 py-4 text-right font-bold text-gray-700">₹{item.labour_cost}</td>
                         <td className="px-6 py-4 text-center">
-                          <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                              <Edit2 size={14} />
+                          <div className="flex justify-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handlePrintTag(item)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors bg-emerald-50/50 sm:bg-transparent" title="Print Tag">
+                              <Printer size={16} />
                             </button>
-                            <button onClick={() => handleDelete(item.id, item.name)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors">
-                              <Trash2 size={14} />
+                            <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors bg-indigo-50/50 sm:bg-transparent">
+                              <Edit2 size={16} />
+                            </button>
+                            <button onClick={() => handleDelete(item.id, item.name)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors bg-rose-50/50 sm:bg-transparent">
+                              <Trash2 size={16} />
                             </button>
                           </div>
                         </td>
@@ -473,11 +536,11 @@ export function Catalog() {
                         <Hammer className="w-12 h-12 text-gray-200" />
                       )}
 
-                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => handleEdit(item)} className="p-2 bg-white text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white border border-gray-100 shadow-sm transition-all">
+                      <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
+                        <button onClick={() => handleEdit(item)} className="p-2 bg-white/90 backdrop-blur-sm text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white border border-gray-100 shadow-sm transition-all">
                           <Edit2 size={14} />
                         </button>
-                        <button onClick={() => handleDelete(item.id, item.name)} className="p-2 bg-white text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white border border-gray-100 shadow-sm transition-all">
+                        <button onClick={() => handleDelete(item.id, item.name)} className="p-2 bg-white/90 backdrop-blur-sm text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white border border-gray-100 shadow-sm transition-all">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -537,12 +600,12 @@ export function Catalog() {
                         <td className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{item.unit}</td>
                         <td className="px-6 py-4 text-right font-bold text-indigo-600 text-base">₹{formatIndianRupees(item.default_rate)}</td>
                         <td className="px-6 py-4 text-center">
-                          <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                              <Edit2 size={14} />
+                          <div className="flex justify-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors bg-indigo-50/50 sm:bg-transparent">
+                              <Edit2 size={16} />
                             </button>
-                            <button onClick={() => handleDelete(item.id, item.name)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors">
-                              <Trash2 size={14} />
+                            <button onClick={() => handleDelete(item.id, item.name)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors bg-rose-50/50 sm:bg-transparent">
+                              <Trash2 size={16} />
                             </button>
                           </div>
                         </td>
@@ -604,6 +667,78 @@ export function Catalog() {
                           <div>
                             <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Size</label>
                             <input type="text" value={form.size} onChange={e => setForm({ ...form, size: e.target.value })} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm" placeholder='Optional' />
+                          </div>
+                          <div className="col-span-2 sm:col-span-2">
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Barcode / QR Code</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={form.barcode || ''}
+                                onChange={e => setForm({ ...form, barcode: e.target.value })}
+                                className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm uppercase tracking-wide"
+                                placeholder="Scan or Generate"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setForm({ ...form, barcode: `ITEM-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}` })}
+                                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 font-bold text-xs uppercase transition-colors"
+                              >
+                                Auto Generate
+                              </button>
+                              {form.barcode && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const printWindow = window.open('', '_blank');
+                                    if (printWindow) {
+                                      printWindow.document.write(`
+                                                    <html>
+                                                        <head>
+                                                            <title>Print Label</title>
+                                                            <style>
+                                                              body { font-family: 'Inter', sans-serif; text-align: center; padding: 10px; margin: 0; }
+                                                              .label { 
+                                                                border: 1px solid #000; 
+                                                                padding: 10px; 
+                                                                display: inline-block; 
+                                                                width: 180px;
+                                                                border-radius: 8px;
+                                                              }
+                                                              .name { font-weight: 800; font-size: 14px; margin-bottom: 2px; text-transform: uppercase; }
+                                                              .category { font-size: 9px; color: #666; margin-bottom: 5px; font-weight: bold; }
+                                                              .meta { font-size: 10px; font-weight: bold; margin-top: 2px; }
+                                                              .barcode-text { font-family: monospace; font-size: 8px; color: #888; margin-top: 4px; }
+                                                              canvas { margin: 5px 0; }
+                                                            </style>
+                                                            <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+                                                        </head>
+                                                        <body>
+                                                            <div class="label">
+                                                              <div class="name">${form.name || 'Product'}</div>
+                                                              <div class="category">${form.category || 'Category'}</div>
+                                                              <canvas id="qrcode"></canvas>
+                                                              <div class="meta">${form.default_weight}g | GST ${form.gst_rate}%</div>
+                                                              <div class="barcode-text">${form.barcode}</div>
+                                                            </div>
+                                                            <script>
+                                                                QRCode.toCanvas(document.getElementById('qrcode'), '${form.barcode}', { width: 100, margin: 1 }, function (error) {
+                                                                    if (error) console.error(error);
+                                                                    window.print();
+                                                                    window.close();
+                                                                });
+                                                            </script>
+                                                        </body>
+                                                    </html>
+                                                `);
+                                      printWindow.document.close();
+                                    }
+                                  }}
+                                  className="px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 font-bold text-xs uppercase transition-colors flex items-center gap-2"
+                                >
+                                  Print
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </>
@@ -702,8 +837,9 @@ export function Catalog() {
               </div>
             </form>
           </div>
-        </div>
-      )}
-    </div>
+        </div >
+      )
+      }
+    </div >
   );
 }

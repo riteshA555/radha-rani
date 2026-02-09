@@ -3,6 +3,7 @@ import { Search, Plus, Calendar, Download, Printer, ArrowUpRight, ArrowDownLeft,
 import { getCustomerStatement, getAssetLedgers, recordPayment, CustomerLedger, deleteTransaction } from '../../services/accountingService';
 import { formatIndianRupees } from '../../shared/utils/formatters';
 import { PageHeader } from '../components/ui/PageHeader';
+import { exportToExcel, formatLedgerForExport } from '../../services/reportService';
 
 export function Ledger() {
   const [customers, setCustomers] = useState<{ id: string, name: string, customer_code?: string, is_system?: boolean }[]>([]);
@@ -99,6 +100,13 @@ export function Ledger() {
     }
   };
 
+  const handleExportExcel = () => {
+    if (!selectedLedgerId || transactions.length === 0) return;
+    const customer = customers.find(c => c.id === selectedLedgerId);
+    const formattedData = formatLedgerForExport(customer?.name || 'Ledger', transactions);
+    exportToExcel(formattedData, `Ledger_${customer?.name || 'Statement'}`);
+  };
+
   const { totalDebit, totalCredit, balance } = useMemo(() => {
     const activeTx = transactions.filter(t => !t.is_deleted);
     const debit = activeTx.reduce((sum, t) => sum + Number(t.debit), 0);
@@ -135,6 +143,12 @@ export function Ledger() {
                 className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition shadow-sm font-medium"
               >
                 <Printer className="w-5 h-5" /> Print
+              </button>
+              <button
+                onClick={handleExportExcel}
+                className="flex items-center gap-2 bg-white border border-green-200 text-green-700 px-4 py-2 rounded-lg hover:bg-green-50 transition shadow-sm font-medium"
+              >
+                <Download className="w-5 h-5" /> Excel
               </button>
               <button
                 onClick={() => setShowPayModal(true)}

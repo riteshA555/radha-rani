@@ -23,6 +23,24 @@ export const getOrders = async () => {
     }, 1000 * 60 * 5, true) // 5 mins TTL, persistent
 }
 
+export const getOrderById = async (orderId: string): Promise<Order | null> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+        .from('orders')
+        .select('*, items:order_items(*)')
+        .eq('id', orderId)
+        .eq('user_id', user.id)
+        .single();
+
+    if (error) {
+        console.error('Fetch Order Error:', error);
+        return null;
+    }
+    return data as Order;
+}
+
 // Updated type definition implicitly via the arguments
 export const createOrder = async (
     order: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_number' | 'user_id' | 'gst_enabled' | 'gst_rate' | 'gst_amount' | 'subtotal' | 'total_amount' | 'advance_amount' | 'payment_mode' | 'ledger_id'> & {

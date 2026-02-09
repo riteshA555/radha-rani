@@ -16,6 +16,12 @@ export interface DashboardCompositeData {
     recent_rates: any[];
     karigar_overview: any[];
     live_rate: number;
+    local_rate?: {
+        selling_rate: number;
+        buying_rate: number;
+        rate_date: string;
+        purity: string;
+    } | null;
 }
 
 const DASHBOARD_CACHE_KEY = 'dashboard_full_bundle';
