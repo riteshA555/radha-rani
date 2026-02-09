@@ -1,5 +1,6 @@
 import { Home, ShoppingBag, Package, Calculator, Settings } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
+import { triggerHaptic } from '../../utils/haptics';
 
 interface BottomNavProps {
   currentPage: string;
@@ -25,9 +26,10 @@ export function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
             <NavLink
               key={item.id}
               to={item.path}
+              onClick={() => triggerHaptic('light')}
               className={({ isActive }) => `flex flex-col items-center justify-center py-2 px-1 transition-colors ${isActive
-                  ? 'text-indigo-600'
-                  : 'text-gray-600 hover:text-gray-900'
+                ? 'text-indigo-600'
+                : 'text-gray-600 hover:text-gray-900'
                 }`}
             >
               {({ isActive }) => (

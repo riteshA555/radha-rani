@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { triggerHaptic } from '../../utils/haptics';
 
 interface SidebarProps {
   currentPage: string;
@@ -109,7 +110,10 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 <NavLink
                   key={item.id}
                   to={item.path}
-                  onClick={() => onNavigate(item.path)}
+                  onClick={() => {
+                    triggerHaptic('light');
+                    onNavigate(item.path);
+                  }}
                   className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive
                     ? 'bg-indigo-50 text-indigo-700'
                     : 'text-gray-700 hover:bg-gray-100'
