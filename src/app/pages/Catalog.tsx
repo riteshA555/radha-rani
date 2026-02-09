@@ -290,47 +290,43 @@ export function Catalog() {
               }
               .grid {
                 display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 8px;
-                width: 100%;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+                padding: 10px;
               }
               .label { 
-                border: 0.5pt solid #e5e7eb; 
-                padding: 12px 8px; 
+                border: 0.5pt solid #000; 
+                padding: 15px; 
                 text-align: center;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                border-radius: 6px;
+                border-radius: 8px;
                 break-inside: avoid;
-                height: 32mm;
+                height: 42mm;
                 background: white;
               }
               .name { 
                 font-weight: 800; 
-                font-size: 11px; 
-                margin-bottom: 4px; 
+                font-size: 13px; 
+                margin-bottom: 6px; 
                 text-transform: uppercase; 
                 color: #000;
-                display: -webkit-box;
-                -webkit-line-clamp: 2;
-                -webkit-box-orient: vertical;
-                overflow: hidden;
               }
               .barcode-text { 
                 font-family: 'JetBrains Mono', monospace; 
-                font-size: 9px; 
+                font-size: 10px; 
                 font-weight: 700;
                 color: #000; 
-                margin-top: 4px;
-                letter-spacing: 0.5px;
+                margin-top: 6px;
+                letter-spacing: 0.8px;
               }
               canvas { 
                 display: block;
-                margin: 2px auto;
-                max-width: 60px;
-                max-height: 60px;
+                margin: 5px auto;
+                max-width: 110px;
+                max-height: 110px;
               }
               @media print {
                 body { background: none; }
@@ -350,8 +346,9 @@ export function Catalog() {
                 canvases.forEach(canvas => {
                   const barcode = canvas.getAttribute('data-barcode');
                   QRCode.toCanvas(canvas, barcode, { 
-                    width: 120, // Enlarged for better scanning
-                    margin: 2,  // Extra white border for contrast
+                    width: 150,
+                    margin: 1,
+                    errorCorrectionLevel: 'H',
                     color: { dark: '#000000', light: '#ffffff' }
                   }, function (error) {
                     if (error) console.error(error);
@@ -775,23 +772,23 @@ export function Catalog() {
                                                             <style>
                                                               @page { size: A4; margin: 10mm; }
                                                               body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background: white; }
-                                                              .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+                                                              .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding: 10px; }
                                                               .label { 
-                                                                border: 0.5pt solid #e5e7eb; 
-                                                                padding: 12px 8px; 
+                                                                border: 0.5pt solid #000; 
+                                                                padding: 15px; 
                                                                 text-align: center;
                                                                 display: flex;
                                                                 flex-direction: column;
                                                                 align-items: center;
                                                                 justify-content: center;
-                                                                border-radius: 6px;
+                                                                border-radius: 8px;
                                                                 break-inside: avoid;
-                                                                height: 32mm;
+                                                                height: 42mm;
                                                                 background: white;
                                                               }
-                                                              .name { font-weight: 800; font-size: 11px; margin-bottom: 4px; text-transform: uppercase; color: #000; }
-                                                              .barcode-text { font-family: monospace; font-size: 9px; font-weight: 700; color: #000; margin-top: 4px; }
-                                                              canvas { display: block; margin: 2px auto; max-width: 60px; max-height: 60px; }
+                                                              .name { font-weight: 800; font-size: 13px; margin-bottom: 6px; text-transform: uppercase; color: #000; }
+                                                              .barcode-text { font-family: monospace; font-size: 10px; font-weight: 700; color: #000; margin-top: 6px; }
+                                                              canvas { display: block; margin: 5px auto; max-width: 110px; max-height: 110px; }
                                                               @media print {
                                                                 body { background: none; }
                                                                 .label { border: 0.5pt solid #000; }
@@ -810,8 +807,9 @@ export function Catalog() {
                                                                   canvases.forEach(canvas => {
                                                                     const barcode = canvas.getAttribute('data-barcode');
                                                                     QRCode.toCanvas(canvas, barcode, { 
-                                                                      width: 120, // Enlarged
-                                                                      margin: 2   // Added margin
+                                                                      width: 150,
+                                                                      margin: 1,
+                                                                      errorCorrectionLevel: 'H'
                                                                     }, function (error) {
                                                                       if (error) console.error(error);
                                                                       processed++;
