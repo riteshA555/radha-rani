@@ -5,6 +5,8 @@ import { getSettings } from '../../services/settingsService';
 import { InventorySettings } from '../../types/settings';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../supabaseClient';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Notification {
     id: string;
@@ -18,6 +20,7 @@ interface Notification {
 
 export function NotificationCenter() {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -30,7 +33,8 @@ export function NotificationCenter() {
             return;
         }
 
-        fetchNotifications();
+        const controller = new AbortController();
+        fetchNotifications(controller.signal);
 
         // Real-time Stock Monitoring - Only if user exists
         const channel = supabase
@@ -42,14 +46,15 @@ export function NotificationCenter() {
                 filter: `user_id=eq.${user.id}`
             }, (payload: any) => {
                 // When stock changes, re-fetch to update the alerts
-                fetchNotifications();
+                fetchNotifications(controller.signal);
             })
             .subscribe();
 
         // Fallback interval (every 5 mins)
-        const interval = setInterval(fetchNotifications, 5 * 60 * 1000);
+        const interval = setInterval(() => fetchNotifications(controller.signal), 5 * 60 * 1000);
 
         return () => {
+            controller.abort();
             supabase.removeChannel(channel);
             clearInterval(interval);
         };
@@ -65,25 +70,28 @@ export function NotificationCenter() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const fetchNotifications = async () => {
+    const fetchNotifications = async (signal?: AbortSignal) => {
         try {
+            // Check if signal is already aborted
+            if (signal?.aborted) return;
+
             const products = await getFinishedGoodsInventory();
+
+            if (signal?.aborted) return;
+
             const settings = await getSettings<InventorySettings>('inventory_settings');
-            const threshold = settings?.lowStockThreshold || 10;
+
+            if (signal?.aborted) return;
+
+            const globalThreshold = settings?.lowStockThreshold || 10;
 
             const newNotifications: Notification[] = [];
 
             products.forEach(p => {
                 const stock = Number(p.current_stock);
+                const itemThreshold = p.min_stock || globalThreshold;
 
-                // Reset read status if stock is now ABOVE threshold
-                if (stock > threshold) {
-                    localStorage.removeItem(`read-${p.id}`);
-                    return;
-                }
-
-                // If BELOW threshold, add to notifications
-                if (stock <= threshold) {
+                if (stock <= itemThreshold) {
                     newNotifications.push({
                         id: `low-stock-${p.id}`,
                         type: 'stock',
@@ -98,7 +106,8 @@ export function NotificationCenter() {
 
             setNotifications(newNotifications);
             setUnreadCount(newNotifications.filter(n => !n.read).length);
-        } catch (err) {
+        } catch (err: any) {
+            if (err.name === 'AbortError') return;
             console.error("Failed to fetch notifications", err);
         }
     };
@@ -136,85 +145,113 @@ export function NotificationCenter() {
                 )}
             </button>
 
-            {isOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="p-4 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between">
-                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                            Notifications
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden"
+                    >
+                        <div className="p-4 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between">
+                            <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                                Notifications
+                                {unreadCount > 0 && (
+                                    <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full">
+                                        {unreadCount} New
+                                    </span>
+                                )}
+                            </h3>
                             {unreadCount > 0 && (
-                                <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-full">
-                                    {unreadCount} New
-                                </span>
+                                <button
+                                    onClick={markAllRead}
+                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors"
+                                >
+                                    Mark all read
+                                </button>
                             )}
-                        </h3>
-                        {unreadCount > 0 && (
-                            <button
-                                onClick={markAllRead}
-                                className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors"
-                            >
-                                Mark all read
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="max-h-[400px] overflow-y-auto">
-                        {notifications.length === 0 ? (
-                            <div className="p-10 text-center">
-                                <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                                    <Check className="text-gray-300" size={20} />
-                                </div>
-                                <p className="text-sm font-medium text-gray-500">All caught up!</p>
-                                <p className="text-xs text-gray-400 mt-1">No new alerts to show.</p>
-                            </div>
-                        ) : (
-                            <div className="divide-y divide-gray-50">
-                                {notifications.map((n) => (
-                                    <div
-                                        key={n.id}
-                                        className={`p-4 transition-colors hover:bg-gray-50 relative group ${!n.read ? 'bg-indigo-50/30' : ''}`}
-                                    >
-                                        <div className="flex gap-3">
-                                            <div className={`mt-1 p-2 rounded-lg shrink-0 ${n.priority === 'high' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'
-                                                }`}>
-                                                {n.type === 'stock' ? <Package size={16} /> : <AlertTriangle size={16} />}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex justify-between items-start mb-0.5">
-                                                    <h4 className={`text-sm font-bold truncate ${!n.read ? 'text-gray-900' : 'text-gray-600'}`}>
-                                                        {n.title}
-                                                    </h4>
-                                                    <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap ml-2">
-                                                        {n.time}
-                                                    </span>
-                                                </div>
-                                                <p className="text-xs text-gray-500 leading-relaxed">
-                                                    {n.message}
-                                                </p>
-                                                {!n.read && (
-                                                    <button
-                                                        onClick={() => markAsRead(n.id)}
-                                                        className="mt-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 uppercase tracking-wider"
-                                                    >
-                                                        Mark as read
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {notifications.length > 0 && (
-                        <div className="p-3 bg-gray-50/50 border-t border-gray-50 text-center">
-                            <button className="text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors">
-                                View all alerts
-                            </button>
                         </div>
-                    )}
-                </div>
-            )}
+
+                        <div className="max-h-[400px] overflow-y-auto">
+                            {notifications.length === 0 ? (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="p-12 text-center"
+                                >
+                                    <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                                        <Check className="text-emerald-500" size={24} />
+                                    </div>
+                                    <h4 className="text-sm font-bold text-gray-900 mb-1">All Caught Up!</h4>
+                                    <p className="text-xs text-gray-400">Your inventory is healthy and there are no active alerts.</p>
+                                </motion.div>
+                            ) : (
+                                <div className="divide-y divide-gray-50">
+                                    <AnimatePresence initial={false}>
+                                        {notifications.map((n) => (
+                                            <motion.div
+                                                key={n.id}
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                exit={{ opacity: 0, x: 10 }}
+                                                layout
+                                                onClick={() => {
+                                                    if (n.type === 'stock') navigate('/catalog');
+                                                    setIsOpen(false);
+                                                }}
+                                                className={`p-4 transition-colors hover:bg-gray-50 relative group cursor-pointer ${!n.read ? 'bg-indigo-50/30' : ''}`}
+                                            >
+                                                <div className="flex gap-3">
+                                                    <div className={`mt-1 p-2 rounded-lg shrink-0 ${n.priority === 'high' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'
+                                                        }`}>
+                                                        {n.type === 'stock' ? <Package size={16} /> : <AlertTriangle size={16} />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex justify-between items-start mb-0.5">
+                                                            <h4 className={`text-sm font-bold truncate ${!n.read ? 'text-gray-900' : 'text-gray-600'}`}>
+                                                                {n.title}
+                                                            </h4>
+                                                            <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap ml-2">
+                                                                {n.time}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 leading-relaxed">
+                                                            {n.message}
+                                                        </p>
+                                                        {!n.read && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    markAsRead(n.id);
+                                                                }}
+                                                                className="mt-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 uppercase tracking-wider"
+                                                            >
+                                                                Mark as read
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        ))}
+                                    </AnimatePresence>
+                                </div>
+                            )}
+                        </div>
+
+                        {notifications.length > 0 && (
+                            <div className="p-3 bg-gray-50/50 border-t border-gray-50 text-center">
+                                <button
+                                    onClick={() => { navigate('/catalog'); setIsOpen(false); }}
+                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors uppercase tracking-widest"
+                                >
+                                    View full Catalog
+                                </button>
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

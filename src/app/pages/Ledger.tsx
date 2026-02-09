@@ -5,8 +5,8 @@ import { formatIndianRupees } from '../../shared/utils/formatters';
 import { PageHeader } from '../components/ui/PageHeader';
 
 export function Ledger() {
-  const [customers, setCustomers] = useState<{ id: string, name: string }[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState('');
+  const [customers, setCustomers] = useState<{ id: string, name: string, customer_code?: string, is_system?: boolean }[]>([]);
+  const [selectedLedgerId, setSelectedLedgerId] = useState('');
   const [transactions, setTransactions] = useState<CustomerLedger[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,7 +24,7 @@ export function Ledger() {
 
   const filteredCustomers = useMemo(() => {
     if (showSystemAccounts) return customers;
-    return customers.filter(c => c.name !== 'Cash Account');
+    return customers.filter(c => !c.is_system);
   }, [customers, showSystemAccounts]);
 
   const loadCustomers = useCallback(async () => {
@@ -37,41 +37,38 @@ export function Ledger() {
   }, []);
 
   const fetchStatement = useCallback(async () => {
-    if (!selectedCustomer) return;
+    if (!selectedLedgerId) return;
     setLoading(true);
     setError('');
     try {
-      const data = await getCustomerStatement(selectedCustomer, startDate, endDate);
+      const data = await getCustomerStatement(selectedLedgerId, startDate, endDate);
       setTransactions(data || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [selectedCustomer, startDate, endDate]);
+  }, [selectedLedgerId, startDate, endDate]);
 
   useEffect(() => {
     loadCustomers();
   }, [loadCustomers]);
 
   useEffect(() => {
-    if (selectedCustomer) {
+    if (selectedLedgerId) {
       fetchStatement();
     } else {
       setTransactions([]);
     }
-  }, [fetchStatement]);
+  }, [fetchStatement, selectedLedgerId]);
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCustomer) return;
+    if (!selectedLedgerId) return;
     setSubmitting(true);
     try {
-      const customer = customers.find(c => c.name === selectedCustomer);
-      if (!customer) throw new Error("Customer not found");
-
       await recordPayment(
-        customer.id,
+        selectedLedgerId,
         Number(payForm.amount),
         payForm.mode,
         payForm.note
@@ -117,17 +114,18 @@ export function Ledger() {
         title="Customer Ledger"
         subtitle="View statements and record payments"
         actions={
-          selectedCustomer && (
+          selectedLedgerId && (
             <div className="flex gap-2">
               <button
                 onClick={() => {
                   const printContent = document.getElementById('ledger-table');
                   const win = window.open('', '', 'height=700,width=1000');
+                  const customer = customers.find(c => c.id === selectedLedgerId);
                   if (win && printContent) {
                     win.document.write('<html><head><title>Ledger Statement</title>');
                     win.document.write('<style>body{font-family:sans-serif; padding: 20px;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ddd;padding:8px;text-align:left;} th{background-color:#f4f4f4;} .text-right{text-align:right;} .header{margin-bottom:20px; text-align:center;} </style>');
                     win.document.write('</head><body>');
-                    win.document.write(`<div class="header"><h1>${selectedCustomer}</h1><p>Statement from ${startDate} to ${endDate}</p></div>`);
+                    win.document.write(`<div class="header"><h1>${customer?.name || 'Statement'}</h1><p>Statement from ${startDate} to ${endDate}</p></div>`);
                     win.document.write(printContent.innerHTML);
                     win.document.write('</body></html>');
                     win.document.close();
@@ -164,17 +162,17 @@ export function Ledger() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <select
-              value={selectedCustomer}
-              onChange={e => setSelectedCustomer(e.target.value)}
+              value={selectedLedgerId}
+              onChange={e => setSelectedLedgerId(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 bg-white text-sm font-medium text-gray-700"
             >
               <option value="">-- Choose Customer --</option>
-              {filteredCustomers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              {filteredCustomers.map(c => <option key={c.id} value={c.id}>{c.name} {c.customer_code ? `(${c.customer_code})` : ''}</option>)}
             </select>
           </div>
         </div>
 
-        {selectedCustomer && (
+        {selectedLedgerId && (
           <>
             <div className="w-full md:w-44">
               <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Start Date</label>
@@ -194,7 +192,7 @@ export function Ledger() {
         </div>
       )}
 
-      {selectedCustomer && (
+      {selectedLedgerId && (
         <>
           {/* Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -305,7 +303,7 @@ export function Ledger() {
             <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Receive Payment</h2>
-                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Record incoming funds for {selectedCustomer}</p>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Record incoming funds for {customers.find(c => c.id === selectedLedgerId)?.name || 'Account'}</p>
               </div>
               <button onClick={() => setShowPayModal(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <X size={20} />

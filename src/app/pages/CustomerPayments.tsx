@@ -16,7 +16,7 @@ export function CustomerPayments() {
     const [submitting, setSubmitting] = useState(false);
 
     // Filters for Ledger
-    const [selectedCustomer, setSelectedCustomer] = useState('');
+    const [selectedLedgerId, setSelectedLedgerId] = useState('');
     const [startDate, setStartDate] = useState(format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'));
     const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
@@ -45,17 +45,17 @@ export function CustomerPayments() {
     }, [loadCustomers]);
 
     const loadLedger = useCallback(async () => {
-        if (!selectedCustomer) return;
+        if (!selectedLedgerId) return;
         setLoading(true);
         try {
-            const data = await getCustomerLedgerEntries(selectedCustomer, startDate, endDate);
+            const data = await getCustomerLedgerEntries(selectedLedgerId, startDate, endDate);
             setLedgerEntries(data || []);
         } catch (err) {
             console.error('Failed to load ledger', err);
         } finally {
             setLoading(false);
         }
-    }, [selectedCustomer, startDate, endDate]);
+    }, [selectedLedgerId, startDate, endDate]);
 
     useEffect(() => {
         if (activeTab === 'LEDGER') {
@@ -143,13 +143,13 @@ export function CustomerPayments() {
                                 <div className="md:col-span-2">
                                     <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5">Select Customer</label>
                                     <select
-                                        value={selectedCustomer}
-                                        onChange={(e) => setSelectedCustomer(e.target.value)}
+                                        value={selectedLedgerId}
+                                        onChange={(e) => setSelectedLedgerId(e.target.value)}
                                         className="w-full p-2.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-900"
                                     >
                                         <option value="">Choose a customer...</option>
                                         {customers.map(c => (
-                                            <option key={c.id} value={c.name}>{c.name}</option>
+                                            <option key={c.id} value={c.id}>{c.name} {c.customer_code ? `(${c.customer_code})` : ''}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -173,12 +173,14 @@ export function CustomerPayments() {
                                 </div>
                             </div>
 
-                            {selectedCustomer ? (
+                            {selectedLedgerId ? (
                                 <div className="space-y-4">
                                     <div className="flex justify-between items-end">
                                         <div>
                                             <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest">Statement for</h4>
-                                            <div className="text-2xl font-black text-gray-900">{selectedCustomer}</div>
+                                            <div className="text-2xl font-black text-gray-900">
+                                                {customers.find(c => c.id === selectedLedgerId)?.name || 'Account'}
+                                            </div>
                                         </div>
                                         <div className="text-right">
                                             <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Current Balance</div>

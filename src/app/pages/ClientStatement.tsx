@@ -6,7 +6,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 
 export function ClientStatement() {
     const [customers, setCustomers] = useState<{ id: string, name: string }[]>([]);
-    const [selectedCustomer, setSelectedCustomer] = useState('');
+    const [selectedLedgerId, setSelectedLedgerId] = useState('');
     const [reportData, setReportData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -24,12 +24,12 @@ export function ClientStatement() {
     }, []);
 
     useEffect(() => {
-        if (selectedCustomer) {
+        if (selectedLedgerId) {
             fetchReport();
         } else {
             setReportData(null);
         }
-    }, [selectedCustomer, startDate, endDate]);
+    }, [selectedLedgerId, startDate, endDate]);
 
     const loadCustomers = async () => {
         try {
@@ -44,7 +44,7 @@ export function ClientStatement() {
         setLoading(true);
         setError('');
         try {
-            const data = await getClientStatementReport(selectedCustomer, startDate, endDate);
+            const data = await getClientStatementReport(selectedLedgerId, startDate, endDate);
             setReportData(data);
         } catch (err: any) {
             setError(err.message);
@@ -94,7 +94,7 @@ export function ClientStatement() {
         <div class="meta-grid">
           <div class="meta-box">
             <div class="meta-label">Client Name</div>
-            <div class="meta-value">${selectedCustomer}</div>
+            <div class="meta-value">${customers.find(c => c.id === selectedLedgerId)?.name || 'Client'}</div>
           </div>
           <div class="meta-box">
             <div class="meta-label">Statement Period</div>
@@ -186,12 +186,12 @@ export function ClientStatement() {
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <select
-                            value={selectedCustomer}
-                            onChange={e => setSelectedCustomer(e.target.value)}
+                            value={selectedLedgerId}
+                            onChange={e => setSelectedLedgerId(e.target.value)}
                             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 bg-white text-sm font-medium text-gray-700"
                         >
                             <option value="">-- Choose Client --</option>
-                            {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                            {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                     </div>
                 </div>
@@ -327,7 +327,7 @@ export function ClientStatement() {
                 </div>
             )}
 
-            {selectedCustomer === '' && !loading && (
+            {!selectedLedgerId && !loading && (
                 <div className="flex flex-col items-center justify-center py-32 text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200">
                     <FileText size={48} className="mb-4 opacity-20" />
                     <p className="text-sm font-medium">Select a client to generate the monthly statement</p>

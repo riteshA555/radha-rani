@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { getSettings, updateSettings, getAllSettings } from '../services/settingsService'
 import { useAuth } from './AuthContext'
 import i18n from '../i18n'
@@ -81,10 +81,13 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
     })
     const [loading, setLoading] = useState(!localStorage.getItem('app_settings_v2'))
 
+    const loadedRef = useRef<string | null>(null)
+
     const loadAllSettings = useCallback(async () => {
         try {
-            // If we have cached data, don't show the blocking loader
-            const hasData = !!settings.business_profile
+            // Check current state before setting loading to true
+            // If we already have data in the settings object, don't flicker the loader
+            const hasData = !!settings.business_profile && settings.business_profile.businessName !== ''
             if (!hasData) setLoading(true)
 
             const all = await getAllSettings()
@@ -98,14 +101,19 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         } finally {
             setLoading(false)
         }
-    }, [settings.business_profile])
+    }, []) // REMOVED settings.business_profile to break infinite loop
 
     useEffect(() => {
         if (!authLoading) {
             if (user) {
-                loadAllSettings()
+                // Gaurd with ref to prevent infinite loop if user object identity changes
+                if (loadedRef.current !== user.id) {
+                    loadedRef.current = user.id
+                    loadAllSettings()
+                }
             } else {
                 setLoading(false)
+                loadedRef.current = null
                 localStorage.removeItem('app_settings_v2')
             }
         }
@@ -142,8 +150,15 @@ export const SettingsProvider = ({ children }: { children: React.ReactNode }) =>
         }
     }
 
+    const value = useMemo(() => ({
+        settings,
+        updateSetting,
+        refreshSettings: loadAllSettings,
+        loading
+    }), [settings, updateSetting, loadAllSettings, loading])
+
     return (
-        <SettingsContext.Provider value={{ settings, updateSetting, refreshSettings: loadAllSettings, loading }}>
+        <SettingsContext.Provider value={value}>
             {children}
         </SettingsContext.Provider>
     )

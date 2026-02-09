@@ -82,6 +82,7 @@ const LayoutWrapper = () => {
           <Route path="karigar" element={<Karigars />} />
           <Route path="karigar-settlement" element={<KarigarSettlement />} />
           <Route path="settlement" element={<Karigars defaultTab="SETTLEMENT" />} />
+          <Route path="rates" element={<Rates />} />
           <Route path="audit" element={<AuditLogs />} />
           <Route path="backup-restore" element={<BackupRestore />} />
           <Route path="factory-reset" element={<FactoryReset />} />

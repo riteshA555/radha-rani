@@ -51,6 +51,7 @@ export interface OrderItem {
     addon_service_id?: string;
     addon_quantity?: number;
     addon_rate?: number;
+    hsn_code?: string;
 }
 
 export interface JobWorkItem {

@@ -217,6 +217,7 @@ export function SettingsPage() {
                 <option value="exclusive">Exclusive (Price + Tax)</option>
                 <option value="inclusive">Inclusive (MRP Basis)</option>
               </Select>
+              <Input label="Opening ITC Balance (₹)" type="number" value={localData.itcOpeningBalance} onChange={(v: string) => setLocalData({ ...localData, itcOpeningBalance: Number(v) })} />
               <div className="space-y-4">
                 <Toggle label="Enable Reverse Charge (RCM)" checked={localData.enableReverseCharge} onChange={(v: boolean) => setLocalData({ ...localData, enableReverseCharge: v })} />
                 <Toggle label="Composition Scheme" checked={localData.compositionScheme} onChange={(v: boolean) => setLocalData({ ...localData, compositionScheme: v })} />
@@ -231,7 +232,10 @@ export function SettingsPage() {
               <Input label="Invoice Prefix" value={localData.invoicePrefix} onChange={(v: string) => setLocalData({ ...localData, invoicePrefix: v })} />
               <Input label="Start Number" type="number" value={localData.startingNumber} onChange={(v: string) => setLocalData({ ...localData, startingNumber: Number(v) })} />
               <Input label="Payment Terms (Days)" value={localData.paymentTerms} onChange={(v: string) => setLocalData({ ...localData, paymentTerms: v })} />
-              <Toggle label="Auto Generation" checked={localData.autoGenerate} onChange={(v: boolean) => setLocalData({ ...localData, autoGenerate: v })} />
+              <div className="space-y-4">
+                <Toggle label="Auto Generation" checked={localData.autoGenerate} onChange={(v: boolean) => setLocalData({ ...localData, autoGenerate: v })} />
+                <Toggle label="Show HSN Code on Invoice" checked={localData.showHsnCode} onChange={(v: boolean) => setLocalData({ ...localData, showHsnCode: v })} />
+              </div>
             </div>
             <div className="pt-8 border-t border-gray-50">
               <h4 className="font-bold text-[11px] text-gray-400 uppercase tracking-widest mb-6">Settlement Bank Details</h4>
@@ -273,6 +277,7 @@ export function SettingsPage() {
                 <option value="WEIGHTED_AVERAGE">Weighted Average</option>
               </Select>
               <Toggle label="Block Negative Stock" checked={!localData.allowNegativeStock} onChange={(v: boolean) => setLocalData({ ...localData, allowNegativeStock: !v })} />
+              <Toggle label="Auto-Deduct Stock on Sales" checked={localData.autoDeductStock} onChange={(v: boolean) => setLocalData({ ...localData, autoDeductStock: v })} />
               <Toggle label="Auto Calc Wastage" checked={localData.autoCalculateWastage} onChange={(v: boolean) => setLocalData({ ...localData, autoCalculateWastage: v })} />
             </div>
           </div>
@@ -398,7 +403,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-full lg:overflow-hidden bg-[#fafbfc]">
+    <div className="flex flex-col lg:flex-row h-full lg:overflow-hidden bg-gray-50/50">
       {/* Sidebar */}
       <div className="w-full lg:w-80 bg-white border-b lg:border-r border-gray-100 lg:h-full lg:flex-shrink-0 flex flex-col z-30 shadow-sm relative">
         <div className="p-8 pb-4">

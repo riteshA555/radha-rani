@@ -17,7 +17,7 @@ export function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
-  const [formData, setFormData] = useState({ name: '', phone: '', email: '', address: '', gstNumber: '', openingBalance: '', openingType: 'RECEIVABLE' });
+  const [formData, setFormData] = useState({ name: '', customer_code: '', phone: '', email: '', address: '', gstNumber: '', openingBalance: '', openingType: 'RECEIVABLE' });
 
   // Payment Form
   const [payAmount, setPayAmount] = useState('');
@@ -54,6 +54,7 @@ export function Customers() {
     setEditingCustomer(customer);
     setFormData({
       name: customer.name,
+      customer_code: customer.customer_code || '',
       phone: customer.phone,
       email: customer.email,
       address: customer.address,
@@ -71,6 +72,7 @@ export function Customers() {
       if (editingCustomer) {
         await updateCustomer(editingCustomer.id, {
           name: formData.name,
+          customer_code: formData.customer_code,
           phone: formData.phone,
           email: formData.email,
           address: formData.address,
@@ -79,6 +81,7 @@ export function Customers() {
       } else {
         await addCustomer({
           name: formData.name,
+          customer_code: formData.customer_code,
           phone: formData.phone,
           email: formData.email,
           address: formData.address,
@@ -89,7 +92,7 @@ export function Customers() {
       }
       setShowModal(false);
       setEditingCustomer(null);
-      setFormData({ name: '', phone: '', email: '', address: '', gstNumber: '', openingBalance: '', openingType: 'RECEIVABLE' });
+      setFormData({ name: '', customer_code: '', phone: '', email: '', address: '', gstNumber: '', openingBalance: '', openingType: 'RECEIVABLE' });
       loadCustomers();
     } catch (err: any) {
       alert("Failed to save: " + err.message);
@@ -199,6 +202,11 @@ export function Customers() {
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-bold text-gray-900 text-base tracking-tight">
                       {customer.name}
+                      {customer.customer_code && (
+                        <span className="ml-2 font-mono text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200 uppercase">
+                          {customer.customer_code}
+                        </span>
+                      )}
                     </h3>
                     <span
                       className={`px-2 py-0.5 text-[9px] font-bold rounded-full uppercase tracking-wider border ${customer.status === 'active'
@@ -273,7 +281,7 @@ export function Customers() {
 
       {/* Floating Action Button */}
       <button
-        onClick={() => { setEditingCustomer(null); setFormData({ name: '', phone: '', email: '', address: '', gstNumber: '', openingBalance: '', openingType: 'RECEIVABLE' }); setShowModal(true); }}
+        onClick={() => { setEditingCustomer(null); setFormData({ name: '', customer_code: '', phone: '', email: '', address: '', gstNumber: '', openingBalance: '', openingType: 'RECEIVABLE' }); setShowModal(true); }}
         className="fixed bottom-24 right-6 lg:bottom-8 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 flex items-center justify-center z-20"
       >
         <Plus className="w-6 h-6" />
@@ -293,9 +301,15 @@ export function Customers() {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Customer Name</label>
-                <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-medium text-gray-700 outline-none" placeholder="e.g. John Doe" />
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Customer Name</label>
+                  <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-medium text-gray-700 outline-none" placeholder="e.g. John Doe" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Unique ID</label>
+                  <input type="text" value={formData.customer_code} onChange={e => setFormData({ ...formData, customer_code: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-bold text-indigo-600 outline-none uppercase" placeholder="L-001" />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

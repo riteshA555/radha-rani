@@ -179,10 +179,10 @@ export function OrderPrint() {
 
             {/* Invoice Page */}
             <div
-                className="bg-white shadow-lg mx-auto p-6 sm:p-10 print:shadow-none print:p-0 w-full min-h-auto sm:min-h-[297mm]"
+                className="bg-white shadow-lg mx-auto p-6 sm:p-10 print:shadow-none print:p-0 w-full min-h-auto"
                 style={{
                     fontFamily: '"Inter", sans-serif',
-                    maxWidth: '210mm',
+                    maxWidth: '190mm',
                     color: '#111827'
                 }}
             >
@@ -216,7 +216,12 @@ export function OrderPrint() {
                             Tax Invoice
                         </div>
                         <div className="text-xs sm:text-[14px] text-[#111827]">
-                            <div className="mb-1"><strong>Invoice No:</strong> <span className="font-mono text-sm sm:text-[16px]">{order.order_number || `#${order.id.slice(0, 8)}`}</span></div>
+                            <div className="mb-1">
+                                <strong>Invoice No:</strong>
+                                <span className="font-mono text-sm sm:text-[16px]">
+                                    {settings.invoice_settings?.invoicePrefix || ''}{order.order_number || `#${order.id.slice(0, 8)}`}
+                                </span>
+                            </div>
                             <div><strong>Date:</strong> {new Date(order.order_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
                             <div className="mt-2">
                                 <span className={`
@@ -251,6 +256,9 @@ export function OrderPrint() {
                             <tr className="bg-[#111827] text-white">
                                 <th className="px-5 py-3.5 text-left text-[11px] font-extrabold uppercase">#</th>
                                 <th className="px-5 py-3.5 text-left text-[11px] font-extrabold uppercase">Description</th>
+                                {settings.invoice_settings?.showHsnCode && (
+                                    <th className="px-5 py-3.5 text-center text-[11px] font-extrabold uppercase">HSN</th>
+                                )}
                                 <th className="px-5 py-3.5 text-center text-[11px] font-extrabold uppercase">Qty</th>
                                 <th className="px-5 py-3.5 text-right text-[11px] font-extrabold uppercase">Rate (₹)</th>
                                 <th className="px-5 py-3.5 text-right text-[11px] font-extrabold uppercase">Amount (₹)</th>
@@ -281,6 +289,11 @@ export function OrderPrint() {
                                             )}
                                         </div>
                                     </td>
+                                    {settings.invoice_settings?.showHsnCode && (
+                                        <td className="px-5 py-4 text-center font-bold text-slate-700 text-xs">
+                                            {item.hsn_code || '--'}
+                                        </td>
+                                    )}
                                     <td className="px-5 py-4 text-center font-bold text-slate-700">
                                         {item.addon_service_id ? (
                                             <div className="text-[11px]">
@@ -413,9 +426,22 @@ export function OrderPrint() {
 
             <style>{`
                 @media print {
-                    @page { margin: 10mm; }
-                    body { background: white; }
-                    .no-print, nav, header, aside { display: none !important; }
+                    @page { 
+                        size: A4;
+                        margin: 10mm; 
+                    }
+                    body { 
+                        background: white !important;
+                        margin: 0 !important; 
+                        padding: 0 !important;
+                    }
+                    .no-print, nav, header, aside, .print\\:hidden { 
+                        display: none !important; 
+                    }
+                    * {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
                 }
             `}</style>
         </div>

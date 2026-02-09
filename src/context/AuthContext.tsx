@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useMemo } from 'react'
 import { supabase } from '../supabaseClient'
 import { cacheStore } from '../services/cacheStore'
 import { Session, User, AuthChangeEvent } from '@supabase/supabase-js'
@@ -85,8 +85,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setLoading(false)
     }
 
+    const value = useMemo(() => ({
+        session,
+        user,
+        loading,
+        signOut,
+        signUp,
+        signIn,
+        resetPassword
+    }), [session, user, loading])
+
     return (
-        <AuthContext.Provider value={{ session, user, loading, signOut, signUp, signIn, resetPassword }}>
+        <AuthContext.Provider value={value}>
             {!loading && children}
         </AuthContext.Provider>
     )

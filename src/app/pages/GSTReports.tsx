@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Download, FileText, CheckCircle2, AlertCircle, TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownLeft, Calendar, Loader2 } from 'lucide-react';
 import { getGSTOrders, getITCExpenses, calculateGSTSummary, getGSTCustomers, calculateGSTBreakdown, generateGSTR1CSV, downloadCSV } from '../../services/gstService';
 import { getSettings, updateSettings } from '../../services/settingsService';
-import { BusinessProfileSettings, GSTSettings } from '../../types/settings';
+import { BusinessProfileSettings, GSTSettings, InvoiceSettings } from '../../types/settings';
 import { Expense } from '../../services/expenseService';
 import { formatIndianRupees } from '../../shared/utils/formatters';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -15,6 +15,7 @@ export function GSTReports() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfileSettings | null>(null);
   const [gstSettings, setGstSettings] = useState<GSTSettings | null>(null);
+  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettings | null>(null);
   const [gstFilings, setGstFilings] = useState<any>({});
 
   const [loading, setLoading] = useState(true);
@@ -40,11 +41,12 @@ export function GSTReports() {
         endDate = `${fyYear + 1}-03-31`;
       }
 
-      const [outData, inData, bizData, gData, filingsData, custData] = await Promise.all([
+      const [outData, inData, bizData, gData, iData, filingsData, custData] = await Promise.all([
         getGSTOrders(startDate, endDate),
         getITCExpenses(startDate, endDate),
         getSettings<BusinessProfileSettings>('business_profile'),
         getSettings<GSTSettings>('gst_settings'),
+        getSettings<InvoiceSettings>('invoice_settings'),
         getSettings<any>('gst_filings'),
         getGSTCustomers()
       ]);
@@ -58,6 +60,7 @@ export function GSTReports() {
       setExpenses(inData);
       setBusinessProfile(bizData);
       setGstSettings(gData);
+      setInvoiceSettings(iData);
       setGstFilings(filingsData || {});
     } catch (err) {
       console.error(err);
@@ -279,7 +282,7 @@ export function GSTReports() {
                           <tr key={o.id} className="hover:bg-gray-50 bg-white">
                             <td className="px-4 py-3 text-xs text-gray-500">{new Date(o.order_date).toLocaleDateString()}</td>
                             <td className="px-4 py-3">
-                              <div className="font-medium text-gray-900">INV-{o.order_number}</div>
+                              <div className="font-medium text-gray-900">{invoiceSettings?.invoicePrefix || ''}{o.order_number}</div>
                               <div className="text-xs text-gray-500">{o.customer?.name}</div>
                             </td>
                             <td className="px-4 py-3 text-right font-medium">₹{Number(o.subtotal).toLocaleString()}</td>

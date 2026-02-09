@@ -376,8 +376,8 @@ export function Catalog() {
                           <h3 className="font-bold text-gray-900 truncate pr-2 text-sm">{item.name}</h3>
                           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{item.category}</p>
                         </div>
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap uppercase tracking-wider ${item.current_stock <= 0 ? 'bg-rose-50 text-rose-700' : item.current_stock <= (item.min_stock || 5) ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                          {item.current_stock <= 0 ? 'Out of Stock' : item.current_stock <= (item.min_stock || 5) ? 'Low Stock' : `${item.current_stock} pcs`}
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap uppercase tracking-wider ${item.current_stock <= 0 ? 'bg-rose-50 text-rose-700' : item.current_stock <= (item.min_stock || invSettings?.lowStockThreshold || 5) ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                          {item.current_stock <= 0 ? 'Out of Stock' : item.current_stock <= (item.min_stock || invSettings?.lowStockThreshold || 5) ? 'Low Stock' : `${item.current_stock} pcs`}
                         </span>
                       </div>
                       <div className="space-y-1.5 mt-4 text-[11px] text-gray-600">
@@ -435,8 +435,8 @@ export function Catalog() {
                         </td>
                         <td className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{item.category}</td>
                         <td className="px-6 py-4 text-right">
-                          <span className={`text-xs font-bold ${item.current_stock <= 0 ? 'text-rose-500' : item.current_stock <= (item.min_stock || 5) ? 'text-amber-500' : 'text-emerald-600'}`}>
-                            {item.current_stock <= 0 ? 'Out of Stock' : item.current_stock <= (item.min_stock || 5) ? 'Low Stock' : `${item.current_stock} pcs`}
+                          <span className={`text-xs font-bold ${item.current_stock <= 0 ? 'text-rose-500' : item.current_stock <= (item.min_stock || invSettings?.lowStockThreshold || 5) ? 'text-amber-500' : 'text-emerald-600'}`}>
+                            {item.current_stock <= 0 ? 'Out of Stock' : item.current_stock <= (item.min_stock || invSettings?.lowStockThreshold || 5) ? 'Low Stock' : `${item.current_stock} pcs`}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-gray-700">{item.default_weight}g</td>

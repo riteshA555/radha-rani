@@ -5,6 +5,7 @@ import { createLedger, deleteLedger, updateLedger } from './accountingService';
 export interface Customer {
     id: string;
     name: string;
+    customer_code?: string; // New: Unique ID
     phone: string;
     email: string;
     address: string;
@@ -43,6 +44,7 @@ export const getCustomerList = async (): Promise<{ id: string, name: string }[]>
             .select('id, name')
             .eq('type', 'ASSET')
             .eq('user_id', user.id)
+            .eq('is_system', false)
             .order('name');
 
         if (error) throw error;
@@ -61,6 +63,7 @@ export const getCustomers = async (): Promise<Customer[]> => {
         return (data || []).map((l: any) => ({
             id: l.id,
             name: l.name,
+            customer_code: l.customer_code, // Map the new field
             phone: l.contact_info || '',
             email: '',
             address: l.address || '',
@@ -116,6 +119,7 @@ export const addCustomer = async (customer: Omit<Customer, 'id' | 'totalOrders' 
 
     return await createLedgerWithOpeningBalance({
         name: customer.name,
+        customer_code: customer.customer_code, // Pass the new field
         type: 'ASSET',
         openingBalance: signedBalance,
         contact_info: customer.phone,
@@ -127,6 +131,7 @@ export const addCustomer = async (customer: Omit<Customer, 'id' | 'totalOrders' 
 export const updateCustomer = async (id: string, customer: Partial<Customer>) => {
     return await updateLedger(id, {
         name: customer.name,
+        customer_code: customer.customer_code, // Pass the new field
         contact_info: customer.phone,
         address: customer.address,
         gst_number: customer.gstNumber

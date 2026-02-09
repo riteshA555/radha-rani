@@ -126,26 +126,14 @@ export const getPLReport = async (startDate?: string, endDate?: string) => {
     }, 1000 * 60 * 5, true) // 5 mins, persistent
 }
 
-export const getCustomerStatement = async (customerName: string, startDate?: string, endDate?: string) => {
+export const getCustomerStatement = async (ledgerId: string, startDate?: string, endDate?: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const cacheKey = `${CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX}${customerName}_${startDate || 'all'}_${endDate || 'all'}`;
+    const cacheKey = `${CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX}${ledgerId}_${startDate || 'all'}_${endDate || 'all'}`;
 
     return cacheStore.getOrFetch(cacheKey, async () => {
-        // 1. Find Ledger ID
-        const { data: ledgers, error: ledgerError } = await supabase
-            .from('ledgers')
-            .select('id')
-            .eq('name', customerName)
-            .eq('user_id', user.id)
-            .limit(1)
-
-        if (ledgerError || !ledgers.length) throw new Error("Customer not found or invalid name")
-        const ledgerId = ledgers[0].id
-
-        // 2. Fetch ALL transactions for this ledger to calculate running balance correctly
-        // We cannot just fetch a date range because we need the opening balance
+        // Fetch ALL transactions for this ledger to calculate running balance correctly
         const { data: allTransactions, error } = await supabase
             .from('transactions')
             .select('*')
@@ -186,20 +174,9 @@ export const getCustomerStatement = async (customerName: string, startDate?: str
     }, 1000 * 60 * 15, true) // 15 mins, persistent
 }
 
-export const getClientStatementReport = async (customerName: string, startDate: string, endDate: string) => {
+export const getClientStatementReport = async (ledgerId: string, startDate: string, endDate: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
-
-    // 1. Find Ledger ID
-    const { data: ledgers, error: ledgerError } = await supabase
-        .from('ledgers')
-        .select('id')
-        .eq('name', customerName)
-        .eq('user_id', user.id)
-        .limit(1)
-
-    if (ledgerError || !ledgers.length) throw new Error("Customer not found")
-    const ledgerId = ledgers[0].id
 
     // 2. Get Opening Balance (Total before startDate)
     const { data: openingData, error: openingError } = await supabase
@@ -255,7 +232,7 @@ export const getAssetLedgers = async () => {
         // Fetches Customers (Assets) for the dropdown
         const { data, error } = await supabase
             .from('ledgers')
-            .select('id, name, contact_info, address, gst_number, credit_limit, payment_terms, running_balance')
+            .select('id, name, contact_info, address, gst_number, credit_limit, payment_terms, running_balance, is_system')
             .eq('type', 'ASSET')
             .eq('user_id', user.id)
             .order('name')
@@ -332,7 +309,7 @@ export const getLiabilityLedgers = async () => {
     }, 1000 * 60 * 60, true) // 1 hour, persistent
 }
 
-export const createLedger = async (data: { name: string, type: 'ASSET' | 'LIABILITY' | 'EXPENSE' | 'INCOME', contact_info?: string, address?: string, gst_number?: string, credit_limit?: number, payment_terms?: string }) => {
+export const createLedger = async (data: { name: string, customer_code?: string, type: 'ASSET' | 'LIABILITY' | 'EXPENSE' | 'INCOME', contact_info?: string, address?: string, gst_number?: string, credit_limit?: number, payment_terms?: string }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
@@ -347,6 +324,7 @@ export const createLedger = async (data: { name: string, type: 'ASSET' | 'LIABIL
 
 export const createLedgerWithOpeningBalance = async (data: {
     name: string,
+    customer_code?: string,
     type: 'ASSET' | 'LIABILITY',
     openingBalance: number,
     contact_info?: string,
@@ -363,14 +341,15 @@ export const createLedgerWithOpeningBalance = async (data: {
         l_user_id: user.id,
         l_contact_info: data.contact_info,
         l_address: data.address,
-        l_gst_number: data.gst_number
+        l_gst_number: data.gst_number,
+        l_customer_code: data.customer_code
     });
 
     if (error) throw error;
     return res;
 };
 
-export const updateLedger = async (id: string, data: { name?: string, contact_info?: string, address?: string, gst_number?: string }) => {
+export const updateLedger = async (id: string, data: { name?: string, customer_code?: string, contact_info?: string, address?: string, gst_number?: string }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 

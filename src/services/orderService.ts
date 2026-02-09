@@ -25,7 +25,8 @@ export const getOrders = async () => {
 
 // Updated type definition implicitly via the arguments
 export const createOrder = async (
-    order: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_number' | 'user_id' | 'gst_enabled' | 'gst_rate' | 'gst_amount' | 'subtotal' | 'total_amount' | 'advance_amount' | 'payment_mode'> & {
+    order: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_number' | 'user_id' | 'gst_enabled' | 'gst_rate' | 'gst_amount' | 'subtotal' | 'total_amount' | 'advance_amount' | 'payment_mode' | 'ledger_id'> & {
+        ledger_id?: string, // NEW: Specific ledger ID to link
         discount_amount?: number,
         delivery_date?: string,
         notes?: string
@@ -71,7 +72,8 @@ export const createOrder = async (
         p_notes: order.notes || '',
         p_advance_amount: advanceAmount,
         p_payment_mode: paymentMode,
-        p_include_ledger_balance: includeLedgerBalance
+        p_include_ledger_balance: includeLedgerBalance,
+        p_ledger_id: order.ledger_id // PASS THE LEDGER ID
     })
 
     if (error) {
@@ -87,6 +89,7 @@ export const createOrder = async (
     // Invalidate related caches
     cacheStore.invalidate(CACHE_KEYS.ORDERS)
     cacheStore.invalidate('dashboard_stats')
+    cacheStore.invalidate('finished_goods') // Explicitly invalidate finished goods for notifications
     cacheStore.invalidatePattern('stock_') // Orders affect stock
     cacheStore.invalidatePattern('ledger_') // Payments affect ledgers
 

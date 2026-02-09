@@ -21,6 +21,7 @@ import { Combobox } from '../components/ui/combobox'
 
 type FormValues = {
     customer_name: string
+    ledger_id?: string // NEW: Specific ledger track
     order_date: string
     material_type: MaterialType
     items: {
@@ -115,10 +116,15 @@ export function CreateOrder() {
 
     const { register, control, handleSubmit, watch, setValue, reset, formState: { errors, isSubmitting } } = useForm<FormValues>({
         defaultValues: {
+            customer_name: '',
+            ledger_id: undefined,
             order_date: new Date().toISOString().split('T')[0],
             material_type: 'CLIENT',
             gst_enabled: false,
             include_ledger_balance: true,
+            discount_amount: 0,
+            advance_amount: 0,
+            payment_mode: 'CASH',
             items: []
         }
     })
@@ -202,15 +208,30 @@ export function CreateOrder() {
         ? watch('custom_gst_rate')!
         : defaultGstRate
 
+    const isInclusive = gstSettings?.taxCalculationMethod === 'inclusive'
     const discountAmount = watch('discount_amount') || 0
-    // Subtotal after Discount
-    const taxableAmount = Math.max(0, subtotal - discountAmount)
 
-    const gstAmount = gstEnabled ? (taxableAmount * currentGstRate) / 100 : 0
-    // Round off grand total for "Real Life" usage
-    const rawTotal = taxableAmount + gstAmount
-    const grandTotal = isNaN(rawTotal) ? 0 : Math.round(rawTotal)
-    const roundOffDiff = grandTotal - rawTotal
+    // Subtotal = Sum of raw items
+    const subtotalBase = subtotal - discountAmount
+
+    let taxableAmount: number
+    let gstAmount: number
+    let grandTotal: number
+
+    if (isInclusive && gstEnabled) {
+        // Inclusive: Subtotal already contains GST
+        grandTotal = Math.round(Math.max(0, subtotalBase))
+        taxableAmount = grandTotal / (1 + currentGstRate / 100)
+        gstAmount = grandTotal - taxableAmount
+    } else {
+        // Exclusive: Subtotal is base, GST is added on top
+        taxableAmount = Math.max(0, subtotalBase)
+        gstAmount = gstEnabled ? (taxableAmount * currentGstRate) / 100 : 0
+        const rawTotal = taxableAmount + gstAmount
+        grandTotal = isNaN(rawTotal) ? 0 : Math.round(rawTotal)
+    }
+
+    const roundOffDiff = grandTotal - (taxableAmount + gstAmount)
 
 
     useEffect(() => {
@@ -230,6 +251,7 @@ export function CreateOrder() {
         const prefilled = (location.state as any)?.prefilled;
         if (prefilled) {
             if (prefilled.customer_name) setValue('customer_name', prefilled.customer_name);
+            if (prefilled.ledger_id) setValue('ledger_id', prefilled.ledger_id);
             if (prefilled.order_date) setValue('order_date', prefilled.order_date);
             if (prefilled.material_type) setValue('material_type', prefilled.material_type);
             if (prefilled.items && prefilled.items.length > 0) {
@@ -492,6 +514,7 @@ export function CreateOrder() {
 
             const result = await createOrder({
                 customer_name: finalCustomerName,
+                ledger_id: data.ledger_id, // PASS THE ID
                 order_date: data.order_date,
                 material_type: data.material_type,
                 status: 'Pending',
@@ -652,26 +675,33 @@ export function CreateOrder() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div className="sm:col-span-2">
                                 <label className="block text-xs font-semibold text-gray-500 mb-1">Customer Name</label>
-                                <input
-                                    {...register('customer_name', { required: true })}
-                                    list="customer_options"
-                                    className={`w-full p-2.5 rounded-lg border ${errors.customer_name ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'} transition-all text-gray-900 font-medium`}
-                                    placeholder="Search or Type Customer Name"
-                                    autoFocus
+                                <Combobox
+                                    options={savedCustomers.map(c => ({
+                                        value: c.id,
+                                        label: `${c.name} ${c.customer_code ? `[${c.customer_code}]` : ''} ${c.phone ? `(${c.phone})` : ''}`
+                                    }))}
+                                    value={watch('ledger_id') || ''}
+                                    onValueChange={(val) => {
+                                        const cust = savedCustomers.find(c => c.id === val);
+                                        if (cust) {
+                                            setValue('ledger_id', cust.id);
+                                            setValue('customer_name', cust.name);
+                                        }
+                                    }}
+                                    placeholder="Search Customer (Name, ID, Phone)..."
+                                    searchPlaceholder="Search Name, ID, Phone..."
+                                    className={`h-[54px] text-lg font-bold ${errors.ledger_id ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200'} rounded-xl`}
                                 />
-                                <datalist id="customer_options">
-                                    {savedCustomers.map(c => <option key={c.id} value={c.name} />)}
-                                </datalist>
 
                                 {/* LIVE BALANCE DISPLAY */}
-                                {customerName && savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase()) && (
+                                {watch('ledger_id') && savedCustomers.find(c => c.id === watch('ledger_id')) && (
                                     <div className="mt-2 flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-100">
                                         <div className="flex items-center gap-2">
                                             <Wallet size={14} className="text-gray-400" />
                                             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Current Balance:</span>
                                         </div>
-                                        <span className={`text-sm font-black ${savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                            {savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance > 0 ? 'Receivable' : 'Advance'}: ₹{formatIndianRupees(Math.abs(savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance || 0))}
+                                        <span className={`text-sm font-black ${savedCustomers.find(c => c.id === watch('ledger_id'))?.running_balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                            {savedCustomers.find(c => c.id === watch('ledger_id'))?.running_balance > 0 ? 'Receivable' : 'Advance'}: ₹{formatIndianRupees(Math.abs(savedCustomers.find(c => c.id === watch('ledger_id'))?.running_balance || 0))}
                                         </span>
                                     </div>
                                 )}
