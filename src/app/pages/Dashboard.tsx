@@ -63,40 +63,52 @@ export function Dashboard() {
 
   const refreshAll = useCallback(async (showLoader = false) => {
     if (showLoader) setLoading(true);
+    setError(null);
 
     try {
       const data = await getDashboardFullData();
+
+      if (!data) throw new Error("No data received");
+
       setDashboardData(data);
 
       // Map composite data to legacy states for minimal UI change
-      setKpis(data.kpis);
+      // Added safe checks for all properties
+      setKpis(data.kpis || {});
+
+      const stockData = data.stock || { raw_silver: 0, wastage: 0, finished_goods_weight: 0 };
       setInventory([
-        { id: 'raw', name: 'Raw Silver', weight_gm: data.stock.raw_silver },
-        { id: 'wastage', name: 'Wastage Silver', weight_gm: data.stock.wastage }
+        { id: 'raw', name: 'Raw Silver', weight_gm: stockData.raw_silver || 0 },
+        { id: 'wastage', name: 'Wastage Silver', weight_gm: stockData.wastage || 0 }
       ]);
-      setFinishedWeight(data.stock.finished_goods_weight);
+      setFinishedWeight(stockData.finished_goods_weight || 0);
+
       setOrders(data.recent_orders || []);
       setRecentRates(data.recent_rates || []);
-      setRate({
-        id: 'live',
-        metal_type: 'SILVER',
-        selling_rate: data.live_rate,
-        rate_date: new Date().toISOString(),
-        source: 'Market'
-      } as any);
+
+      if (data.live_rate) {
+        setRate({
+          id: 'live',
+          metal_type: 'SILVER',
+          selling_rate: data.live_rate,
+          rate_date: new Date().toISOString(),
+          source: 'Market'
+        } as any);
+      }
 
       const balances: any = {};
-      data.karigar_overview.forEach(k => {
+      (data.karigar_overview || []).forEach(k => {
         balances[k.id] = { cash: k.current_balance, metal: k.current_metal_balance };
       });
       setKarigarBalances(balances);
-      setKarigars(data.karigar_overview);
+      setKarigars(data.karigar_overview || []);
 
       // Fetch products separately (still 1 extra call, but improved)
-      getProducts().then(setProducts).catch(() => { });
+      getProducts().then(setProducts).catch(err => console.warn("Product fetch warn", err));
 
-    } catch (e) {
+    } catch (e: any) {
       console.error('Core refresh failed', e);
+      setError(e.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
