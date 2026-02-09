@@ -147,19 +147,39 @@ export const BarcodeScannerModal = ({ onScan, onClose }: BarcodeScannerModalProp
                             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 text-center bg-gray-950/95 z-30 overflow-y-auto pt-10 pb-10">
                                 <Camera size={32} className="mb-4 text-rose-500 opacity-80" />
                                 {error === "PERMISSION_DENIED" ? (
-                                    <div className="space-y-4">
-                                        <p className="text-[11px] font-black uppercase tracking-widest text-rose-400">Permission Denied</p>
-                                        <div className="bg-white/5 p-4 rounded-xl text-left border border-white/10 space-y-2">
-                                            <p className="text-[10px] text-gray-400 font-bold uppercase">Reset Permission:</p>
-                                            <p className="text-[10px] leading-relaxed opacity-70">
-                                                1. Browser ke <b>Three Dots (⋮)</b> tap karein.<br />
-                                                2. <b>Settings → Site Settings</b> mein jayein.<br />
-                                                3. <b>Camera</b> select karke <b>Reset Permission</b> karein.
-                                            </p>
+                                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                        <p className="text-[11px] font-black uppercase tracking-widest text-rose-400">Camera Blocked</p>
+
+                                        <div className="bg-white/5 p-4 rounded-2xl text-left border border-white/10 space-y-4">
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest">How to Reset:</p>
+                                                <p className="text-[11px] leading-relaxed opacity-90 text-white font-medium">Browser settings mein permission reset karni hogi.</p>
+                                            </div>
+
+                                            {/* Visual Help from public/permission-guide.png */}
+                                            <div className="w-full aspect-[4/3] rounded-xl overflow-hidden bg-gray-900 border border-white/10">
+                                                <img
+                                                    src="/permission-guide.png"
+                                                    alt="Permission Help"
+                                                    className="w-full h-full object-contain"
+                                                    onError={(e) => (e.currentTarget.style.display = 'none')}
+                                                />
+                                            </div>
+
+                                            <div className="space-y-3 text-[10px] leading-relaxed opacity-90">
+                                                <p className="flex gap-2 text-rose-300/80">1. Tap <b>(⋮) Menu</b> or <b>Lock (🔒)</b> in URL bar.</p>
+                                                <p className="flex gap-2">2. Go to <b>Site Settings</b> → <b>Camera</b>.</p>
+                                                <p className="flex gap-2">3. Tap <b>Reset Permission</b> or <b>Allow</b>.</p>
+                                            </div>
                                         </div>
-                                        <button onClick={() => window.location.reload()} className="w-full py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all">
-                                            Reload & Retry
+
+                                        <button
+                                            onClick={() => window.location.reload()}
+                                            className="w-full py-4 bg-white text-black rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all"
+                                        >
+                                            RELOAD & RE-ASK
                                         </button>
+                                        <p className="text-[10px] opacity-40 uppercase tracking-widest">Reset karne ke baad reload karein</p>
                                     </div>
                                 ) : error === "INSECURE_CONTEXT" ? (
                                     <div className="space-y-4">
