@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { BottomNav } from './BottomNav';
 import { Sidebar } from './Sidebar';
 import { NotificationCenter } from './NotificationCenter';
+import { InstallPrompt } from './InstallPrompt';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 
@@ -122,6 +123,9 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
       <footer className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-pb">
         <BottomNav currentPage={currentPage} onNavigate={onNavigate} />
       </footer>
+
+      {/* PWA Install Prompt */}
+      <InstallPrompt />
     </div>
   );
 }
