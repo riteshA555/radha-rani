@@ -20,6 +20,7 @@ async function createSquareIcons() {
 
         await sharp('public/logo.png')
             .resize(newWidth512, newHeight512, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+            .flatten({ background: { r: 255, g: 255, b: 255 } }) // Force White Background (removes transparency/black artifacts)
             .extend({
                 top: Math.round((size512 - newHeight512) / 2),
                 bottom: Math.round((size512 - newHeight512) / 2),
@@ -43,6 +44,7 @@ async function createSquareIcons() {
 
         await sharp('public/logo.png')
             .resize(newWidth192, newHeight192, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+            .flatten({ background: { r: 255, g: 255, b: 255 } }) // Force White Background
             .extend({
                 top: Math.round((size192 - newHeight192) / 2),
                 bottom: Math.round((size192 - newHeight192) / 2),
