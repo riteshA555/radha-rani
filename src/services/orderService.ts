@@ -61,11 +61,14 @@ export const getOrderById = async (orderId: string): Promise<Order | null> => {
 
 // Updated type definition implicitly via the arguments
 export const createOrder = async (
-    order: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_number' | 'user_id' | 'gst_enabled' | 'gst_rate' | 'gst_amount' | 'subtotal' | 'total_amount' | 'advance_amount' | 'payment_mode' | 'ledger_id'> & {
-        ledger_id?: string, // NEW: Specific ledger ID to link
+    order: Omit<Order, 'id' | 'created_at' | 'updated_at' | 'order_number' | 'user_id' | 'gst_enabled' | 'gst_rate' | 'gst_amount' | 'subtotal' | 'total_amount' | 'advance_amount' | 'payment_mode' | 'ledger_id' | 'status'> & {
+        ledger_id?: string,
         discount_amount?: number,
         delivery_date?: string,
-        notes?: string
+        notes?: string,
+        is_quotation?: boolean,
+        old_gold_value?: number,
+        old_gold_details?: any
     },
     items: Omit<OrderItem, 'id' | 'order_id' | 'amount'>[],
     gstEnabled: boolean = false,
@@ -102,14 +105,17 @@ export const createOrder = async (
         p_items: validatedItems,
         p_gst_enabled: gstEnabled,
         p_gst_rate: validatedGstRate,
-        // New Parameters
+        // Added Parameters for v2 (Quotation & Old Gold)
+        p_is_quotation: order.is_quotation || false,
+        p_old_gold_value: order.old_gold_value || 0,
+        p_old_gold_details: order.old_gold_details || null,
         p_discount_amount: order.discount_amount || 0,
         p_delivery_date: order.delivery_date || null,
         p_notes: order.notes || '',
         p_advance_amount: advanceAmount,
         p_payment_mode: paymentMode,
         p_include_ledger_balance: includeLedgerBalance,
-        p_ledger_id: order.ledger_id // PASS THE LEDGER ID
+        p_ledger_id: order.ledger_id
     })
 
     if (error) {

@@ -16,7 +16,9 @@ import {
     Coins,
     User,
     ChevronRight,
-    AlertCircle
+    AlertCircle,
+    Printer,
+    FileText
 } from 'lucide-react';
 import {
     getKarigars,
@@ -365,6 +367,15 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
                                             Record Payout
                                         </div>
                                     </button>
+                                    <button
+                                        onClick={() => window.print()}
+                                        className="w-full flex items-center justify-between p-4 bg-gray-900 text-white rounded-xl font-bold text-xs hover:bg-black transition-all group mt-2"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <Printer className="w-4 h-4" />
+                                            Print Job Card
+                                        </div>
+                                    </button>
                                 </div>
                             </div>
 
@@ -382,6 +393,7 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
                                             <tr className="bg-gray-50/50">
                                                 <th className="px-6 py-3 font-bold text-gray-400 uppercase tracking-tighter">Date</th>
                                                 <th className="px-6 py-3 font-bold text-gray-400 uppercase tracking-tighter">Activity</th>
+                                                <th className="px-6 py-3 font-bold text-gray-400 uppercase tracking-tighter text-right">Metal (g)</th>
                                                 <th className="px-6 py-3 font-bold text-gray-400 uppercase tracking-tighter text-right">Labor (₹)</th>
                                                 <th className="px-6 py-3 font-bold text-gray-400 uppercase tracking-tighter text-right">Status</th>
                                             </tr>
@@ -397,9 +409,14 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
                                                         <td className="px-6 py-4 whitespace-nowrap text-gray-500">{new Date(h.work_date).toLocaleDateString()}</td>
                                                         <td className="px-6 py-4">
                                                             <div className="font-bold text-gray-900">{h.description}</div>
-                                                            <div className="text-[9px] text-gray-400 mt-0.5">Qty: {h.quantity} • Ref: {h.id.slice(0, 8)}</div>
+                                                            <div className="text-[9px] text-gray-400 mt-0.5">Ref: {h.id.slice(0, 8)}</div>
                                                         </td>
-                                                        <td className="px-6 py-4 text-right font-bold text-gray-900">₹{formatIndianRupees(h.amount)}</td>
+                                                        <td className={`px-6 py-4 text-right font-black ${h.metal_gm > 0 ? 'text-indigo-600' : h.metal_gm < 0 ? 'text-rose-600' : 'text-gray-300'}`}>
+                                                            {h.metal_gm !== 0 ? `${h.metal_gm > 0 ? '+' : ''}${h.metal_gm.toFixed(3)}g` : '-'}
+                                                        </td>
+                                                        <td className={`px-6 py-4 text-right font-bold ${h.amount > 0 ? 'text-gray-900' : 'text-gray-300'}`}>
+                                                            {h.amount !== 0 ? `₹${formatIndianRupees(h.amount)}` : '-'}
+                                                        </td>
                                                         <td className="px-6 py-4 text-right italic font-medium">
                                                             <span className={`px-2 py-0.5 rounded-full text-[9px] uppercase font-bold ${h.payment_status === 'PAID' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                                                                 {h.payment_status}

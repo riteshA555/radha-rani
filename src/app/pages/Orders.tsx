@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Filter, Calendar, User, Package, IndianRupee, Clock, CheckCircle2, XCircle, ArrowRight, Loader2 } from 'lucide-react';
+import { Plus, Search, Filter, Calendar, User, Package, IndianRupee, Clock, CheckCircle2, XCircle, ArrowRight, Loader2, FileText } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getOrders } from '../../services/orderService';
 import { Order as APIOrder } from '../../types'; // Adjust path if needed
@@ -63,6 +63,8 @@ export function Orders() {
         return { label: 'In Production', bgColor: 'bg-indigo-50', textColor: 'text-indigo-700', icon: Package };
       case 'cancelled':
         return { label: 'Cancelled', bgColor: 'bg-rose-50', textColor: 'text-rose-700', icon: XCircle };
+      case 'quotation':
+        return { label: 'Quotation', bgColor: 'bg-amber-100', textColor: 'text-amber-800', icon: FileText };
       default:
         return { label: status, bgColor: 'bg-gray-50', textColor: 'text-gray-600', icon: Package };
     }
@@ -75,6 +77,7 @@ export function Orders() {
       'in-production': 0,
       completed: 0,
       cancelled: 0,
+      quotation: 0
     };
 
     const filtered = orders.filter((order) => {
@@ -83,6 +86,7 @@ export function Orders() {
       else if (s === 'in-production' || s === 'in production') counts['in-production']++;
       else if (s === 'completed') counts.completed++;
       else if (s === 'cancelled') counts.cancelled++;
+      else if (s === 'quotation') counts.quotation++;
 
       const matchesSearch =
         order.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -133,7 +137,7 @@ export function Orders() {
 
         {/* Status Filter Tabs */}
         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {(['all', 'pending', 'in-production', 'completed', 'cancelled'] as const).map(
+          {(['all', 'pending', 'in-production', 'completed', 'cancelled', 'quotation'] as const).map(
             (status) => (
               <button
                 key={status}
@@ -236,9 +240,23 @@ export function Orders() {
 
                   {/* Actions */}
                   <div className="mt-4 flex gap-2">
-                    <button className="flex-1 px-4 py-2 bg-gray-50 text-gray-500 text-[11px] font-bold uppercase tracking-widest rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-all flex items-center justify-center gap-2">
-                      View details <ArrowRight className="w-4 h-4" />
-                    </button>
+                    {order.status === 'QUOTATION' ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          triggerHaptic('medium');
+                          // Conversion logic will be handled here or in details page
+                          navigate(`/orders/${order.id}`);
+                        }}
+                        className="flex-1 px-4 py-2 bg-amber-500 text-white text-[11px] font-bold uppercase tracking-widest rounded-lg hover:bg-amber-600 transition-all flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        Finalize Order <ArrowRight className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button className="flex-1 px-4 py-2 bg-gray-50 text-gray-500 text-[11px] font-bold uppercase tracking-widest rounded-lg group-hover:bg-indigo-600 group-hover:text-white transition-all flex items-center justify-center gap-2 text-center">
+                        View details <ArrowRight className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );

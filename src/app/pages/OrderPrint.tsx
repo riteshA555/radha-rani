@@ -212,8 +212,8 @@ export function OrderPrint() {
                         </div>
                     </div>
                     <div className="text-center sm:text-right flex flex-col items-center sm:items-end">
-                        <div className="inline-block px-6 py-2 bg-[#111827] text-white rounded-lg text-sm sm:text-lg font-black uppercase mb-4 tracking-[2px]">
-                            Tax Invoice
+                        <div className={`inline-block px-6 py-2 rounded-lg text-sm sm:text-lg font-black uppercase mb-4 tracking-[2px] ${order.is_quotation ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-[#111827] text-white'}`}>
+                            {order.is_quotation ? 'Proforma / Quotation' : 'Tax Invoice'}
                         </div>
                         <div className="text-xs sm:text-[14px] text-[#111827]">
                             <div className="mb-1">
@@ -319,6 +319,39 @@ export function OrderPrint() {
                     </table>
                 </div>
 
+                {/* Old Gold Details Table (If exists) */}
+                {order.old_gold_details && order.old_gold_details.length > 0 && (
+                    <div className="mb-8 animate-fade-in">
+                        <h4 className="text-[10px] font-black uppercase text-amber-600 mb-3 tracking-widest bg-amber-50 w-fit px-3 py-1 rounded-full border border-amber-100">Old Gold Exchange / पुराना सोना एक्सचेंज</h4>
+                        <div className="rounded-xl overflow-hidden border border-amber-100 bg-amber-50/20">
+                            <table className="w-full text-xs">
+                                <thead className="bg-amber-100/50 text-amber-900">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left">Description</th>
+                                        <th className="px-4 py-2 text-center">Weight</th>
+                                        <th className="px-4 py-2 text-center">Purity</th>
+                                        <th className="px-4 py-2 text-right">Net Wt</th>
+                                        <th className="px-4 py-2 text-right">Rate</th>
+                                        <th className="px-4 py-2 text-right">Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {order.old_gold_details.map((og: any, i: number) => (
+                                        <tr key={i} className="border-t border-amber-100/50 text-amber-800">
+                                            <td className="px-4 py-2 font-medium">{og.description}</td>
+                                            <td className="px-4 py-2 text-center">{og.weight}g</td>
+                                            <td className="px-4 py-2 text-center">{og.purity}%</td>
+                                            <td className="px-4 py-2 text-right font-bold">{Number(og.net_weight).toFixed(3)}g</td>
+                                            <td className="px-4 py-2 text-right">₹{formatIndianRupees(og.rate)}</td>
+                                            <td className="px-4 py-2 text-right font-black">₹{formatIndianRupees(og.value)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
                 {/* Totals & Notes */}
                 <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-10 lg:gap-16">
                     <div>
@@ -359,9 +392,19 @@ export function OrderPrint() {
                                 <span className="font-black text-slate-900">₹{formatIndianRupees(order.gst_amount || 0)}</span>
                             </div>
                         )}
+                        <div className="flex justify-between items-center py-2.5 border-b border-slate-200 text-[13px] sm:text-[14px]">
+                            <span className="text-slate-500 font-bold uppercase tracking-wider">Gross Total</span>
+                            <span className="font-black text-slate-900">₹{formatIndianRupees(order.total_amount)}</span>
+                        </div>
+                        {Number(order.old_gold_value || 0) > 0 && (
+                            <div className="flex justify-between items-center py-2.5 border-b border-rose-100 text-[13px] sm:text-[14px] bg-rose-50 px-2 rounded-lg mt-1">
+                                <span className="text-rose-600 font-bold uppercase tracking-wider">Old Gold (-)</span>
+                                <span className="font-black text-rose-700">- ₹{formatIndianRupees(order.old_gold_value)}</span>
+                            </div>
+                        )}
                         <div className="flex justify-between items-end py-6 mt-2">
-                            <span className="text-sm font-black uppercase text-[#111827]">Grand Total</span>
-                            <span className="text-3xl font-black text-[#111827] leading-none">₹{formatIndianRupees(order.total_amount)}</span>
+                            <span className="text-sm font-black uppercase text-[#111827]">Net Payable</span>
+                            <span className="text-3xl font-black text-[#111827] leading-none">₹{formatIndianRupees(Number(order.total_amount) - Number(order.old_gold_value || 0))}</span>
                         </div>
 
                         {/* RUNNING BALANCE SUMMARY */}
@@ -392,8 +435,8 @@ export function OrderPrint() {
                                 ) : (
                                     <>
                                         <div className="flex justify-between text-[12px] sm:text-[13px]">
-                                            <span className="text-slate-600 font-bold">Bill Total:</span>
-                                            <span className="font-black text-slate-900">₹{formatIndianRupees(order.total_amount)}</span>
+                                            <span className="text-slate-600 font-bold">Net Bill:</span>
+                                            <span className="font-black text-slate-900">₹{formatIndianRupees(Number(order.total_amount) - Number(order.old_gold_value || 0))}</span>
                                         </div>
                                         <div className="flex justify-between text-[12px] sm:text-[13px]">
                                             <span className="text-emerald-600 font-black">Paid Today:</span>
@@ -401,7 +444,7 @@ export function OrderPrint() {
                                         </div>
                                         <div className="flex justify-between items-center p-4 bg-[#111827] text-white rounded-2xl text-base font-black mt-6 shadow-lg shadow-slate-200">
                                             <span className="text-[11px] uppercase tracking-wider">Balance Due:</span>
-                                            <span className="text-xl">₹{formatIndianRupees(Math.max(0, order.total_amount - (order.advance_amount || 0)))}</span>
+                                            <span className="text-xl">₹{formatIndianRupees(Math.max(0, (Number(order.total_amount) - Number(order.old_gold_value || 0)) - (order.advance_amount || 0)))}</span>
                                         </div>
                                     </>
                                 )}

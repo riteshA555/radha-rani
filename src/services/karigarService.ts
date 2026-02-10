@@ -27,6 +27,7 @@ export interface KarigarWorkRecord {
     payment_date?: string;
     payment_mode?: string;
     work_date: string;
+    metal_gm?: number;
     karigars?: { name: string };
 }
 

@@ -17,9 +17,11 @@ export interface Order {
     include_ledger_balance?: boolean;
     ledger_balance_before?: number;
     ledger_balance_after?: number;
-    status: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
+    status: 'Pending' | 'In Progress' | 'Completed' | 'Cancelled' | 'QUOTATION';
     discount_amount?: number;
     delivery_date?: string;
+    is_quotation?: boolean;
+    old_gold_details?: any;
     notes?: string;
     created_at: string;
     updated_at: string;

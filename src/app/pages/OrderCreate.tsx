@@ -50,6 +50,16 @@ type FormValues = {
     gst_enabled: boolean
     custom_gst_rate?: number
     delivery_date?: string
+    is_quotation: boolean
+    old_gold_value: number
+    old_gold_details: {
+        description: string;
+        weight: number;
+        purity: number;
+        net_weight: number;
+        rate: number;
+        value: number;
+    }[]
     notes?: string
     discount_amount?: number
     advance_amount?: number
@@ -110,6 +120,9 @@ export function CreateOrder() {
     })
 
     const [draftError, setDraftError] = useState('')
+    const [draftOldGold, setDraftOldGold] = useState({
+        description: '', weight: 0, purity: 100, net_weight: 0, rate: 0, value: 0
+    })
 
     // Multi-Karigar State
     const [karigarSplits, setKarigarSplits] = useState<{ karigar_id: string, name: string, quantity: number }[]>([])
@@ -124,6 +137,9 @@ export function CreateOrder() {
             material_type: 'CLIENT',
             gst_enabled: false,
             include_ledger_balance: true,
+            is_quotation: false,
+            old_gold_value: 0,
+            old_gold_details: [],
             discount_amount: 0,
             advance_amount: 0,
             payment_mode: 'CASH',
@@ -233,6 +249,11 @@ export function CreateOrder() {
         // grandTotal = isNaN(rawTotal) ? 0 : Math.round(rawTotal)
         grandTotal = isNaN(rawTotal) ? 0 : Number(rawTotal.toFixed(2)) // PRESERVE DECIMALS
     }
+
+    // OLD GOLD LOGIC
+    const tradeIns = watch('old_gold_details') || []
+    const totalOldGoldValue = tradeIns.reduce((sum, item) => sum + (Number(item.value) || 0), 0)
+    const netReceivable = Math.max(0, grandTotal - totalOldGoldValue)
 
     const roundOffDiff = grandTotal - (taxableAmount + gstAmount)
 
@@ -551,7 +572,10 @@ export function CreateOrder() {
                 status: 'Pending',
                 discount_amount: data.discount_amount,
                 delivery_date: data.delivery_date,
-                notes: data.notes
+                notes: data.notes,
+                is_quotation: data.is_quotation,
+                old_gold_value: totalOldGoldValue,
+                old_gold_details: data.old_gold_details
             }, cleanedItems, data.gst_enabled, gstRateValue, data.advance_amount || 0, data.payment_mode || 'CASH', data.include_ledger_balance)
 
             // SHOW SUCCESS MODAL INSTEAD OF NAVIGATING
@@ -559,7 +583,7 @@ export function CreateOrder() {
                 open: true,
                 orderId: result.order_id,
                 customer: data.customer_name,
-                total: result.total_amount || 0, // FIXED: was result.total
+                total: result.net_receivable || 0,
                 // Pass items to success state for sharing
                 items: data.items,
                 date: data.order_date
@@ -695,6 +719,16 @@ export function CreateOrder() {
                 showBack={false}
                 actions={
                     <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200">
+                        <label className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm cursor-pointer transition-all ${watch('is_quotation') ? 'bg-amber-100 text-amber-700 shadow-sm border border-amber-200' : 'text-gray-500 hover:text-gray-700'}`}>
+                            <input
+                                type="checkbox"
+                                {...register('is_quotation')}
+                                className="hidden"
+                            />
+                            <div className={`w-3 h-3 rounded-full ${watch('is_quotation') ? 'bg-amber-500 animate-pulse' : 'bg-gray-300'}`} />
+                            Kacha Bill (Quotation)
+                        </label>
+                        <div className="w-px h-6 bg-gray-200 mx-1 self-center" />
                         <button
                             type="button"
                             onClick={() => { setValue('material_type', 'CLIENT'); remove() }}
@@ -1103,6 +1137,100 @@ export function CreateOrder() {
                             )}
                         </div>
 
+                        {/* OLD GOLD SECTION */}
+                        <div className="bg-gray-50 p-5 border-t border-b border-gray-200">
+                            <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                <Wallet size={16} className="text-amber-600" /> Old Gold Exchange (Purana Sona)
+                            </h3>
+
+                            {watch('old_gold_details')?.length > 0 && (
+                                <div className="space-y-2 mb-4">
+                                    {watch('old_gold_details').map((og: any, idx: number) => (
+                                        <div key={idx} className="bg-amber-50 border border-amber-100 p-3 rounded-xl flex justify-between items-center animate-fade-in">
+                                            <div>
+                                                <div className="font-bold text-amber-900">{og.description}</div>
+                                                <div className="text-xs text-amber-700">
+                                                    {og.weight}g @ {og.purity}% ({og.net_weight}g FINE) x ₹{og.rate}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="font-black text-amber-900">₹{formatIndianRupees(og.value)}</div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const current = watch('old_gold_details') || []
+                                                        setValue('old_gold_details', current.filter((_: any, i: number) => i !== idx))
+                                                    }}
+                                                    className="text-amber-400 hover:text-amber-600 transition-colors"
+                                                >
+                                                    <X size={16} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                <input
+                                    placeholder="Item Desc (e.g. Ring)"
+                                    value={draftOldGold.description}
+                                    onChange={(e) => setDraftOldGold(prev => ({ ...prev, description: e.target.value }))}
+                                    className="p-2.5 rounded-lg border border-gray-300 text-sm font-medium focus:ring-1 focus:ring-amber-500"
+                                />
+                                <input
+                                    type="number" placeholder="Weight (g)"
+                                    value={draftOldGold.weight || ''}
+                                    onChange={(e) => {
+                                        const w = Number(e.target.value)
+                                        const p = draftOldGold.purity
+                                        const r = draftOldGold.rate
+                                        const net = (w * p) / 100
+                                        setDraftOldGold(prev => ({ ...prev, weight: w, net_weight: net, value: net * r }))
+                                    }}
+                                    className="p-2.5 rounded-lg border border-gray-300 text-sm font-bold focus:ring-1 focus:ring-amber-500"
+                                />
+                                <input
+                                    type="number" placeholder="Touch/Purity %"
+                                    value={draftOldGold.purity || ''}
+                                    onChange={(e) => {
+                                        const p = Number(e.target.value)
+                                        const w = draftOldGold.weight
+                                        const r = draftOldGold.rate
+                                        const net = (w * p) / 100
+                                        setDraftOldGold(prev => ({ ...prev, purity: p, net_weight: net, value: net * r }))
+                                    }}
+                                    className="p-2.5 rounded-lg border border-gray-300 text-sm font-bold focus:ring-1 focus:ring-amber-500"
+                                />
+                                <input
+                                    type="number" placeholder="Fine Rate"
+                                    value={draftOldGold.rate || ''}
+                                    onChange={(e) => {
+                                        const r = Number(e.target.value)
+                                        const net = draftOldGold.net_weight
+                                        setDraftOldGold(prev => ({ ...prev, rate: r, value: net * r }))
+                                    }}
+                                    className="p-2.5 rounded-lg border border-gray-300 text-sm font-bold focus:ring-1 focus:ring-amber-500"
+                                />
+                                <div className="p-2.5 rounded-lg bg-amber-100 border border-amber-200 text-amber-900 font-black flex items-center justify-between text-sm">
+                                    <span>Val:</span>
+                                    <span>₹{formatIndianRupees(draftOldGold.value)}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (!draftOldGold.description || draftOldGold.value <= 0) return
+                                        const current = watch('old_gold_details') || []
+                                        setValue('old_gold_details', [...current, draftOldGold])
+                                        setDraftOldGold({ description: '', weight: 0, purity: 100, net_weight: 0, rate: 0, value: 0 })
+                                    }}
+                                    className="bg-amber-600 hover:bg-amber-700 text-white p-2.5 rounded-lg font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2"
+                                >
+                                    <Plus size={16} /> Add Gold
+                                </button>
+                            </div>
+                        </div>
+
                         {/* Totals Footer */}
                         <div className="bg-white p-6 border-t border-gray-100 mt-auto">
                             <div className="flex flex-col lg:flex-row gap-8">
@@ -1164,7 +1292,7 @@ export function CreateOrder() {
                                 {/* Right Side: Values & Summary */}
                                 <div className="w-full lg:w-80 space-y-3">
                                     <div className="flex justify-between text-sm">
-                                        <span className="text-gray-500 font-medium">Subtotal</span>
+                                        <span className="text-gray-500 font-medium">Order Subtotal:</span>
                                         <span className="text-gray-900 font-bold">₹{formatIndianRupees(subtotal)}</span>
                                     </div>
 
@@ -1194,27 +1322,53 @@ export function CreateOrder() {
                                         </div>
                                     )}
 
-                                    <div className="pt-3 border-t border-gray-100">
-                                        <div className="flex justify-between items-end mb-2">
-                                            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Grand Total</div>
-                                            <div className="text-3xl font-black text-gray-900 leading-none">₹{formatIndianRupees(grandTotal)}</div>
+                                    <div className="flex justify-between items-center py-2 border-t border-gray-100 mt-2">
+                                        <span className="text-gray-900 font-black text-lg">Gross Total:</span>
+                                        <div className="text-right">
+                                            <div className="text-2xl font-black text-gray-900">₹{formatIndianRupees(grandTotal)}</div>
+                                            {roundOffDiff !== 0 && (
+                                                <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">
+                                                    Incl. Round off: ₹{roundOffDiff.toFixed(2)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {totalOldGoldValue > 0 && (
+                                        <div className="flex justify-between items-center py-2 text-amber-700 bg-amber-50 px-3 rounded-xl border border-amber-100 animate-fade-in shadow-sm">
+                                            <span className="text-xs font-bold uppercase tracking-wider">Old Gold Value (Deducted):</span>
+                                            <span className="font-black text-lg">- ₹{formatIndianRupees(totalOldGoldValue)}</span>
+                                        </div>
+                                    )}
+
+                                    <div className="pt-3 border-t-2 border-indigo-100">
+                                        <div className="flex justify-between items-end mb-4">
+                                            <div className="text-left">
+                                                <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] leading-none mb-1">Net Payable</div>
+                                                <div className="text-4xl font-black text-indigo-600 leading-none">₹{formatIndianRupees(netReceivable)}</div>
+                                            </div>
                                         </div>
 
                                         {/* Status Row */}
-                                        <div className="flex justify-between items-center gap-2">
-                                            <div className="text-[10px] font-bold text-rose-500 uppercase flex items-center gap-1">
-                                                Due: <span className="text-sm font-black">₹{formatIndianRupees(Math.max(0, grandTotal - (watch('advance_amount') || 0)))}</span>
+                                        <div className="flex flex-col gap-2 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100">
+                                            <div className="flex justify-between items-center">
+                                                <div className="text-[10px] font-bold text-rose-500 uppercase tracking-wider">Balance Due:</div>
+                                                <span className="text-sm font-black text-rose-600">
+                                                    ₹{formatIndianRupees(Math.max(0, netReceivable - (watch('advance_amount') || 0)))}
+                                                </span>
                                             </div>
 
                                             {customerName && savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase()) && (
-                                                <div className="text-[10px] font-bold text-indigo-600 uppercase text-right">
-                                                    {watch('include_ledger_balance') ? 'Final: ' : 'Today: '}
-                                                    <span className="text-sm font-black">
+                                                <div className="flex justify-between items-center border-t border-indigo-100 pt-2">
+                                                    <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">
+                                                        {watch('include_ledger_balance') ? 'Total Closing Balance: ' : 'Today\'s Balance Effect: '}
+                                                    </div>
+                                                    <span className="text-sm font-black text-indigo-700">
                                                         ₹{formatIndianRupees(
                                                             (watch('include_ledger_balance')
                                                                 ? Number(savedCustomers.find(c => c.name.toLowerCase() === customerName.toLowerCase())?.running_balance || 0)
                                                                 : 0) +
-                                                            Number(grandTotal) -
+                                                            Number(netReceivable) -
                                                             Number(watch('advance_amount') || 0)
                                                         )}
                                                     </span>
