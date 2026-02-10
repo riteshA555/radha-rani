@@ -35,9 +35,12 @@ class CacheStore {
      * Set the current user ID to scope cache keys
      */
     setUserId(id: string | null) {
-        this.userId = id;
-        if (id) {
-            this.hydrate();
+        if (this.userId !== id) {
+            this.cache.clear(); // CRITICAL: Stop memory leakage between user sessions
+            this.userId = id;
+            if (id) {
+                this.hydrate();
+            }
         }
     }
 
