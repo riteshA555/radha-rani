@@ -375,10 +375,12 @@ export const deleteLedger = async (id: string, force: boolean = false) => {
         .select('name, is_system')
         .eq('id', id)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
     if (ledgerError) throw ledgerError;
-    if (ledger?.is_system) {
+    if (!ledger) return; // Already deleted
+
+    if (ledger.is_system) {
         throw new Error(
             `❌ Cannot delete System Account: "${ledger.name}"\n` +
             `⚠️ यह एक सिस्टम अकाउंट है और इसे हटाया नहीं जा सकता।`
