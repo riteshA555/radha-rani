@@ -1,34 +1,30 @@
 // Service Worker for PWA
-const CACHE_NAME = 'radha-rani-erp-v1';
+const CACHE_NAME = 'radha-rani-erp-v2';
 const urlsToCache = [
     '/',
     '/index.html',
-    '/logo.png'
+    '/icon-192x192.png',
+    '/icon-512x512.png'
 ];
 
-// Install event - cache essential files
+// Install event
 self.addEventListener('install', (event) => {
+    self.skipWaiting(); // Force activate new SW
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
-                console.log('Opened cache');
                 return cache.addAll(urlsToCache);
             })
-            .catch((error) => {
-                console.error('Cache setup failed:', error);
-            })
     );
-    self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate event
 self.addEventListener('activate', (event) => {
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
                     if (cacheName !== CACHE_NAME) {
-                        console.log('Deleting old cache:', cacheName);
                         return caches.delete(cacheName);
                     }
                 })
@@ -38,48 +34,41 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event
 self.addEventListener('fetch', (event) => {
-    // Skip non-GET requests
-    if (event.request.method !== 'GET') {
+    // 1. Navigation (HTML) - Network First, fallback to cache
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    return response;
+                })
+                .catch(() => {
+                    return caches.match('/index.html');
+                })
+        );
         return;
     }
 
-    // Skip Supabase API calls (always fetch from network)
-    if (event.request.url.includes('supabase.co')) {
-        return;
-    }
-
+    // 2. Assets (JS, CSS, Images) - Cache First, fallback to network
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
-                // Cache hit - return response
                 if (response) {
                     return response;
                 }
-
-                // Clone the request
-                const fetchRequest = event.request.clone();
-
-                return fetch(fetchRequest).then((response) => {
-                    // Check if valid response
+                return fetch(event.request).then((response) => {
+                    // Cache new assets found
                     if (!response || response.status !== 200 || response.type !== 'basic') {
                         return response;
                     }
-
-                    // Clone the response
-                    const responseToCache = response.clone();
-
-                    // Cache the new response
-                    caches.open(CACHE_NAME)
-                        .then((cache) => {
+                    if (event.request.url.startsWith('http') && !event.request.url.includes('supabase')) {
+                        const responseToCache = response.clone();
+                        caches.open(CACHE_NAME).then((cache) => {
                             cache.put(event.request, responseToCache);
                         });
-
+                    }
                     return response;
-                }).catch(() => {
-                    // Network failed, return offline page if available
-                    return caches.match('/index.html');
                 });
             })
     );
