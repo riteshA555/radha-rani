@@ -369,8 +369,24 @@ export const deleteLedger = async (id: string, force: boolean = false) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // 1. Check for transactions (with ownership check)
-    const { data: transactions, count, error: countError } = await supabase
+    // 0. Check if it's a system ledger
+    const { data: ledger, error: ledgerError } = await supabase
+        .from('ledgers')
+        .select('name, is_system')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
+
+    if (ledgerError) throw ledgerError;
+    if (ledger?.is_system) {
+        throw new Error(
+            `❌ Cannot delete System Account: "${ledger.name}"\n` +
+            `⚠️ यह एक सिस्टम अकाउंट है और इसे हटाया नहीं जा सकता।`
+        );
+    }
+
+    // 1. Check for transactions
+    const { data: transactions, count: txCount, error: countError } = await supabase
         .from('transactions')
         .select('*', { count: 'exact' })
         .eq('ledger_id', id)
@@ -378,25 +394,54 @@ export const deleteLedger = async (id: string, force: boolean = false) => {
 
     if (countError) throw countError
 
-    if (count && count > 0) {
-        if (!force) {
-            // Calculate total balance
-            const totalDebit = transactions?.reduce((sum: number, t: any) => sum + Number(t.debit || 0), 0) || 0
-            const totalCredit = transactions?.reduce((sum: number, t: any) => sum + Number(t.credit || 0), 0) || 0
-            const balance = Math.abs(totalCredit - totalDebit)
+    if (txCount && txCount > 0 && !force) {
+        const totalDebit = transactions?.reduce((sum: number, t: any) => sum + Number(t.debit || 0), 0) || 0
+        const totalCredit = transactions?.reduce((sum: number, t: any) => sum + Number(t.credit || 0), 0) || 0
+        const balance = Math.abs(totalCredit - totalDebit)
 
-            throw new Error(
-                `❌ Cannot delete! This vendor has ${count} transaction(s).\n\n` +
-                `📊 Balance: ₹${balance.toLocaleString('en-IN')}\n\n` +
-                `⚠️ इस विक्रेता के ${count} लेनदेन हैं।\n` +
-                `बैलेंस: ₹${balance.toLocaleString('en-IN')}\n\n` +
-                `To delete:\n` +
-                `1. Clear all dues (make balance ₹0)\n` +
-                `2. Or contact support for force delete`
-            )
-        }
+        throw new Error(
+            `❌ Cannot delete! This customer has ${txCount} transaction(s).\n\n` +
+            `📊 Balance: ₹${balance.toLocaleString('en-IN')}\n\n` +
+            `⚠️ इस ग्राहक के ${txCount} लेनदेन (transactions) हैं।\n` +
+            `बैलेंस: ₹${balance.toLocaleString('en-IN')}\n\n` +
+            `Pehle transactions delete karein ya balance zero karein.`
+        );
+    }
 
-        // Force delete: Delete all transactions first (with ownership check)
+    // 2. Check for Orders
+    const { count: orderCount, error: orderError } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('ledger_id', id)
+        .eq('user_id', user.id);
+
+    if (orderError) throw orderError;
+    if (orderCount && orderCount > 0) {
+        throw new Error(
+            `❌ Cannot delete! This customer has ${orderCount} order(s).\n\n` +
+            `⚠️ इस ग्राहक के ${orderCount} ऑर्डर्स (orders) मौजूद हैं।\n` +
+            `Pehle Orders section mein jaakar inke orders delete karein.`
+        );
+    }
+
+    // 3. Check for Raw Material records
+    const { count: rmCount, error: rmError } = await supabase
+        .from('client_raw_material_ledger')
+        .select('*', { count: 'exact', head: true })
+        .eq('client_id', id)
+        .eq('user_id', user.id);
+
+    if (rmError) throw rmError;
+    if (rmCount && rmCount > 0) {
+        throw new Error(
+            `❌ Cannot delete! This customer has Raw Material records.\n\n` +
+            `⚠️ इस ग्राहक का कच्चा माल (Raw Material) का रिकॉर्ड मौजूद है।\n` +
+            `Pehle Raw Material ledger se inke records clear karein.`
+        );
+    }
+
+    // 4. Force delete transactions if force=true (Only reachable if not blocked by orders/rm)
+    if (txCount && txCount > 0 && force) {
         const { error: txnDeleteError } = await supabase
             .from('transactions')
             .delete()
@@ -406,14 +451,14 @@ export const deleteLedger = async (id: string, force: boolean = false) => {
         if (txnDeleteError) throw txnDeleteError
     }
 
-    // 2. Delete Ledger
-    const { error } = await supabase
+    // 5. Final Delete
+    const { error: finalError } = await supabase
         .from('ledgers')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
 
-    if (error) throw error
+    if (finalError) throw finalError
     cacheStore.invalidate(CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX)
 }
 
