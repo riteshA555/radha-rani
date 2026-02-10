@@ -45,7 +45,6 @@ export function Catalog() {
     min_stock: '10',
     gst_rate: '3',
     size: '',
-    barcode: '',
     image_url: ''
   });
 
@@ -147,7 +146,6 @@ export function Catalog() {
           min_stock: Number(form.min_stock || 0),
           gst_rate: Number(form.gst_rate || 3),
           is_active: true,
-          barcode: form.barcode,
           image_url: form.image_url
         };
 
@@ -210,7 +208,6 @@ export function Catalog() {
         min_stock: item.min_stock || 0,
         gst_rate: item.gst_rate ?? 3,
         size: item.size ?? '',
-        barcode: item.barcode || '',
         image_url: item.image_url || ''
       });
     } else {
@@ -249,9 +246,7 @@ export function Catalog() {
     setEditingId(null);
     setForm({
       name: '', category: '', unit: 'Gram', default_weight: '',
-      wastage_percent: '', labour_cost: '', default_rate: '',
       current_stock: '', gst_rate: gstSettings?.defaultGstRateSale || '3', size: '',
-      barcode: '',
       image_url: ''
     });
   };

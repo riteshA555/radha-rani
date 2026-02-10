@@ -22,21 +22,7 @@ export const getProducts = async (): Promise<Product[]> => {
     }, 1000 * 60 * 60, true); // Persist for 1 hour
 }
 
-export const getProductByBarcode = async (barcode: string): Promise<Product | null> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
 
-    const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('barcode', barcode)
-        .eq('is_active', true)
-        .single();
-
-    if (error) return null;
-    return data as Product;
-}
 
 export const updateProduct = async (id: string, updates: Partial<Product>) => {
     const { data: { user } } = await supabase.auth.getUser();
