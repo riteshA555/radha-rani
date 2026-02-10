@@ -387,81 +387,65 @@ export const deleteLedger = async (id: string, force: boolean = false) => {
         );
     }
 
-    // 1. Check for transactions
-    const { data: transactions, count: txCount, error: countError } = await supabase
+    // 1. Get transaction count
+    const { count: txCount } = await supabase
         .from('transactions')
-        .select('*', { count: 'exact' })
+        .select('*', { count: 'exact', head: true })
         .eq('ledger_id', id)
-        .eq('user_id', user.id)
+        .eq('user_id', user.id);
 
-    if (countError) throw countError
-
-    if (txCount && txCount > 0 && !force) {
-        const totalDebit = transactions?.reduce((sum: number, t: any) => sum + Number(t.debit || 0), 0) || 0
-        const totalCredit = transactions?.reduce((sum: number, t: any) => sum + Number(t.credit || 0), 0) || 0
-        const balance = Math.abs(totalCredit - totalDebit)
-
-        throw new Error(
-            `❌ Cannot delete! This customer has ${txCount} transaction(s).\n\n` +
-            `📊 Balance: ₹${balance.toLocaleString('en-IN')}\n\n` +
-            `⚠️ इस ग्राहक के ${txCount} लेनदेन (transactions) हैं।\n` +
-            `बैलेंस: ₹${balance.toLocaleString('en-IN')}\n\n` +
-            `Pehle transactions delete karein ya balance zero karein.`
-        );
-    }
-
-    // 2. Check for Orders
-    const { count: orderCount, error: orderError } = await supabase
+    // 2. Get Order count
+    const { count: orderCount } = await supabase
         .from('orders')
         .select('*', { count: 'exact', head: true })
         .eq('ledger_id', id)
         .eq('user_id', user.id);
 
-    if (orderError) throw orderError;
-    if (orderCount && orderCount > 0) {
-        throw new Error(
-            `❌ Cannot delete! This customer has ${orderCount} order(s).\n\n` +
-            `⚠️ इस ग्राहक के ${orderCount} ऑर्डर्स (orders) मौजूद हैं।\n` +
-            `Pehle Orders section mein jaakar inke orders delete karein.`
-        );
-    }
-
-    // 3. Check for Raw Material records
-    const { count: rmCount, error: rmError } = await supabase
+    // 3. Get Raw Material records count
+    const { count: rmCount } = await supabase
         .from('client_raw_material_ledger')
         .select('*', { count: 'exact', head: true })
         .eq('client_id', id)
         .eq('user_id', user.id);
 
-    if (rmError) throw rmError;
-    if (rmCount && rmCount > 0) {
-        throw new Error(
-            `❌ Cannot delete! This customer has Raw Material records.\n\n` +
-            `⚠️ इस ग्राहक का कच्चा माल (Raw Material) का रिकॉर्ड मौजूद है।\n` +
-            `Pehle Raw Material ledger se inke records clear karein.`
-        );
+    const hasDeps = (txCount && txCount > 0) || (orderCount && orderCount > 0) || (rmCount && rmCount > 0);
+
+    if (hasDeps && !force) {
+        let msg = `❌ Cannot delete! Dependencies found for "${ledger.name}":\n\n`;
+        if (txCount) msg += `- ${txCount} transaction(s)\n`;
+        if (orderCount) msg += `- ${orderCount} order(s)\n`;
+        if (rmCount) msg += `- ${rmCount} raw material record(s)\n`;
+        msg += `\n⚠️ इस ग्राहक के रिकॉर्ड मौजूद हैं। Pehle inhe delete karein.`;
+        throw new Error(msg);
     }
 
     // 4. Force delete transactions if force=true (Only reachable if not blocked by orders/rm)
-    if (txCount && txCount > 0 && force) {
-        const { error: txnDeleteError } = await supabase
-            .from('transactions')
-            .delete()
-            .eq('ledger_id', id)
-            .eq('user_id', user.id)
+    if (force) {
+        // A. Delete Transactions
+        if (txCount) await supabase.from('transactions').delete().eq('ledger_id', id).eq('user_id', user.id);
 
-        if (txnDeleteError) throw txnDeleteError
+        // B. Delete Orders & Items
+        if (orderCount) {
+            const { data: orders } = await supabase.from('orders').select('id').eq('ledger_id', id).eq('user_id', user.id);
+            if (orders?.length) {
+                const orderIds = orders.map((o: any) => o.id);
+                await supabase.from('order_items').delete().in('order_id', orderIds);
+            }
+            await supabase.from('orders').delete().eq('ledger_id', id).eq('user_id', user.id);
+        }
+
+        // C. Delete Raw Material
+        if (rmCount) await supabase.from('client_raw_material_ledger').delete().eq('client_id', id).eq('user_id', user.id);
     }
 
-    // 5. Final Delete
-    const { error: finalError } = await supabase
-        .from('ledgers')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id)
+    const { error: finalError } = await supabase.from('ledgers').delete().eq('id', id).eq('user_id', user.id);
+    if (finalError) throw finalError;
 
-    if (finalError) throw finalError
-    cacheStore.invalidate(CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX)
+    // Cache invalidation
+    cacheStore.invalidatePattern(CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX);
+    cacheStore.invalidatePattern('customer_list');
+    cacheStore.invalidatePattern('orders_list');
+    ['asset_ledgers_list', 'liability_ledgers_list', 'customers_detailed_list', 'customer_list_names'].forEach(k => cacheStore.invalidate(k));
 }
 
 export const deleteTransaction = async (txId: string) => {

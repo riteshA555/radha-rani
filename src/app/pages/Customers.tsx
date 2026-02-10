@@ -124,7 +124,19 @@ export function Customers() {
       await deleteContact(id);
       loadCustomers();
     } catch (err: any) {
-      alert(err.message);
+      if (err.message.includes('Cannot delete!')) {
+        if (window.confirm(err.message + '\n\nDo you want to FORCE DELETE everything for this customer? (This is permanent!)')) {
+          try {
+            const { deleteLedger } = await import('../../services/accountingService');
+            await deleteLedger(id, true);
+            loadCustomers();
+          } catch (forceErr: any) {
+            alert('Force Delete Failed: ' + forceErr.message);
+          }
+        }
+      } else {
+        alert(err.message);
+      }
     }
   };
 
