@@ -10,7 +10,7 @@ async function createSquareIcons() {
 
         // Create 512x512 icon
         const size512 = 512;
-        const padding512 = 60;
+        const padding512 = 0; // Maximized size
         const maxLogoSize512 = size512 - (2 * padding512);
 
         // Calculate scale to fit logo
@@ -19,13 +19,14 @@ async function createSquareIcons() {
         const newHeight512 = Math.round(metadata.height * scale512);
 
         await sharp('public/logo.png')
-            .resize(newWidth512, newHeight512, { fit: 'inside' })
+            .resize(newWidth512, newHeight512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+            .negate({ alpha: false }) // Invert colors (Black -> White) keeping alpha intact
             .extend({
                 top: Math.round((size512 - newHeight512) / 2),
                 bottom: Math.round((size512 - newHeight512) / 2),
                 left: Math.round((size512 - newWidth512) / 2),
                 right: Math.round((size512 - newWidth512) / 2),
-                background: { r: 255, g: 255, b: 255, alpha: 1 }
+                background: { r: 15, g: 23, b: 42, alpha: 1 } // Slate-900 Background
             })
             .png()
             .toFile('public/icon-512x512.png');
@@ -34,7 +35,7 @@ async function createSquareIcons() {
 
         // Create 192x192 icon
         const size192 = 192;
-        const padding192 = 24;
+        const padding192 = 0; // Maximized size
         const maxLogoSize192 = size192 - (2 * padding192);
 
         const scale192 = Math.min(maxLogoSize192 / metadata.width, maxLogoSize192 / metadata.height);
@@ -42,13 +43,14 @@ async function createSquareIcons() {
         const newHeight192 = Math.round(metadata.height * scale192);
 
         await sharp('public/logo.png')
-            .resize(newWidth192, newHeight192, { fit: 'inside' })
+            .resize(newWidth192, newHeight192, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+            .negate({ alpha: false }) // Invert colors
             .extend({
                 top: Math.round((size192 - newHeight192) / 2),
                 bottom: Math.round((size192 - newHeight192) / 2),
                 left: Math.round((size192 - newWidth192) / 2),
                 right: Math.round((size192 - newWidth192) / 2),
-                background: { r: 255, g: 255, b: 255, alpha: 1 }
+                background: { r: 15, g: 23, b: 42, alpha: 1 } // Slate-900
             })
             .png()
             .toFile('public/icon-192x192.png');
