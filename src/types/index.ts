@@ -24,6 +24,9 @@ export interface Order {
     created_at: string;
     updated_at: string;
     items?: OrderItem[];
+    // NEW: Identifying fields from ledger link
+    customer_code?: string;
+    contact_info?: string;
 }
 
 export interface OrderItem {

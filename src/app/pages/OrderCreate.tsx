@@ -7,6 +7,7 @@ import { getJobWorkItems } from '../../services/jobWorkService'
 import { getProducts } from '../../services/productService'
 import { getKarigars, Karigar } from '../../services/karigarService'
 import { getLatestRates, MetalRate } from '../../services/rateService'
+import { addCustomer } from '../../services/contactService'
 import { MaterialType, JobWorkItem, Product } from '../../types'
 import { supabase } from '../../supabaseClient'
 import {
@@ -64,6 +65,7 @@ export function CreateOrder() {
     const [products, setProducts] = useState<Product[]>([])
     const [karigars, setKarigars] = useState<Karigar[]>([])
     const [savedCustomers, setSavedCustomers] = useState<any[]>([])
+    const [isCreatingCustomer, setIsCreatingCustomer] = useState(false)
 
     const { settings } = useSettings()
     const businessProfile = settings.business_profile
@@ -549,6 +551,33 @@ export function CreateOrder() {
         }
     }
 
+    const handleAddNewCustomer = async (input: string) => {
+        try {
+            setIsCreatingCustomer(true)
+            const cleanInput = input.trim()
+            const isPhone = /^\d{10}$/.test(cleanInput)
+
+            const finalName = isPhone ? `Cust ${cleanInput}` : cleanInput
+            const finalPhone = isPhone ? cleanInput : ''
+
+            const newId = await addCustomer({
+                name: finalName,
+                phone: finalPhone,
+                address: '',
+                email: ''
+            })
+            // Update local list to include new customer
+            setSavedCustomers(prev => [...prev, { id: newId, name: finalName, phone: finalPhone }])
+            // Select in form
+            setValue('ledger_id', newId)
+            setValue('customer_name', finalName)
+        } catch (err) {
+            console.error('Failed to auto-create customer:', err)
+        } finally {
+            setIsCreatingCustomer(false)
+        }
+    }
+
 
     return (
         <div className="max-w-[1400px] mx-auto p-4 min-h-[calc(100vh-100px)] relative">
@@ -689,6 +718,9 @@ export function CreateOrder() {
                                             setValue('customer_name', cust.name);
                                         }
                                     }}
+                                    allowCustom={true}
+                                    onCustomAdd={handleAddNewCustomer}
+                                    loading={isCreatingCustomer}
                                     placeholder="Search Customer (Name, ID, Phone)..."
                                     searchPlaceholder="Search Name, ID, Phone..."
                                     className={`h-[54px] text-lg font-bold ${errors.ledger_id ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200'} rounded-xl`}

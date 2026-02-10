@@ -182,9 +182,17 @@ export function Orders() {
 
                   {/* Order Details */}
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <User className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-900">{order.customer_name}</span>
+                    <div className="flex items-center gap-2 text-sm min-w-0">
+                      <User className="w-4 h-4 text-gray-400 shrink-0" />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-gray-900 truncate font-bold">{order.customer_name}</span>
+                        {(order.customer_code || order.contact_info) && (
+                          <span className="text-[10px] text-gray-400 font-medium truncate">
+                            {order.customer_code && `[${order.customer_code}] `}
+                            {order.contact_info && `(${order.contact_info})`}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2 text-sm">

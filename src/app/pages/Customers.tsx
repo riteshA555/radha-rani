@@ -308,7 +308,7 @@ export function Customers() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Unique ID</label>
-                  <input type="text" value={formData.customer_code} onChange={e => setFormData({ ...formData, customer_code: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-bold text-indigo-600 outline-none uppercase" placeholder="L-001" />
+                  <input type="text" value={formData.customer_code} onChange={e => setFormData({ ...formData, customer_code: e.target.value })} className="w-full p-3 border border-gray-200 rounded-xl focus:ring-1 focus:ring-indigo-500 text-sm font-bold text-indigo-600 outline-none uppercase" placeholder="AUTO-GEN" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

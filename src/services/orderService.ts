@@ -14,12 +14,24 @@ export const getOrders = async () => {
     return cacheStore.getOrFetch(CACHE_KEYS.ORDERS, async () => {
         const { data, error } = await supabase
             .from('orders')
-            .select('*, items:order_items(*)')
+            .select(`
+                *,
+                items:order_items(*),
+                ledger:ledgers(customer_code, contact_info)
+            `)
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
 
         if (error) throw error
-        return data as Order[]
+
+        // Flatten the joined data
+        const flattened = (data || []).map((order: any) => ({
+            ...order,
+            customer_code: order.ledger?.customer_code,
+            contact_info: order.ledger?.contact_info
+        }))
+
+        return flattened as Order[]
     }, 1000 * 60 * 5, true) // 5 mins TTL, persistent
 }
 
