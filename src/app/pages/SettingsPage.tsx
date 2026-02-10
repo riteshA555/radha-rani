@@ -421,19 +421,19 @@ export function SettingsPage() {
               <button
                 key={tab.id}
                 onClick={() => { triggerHaptic('light'); setActiveTab(tab.id); }}
-                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all ${activeTab === tab.id
+                className={`flex-none w-[180px] lg:w-full flex items-center gap-3 p-3 rounded-2xl transition-all ${activeTab === tab.id
                   ? 'bg-white shadow-md shadow-gray-200/50 border border-gray-100'
                   : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
                   }`}
               >
-                <div className={`p-2 rounded-xl scale-90 ${activeTab === tab.id ? `${tab.bg} ${tab.color}` : 'bg-gray-50'}`}>
+                <div className={`p-2 rounded-xl scale-90 shrink-0 ${activeTab === tab.id ? `${tab.bg} ${tab.color}` : 'bg-gray-50'}`}>
                   <tab.icon size={18} />
                 </div>
-                <div className="text-left">
-                  <p className={`text-xs font-bold leading-none ${activeTab === tab.id ? 'text-gray-900' : 'text-gray-500'}`}>
+                <div className="text-left overflow-hidden">
+                  <p className={`text-xs font-bold leading-none truncate ${activeTab === tab.id ? 'text-gray-900' : 'text-gray-500'}`}>
                     {t(tab.labelKey as any, lang)}
                   </p>
-                  <p className="text-[9px] text-gray-400 mt-1 font-medium">{tab.description}</p>
+                  <p className="text-[9px] text-gray-400 mt-1 font-medium truncate">{tab.description}</p>
                 </div>
                 {activeTab === tab.id && <ChevronRight size={14} className="ml-auto text-gray-300" />}
               </button>
@@ -456,9 +456,9 @@ export function SettingsPage() {
           setShowReAuth(false);
           try {
             await factoryReset();
-            alert("System wiped successfully.");
-            signOut();
-            navigate('/login');
+            alert("System wiped successfully. The application will now restart.");
+            await signOut();
+            window.location.href = '/'; // Hard reload to clear application state
           } catch (e: any) { alert("Reset failed: " + e.message); }
         }}
         title="Authorize Wipe"

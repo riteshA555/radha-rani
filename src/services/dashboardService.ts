@@ -36,24 +36,42 @@ export interface DashboardCompositeData {
 
 const DASHBOARD_CACHE_KEY = 'dashboard_full_bundle';
 
+// Shared promise for deduplication
+let activeDashboardRequest: Promise<DashboardCompositeData> | null = null;
+
 export const getDashboardFullData = async (forceRefresh: boolean = false): Promise<DashboardCompositeData> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
-
-    const fetchFn = async () => {
-        const { data, error } = await supabase.rpc('get_dashboard_composite_data');
-        if (error) {
-            console.error('Super RPC Failed:', error);
-            throw error;
-        }
-        return data as DashboardCompositeData;
-    };
-
-    if (forceRefresh) {
-        invalidateDashboardCache();
+    // Return existing request if pending (Deduplication)
+    if (activeDashboardRequest) {
+        return activeDashboardRequest;
     }
 
-    return cacheStore.getOrFetch(DASHBOARD_CACHE_KEY, fetchFn, 1000 * 60 * 1, true); // 1 min TTL
+    const request = (async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const fetchFn = async () => {
+            const { data, error } = await supabase.rpc('get_dashboard_composite_data');
+            if (error) {
+                console.error('Super RPC Failed:', error);
+                throw error;
+            }
+            return data as DashboardCompositeData;
+        };
+
+        if (forceRefresh) {
+            invalidateDashboardCache();
+        }
+
+        return cacheStore.getOrFetch(DASHBOARD_CACHE_KEY, fetchFn, 1000 * 60 * 1, true); // 1 min TTL
+    })();
+
+    activeDashboardRequest = request;
+
+    try {
+        return await request;
+    } finally {
+        activeDashboardRequest = null;
+    }
 };
 
 export const invalidateDashboardCache = () => {

@@ -89,7 +89,6 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       items: [
         { id: 'audit', path: '/audit', label: 'Audit Logs', icon: ShieldCheck },
         { id: 'backup-restore', path: '/backup-restore', label: 'Backup & Restore', icon: Database },
-        { id: 'factory-reset', path: '/factory-reset', label: 'Factory Reset', icon: RotateCcw },
         { id: 'settings', path: '/settings', label: t('settings'), icon: Settings },
       ],
     },

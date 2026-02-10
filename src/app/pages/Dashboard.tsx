@@ -178,7 +178,8 @@ export function Dashboard() {
 
   useEffect(() => {
     // Progressive Loading: Show cached data first, then fetch fresh
-    refreshAll(true); // Initial load with loader
+    // Progressive Loading: Show cached data first, then fetch fresh
+    refreshAll(false); // Initial load allows cache (instant), deduplication handles double-mount
 
     // Consolidated Real-time Subscription (4 channels → 1 channel)
     // Debounce increased from 1s to 3s to reduce overhead
