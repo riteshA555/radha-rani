@@ -540,7 +540,7 @@ export function CreateOrder() {
                     ? (gstSettings?.defaultGstRateJobWork ?? 5)
                     : (gstSettings?.defaultGstRateSale ?? 3))
 
-            // Capitalize Customer Name
+            // Capitalize and Trim Customer Name
             const finalCustomerName = data.customer_name.trim().replace(/\b\w/g, c => c.toUpperCase());
 
             const result = await createOrder({

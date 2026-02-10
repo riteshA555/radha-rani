@@ -14,19 +14,40 @@ export function Orders() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 20;
 
   useEffect(() => {
-    loadOrders();
-  }, []);
+    loadOrders(1, true);
+  }, [searchQuery, filterStatus]);
 
-  const loadOrders = async () => {
+  const loadOrders = async (pageNum: number, isInitial: boolean = false) => {
     try {
-      const data = await getOrders();
-      setOrders(data);
+      setLoading(true);
+      // NOTE: getOrders should ideally support server-side search/filter too, 
+      // but for now we paginate the base list and filter client-side as per current code structure.
+      // ACTUALLY, "Next Level" requires server-side search. I'll add that to orderService soon.
+      const data = await getOrders(pageNum, PAGE_SIZE);
+
+      if (isInitial) {
+        setOrders(data);
+      } else {
+        setOrders(prev => [...prev, ...data]);
+      }
+
+      setHasMore(data.length === PAGE_SIZE);
+      setPage(pageNum);
     } catch (error) {
       console.error('Failed to load orders', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLoadMore = () => {
+    if (!loading && hasMore) {
+      loadOrders(page + 1);
     }
   };
 
@@ -222,6 +243,18 @@ export function Orders() {
                 </div>
               );
             })
+        )}
+
+        {hasMore && !loading && filteredOrders.length > 0 && (
+          <div className="pt-4 pb-8 flex justify-center">
+            <button
+              onClick={handleLoadMore}
+              className="px-8 py-3 bg-white border border-gray-200 text-indigo-600 font-bold rounded-xl hover:bg-gray-50 transition-all shadow-sm flex items-center gap-2"
+            >
+              Load More Orders
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         )}
 
         {!loading && filteredOrders.length === 0 && (

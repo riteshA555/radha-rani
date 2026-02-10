@@ -7,11 +7,16 @@ const CACHE_KEYS = {
     ORDERS: 'orders_list'
 }
 
-export const getOrders = async () => {
+export const getOrders = async (page: number = 1, pageSize: number = 20) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
-    return cacheStore.getOrFetch(CACHE_KEYS.ORDERS, async () => {
+    const cacheKey = `${CACHE_KEYS.ORDERS}_p${page}_s${pageSize}`;
+
+    return cacheStore.getOrFetch(cacheKey, async () => {
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+
         const { data, error } = await supabase
             .from('orders')
             .select(`
@@ -21,6 +26,7 @@ export const getOrders = async () => {
             `)
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
+            .range(from, to);
 
         if (error) throw error
 
@@ -119,9 +125,10 @@ export const createOrder = async (
     // Invalidate related caches
     cacheStore.invalidate(CACHE_KEYS.ORDERS)
     cacheStore.invalidate('dashboard_stats')
-    cacheStore.invalidate('finished_goods') // Explicitly invalidate finished goods for notifications
-    cacheStore.invalidatePattern('stock_') // Orders affect stock
-    cacheStore.invalidatePattern('ledger_') // Payments affect ledgers
+    cacheStore.invalidate('finished_goods')
+    cacheStore.invalidatePattern('stock_')
+    cacheStore.invalidatePattern('customer_statement_') // REQUIRED FOR LEDGER SYNC
+    cacheStore.invalidate('asset_ledgers_list') // Update running balances in dropdowns
 
     return data
 }

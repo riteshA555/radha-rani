@@ -21,6 +21,10 @@ export function Ledger() {
   const [submitting, setSubmitting] = useState(false);
   const [payForm, setPayForm] = useState({ amount: '', mode: 'Cash', note: '' });
 
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 20;
+
   const [showSystemAccounts, setShowSystemAccounts] = useState(false);
 
   const filteredCustomers = useMemo(() => {
@@ -37,13 +41,21 @@ export function Ledger() {
     }
   }, []);
 
-  const fetchStatement = useCallback(async () => {
+  const fetchStatement = useCallback(async (pageNum: number, isInitial: boolean = false) => {
     if (!selectedLedgerId) return;
     setLoading(true);
     setError('');
     try {
-      const data = await getCustomerStatement(selectedLedgerId, startDate, endDate);
-      setTransactions(data || []);
+      const data = await getCustomerStatement(selectedLedgerId, startDate, endDate, pageNum, PAGE_SIZE);
+
+      if (isInitial) {
+        setTransactions(data || []);
+      } else {
+        setTransactions((prev: any[]) => [...prev, ...(data || [])]);
+      }
+
+      setHasMore((data || []).length === PAGE_SIZE);
+      setPage(pageNum);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -57,11 +69,17 @@ export function Ledger() {
 
   useEffect(() => {
     if (selectedLedgerId) {
-      fetchStatement();
+      fetchStatement(1, true);
     } else {
       setTransactions([]);
     }
-  }, [fetchStatement, selectedLedgerId]);
+  }, [fetchStatement, selectedLedgerId, startDate, endDate]);
+
+  const handleLoadMore = () => {
+    if (!loading && hasMore) {
+      fetchStatement(page + 1);
+    }
+  };
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +95,7 @@ export function Ledger() {
 
       setShowPayModal(false);
       setPayForm({ amount: '', mode: 'Cash', note: '' });
-      fetchStatement();
+      fetchStatement(1, true);
       alert("Payment recorded successfully");
     } catch (err: any) {
       alert('Payment Failed: ' + err.message);
@@ -92,7 +110,7 @@ export function Ledger() {
     setLoading(true);
     try {
       await deleteTransaction(txId);
-      await fetchStatement();
+      await fetchStatement(1, true);
     } catch (err: any) {
       alert("Delete failed: " + err.message);
     } finally {
@@ -307,6 +325,17 @@ export function Ledger() {
               </div>
             )}
           </div>
+
+          {hasMore && !loading && transactions.length > 0 && (
+            <div className="pt-4 pb-8 flex justify-center">
+              <button
+                onClick={handleLoadMore}
+                className="px-8 py-3 bg-white border border-gray-200 text-indigo-600 font-bold rounded-xl hover:bg-gray-50 transition-all shadow-sm flex items-center gap-2"
+              >
+                Load More Transactions
+              </button>
+            </div>
+          )}
         </>
       )}
 

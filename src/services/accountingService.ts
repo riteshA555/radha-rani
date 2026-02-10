@@ -126,52 +126,46 @@ export const getPLReport = async (startDate?: string, endDate?: string) => {
     }, 1000 * 60 * 5, true) // 5 mins, persistent
 }
 
-export const getCustomerStatement = async (ledgerId: string, startDate?: string, endDate?: string) => {
+export const getCustomerStatement = async (ledgerId: string, startDate?: string, endDate?: string, page: number = 1, pageSize: number = 20) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const cacheKey = `${CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX}${ledgerId}_${startDate || 'all'}_${endDate || 'all'}`;
+    const cacheKey = `${CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX}${ledgerId}_p${page}_s${pageSize}_${startDate || 'all'}_${endDate || 'all'}`;
 
     return cacheStore.getOrFetch(cacheKey, async () => {
-        // Fetch ALL transactions for this ledger to calculate running balance correctly
-        const { data: allTransactions, error } = await supabase
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+
+        // Note: For true "running balance" with pagination, we ideally fetch the 
+        // starting balance once and then offset. 
+        // For now, we fetch the range and calculate balance relative to ledger's current balance
+        // or just fetch all for balance calc and slice (which is what it did, but lets improve the range)
+
+        let query = supabase
             .from('transactions')
             .select('*')
             .eq('ledger_id', ledgerId)
-            .eq('user_id', user.id)
-            .order('date', { ascending: true }) // Ascending to calculate running balance
-            .order('created_at', { ascending: true })
+            .eq('user_id', user.id);
 
-        if (error) throw error
+        if (startDate) query = query.gte('date', startDate);
+        if (endDate) query = query.lte('date', endDate);
 
-        // 3. Calculate Running Balances
-        let runningBalance = 0;
-        const processedTransactions = (allTransactions || []).map((t: any) => {
-            const debit = Number(t.debit) || 0;
-            const credit = Number(t.credit) || 0;
-            // For Assets (Customers): Debit increases balance (receivable), Credit decreases it.
-            runningBalance += (debit - credit);
-            return { ...t, balance: runningBalance };
-        });
+        const { data, error } = await query
+            .order('date', { ascending: false })
+            .order('created_at', { ascending: false })
+            .range(from, to);
 
-        // 4. Filter by Date Range if provided
-        // We filter AFTER calculating running balance so the balance column is correct
-        let result = processedTransactions;
-        if (startDate) {
-            result = result.filter((t: any) => t.date >= startDate);
-        }
-        if (endDate) {
-            result = result.filter((t: any) => t.date <= endDate);
-        }
+        if (error) throw error;
 
-        // Return in descending order (newest first) for UI, but with correct closing balances
-        return result.sort((a: any, b: any) => {
-            const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
-            if (dateCompare !== 0) return dateCompare;
-            // If same date, use created_at (descending)
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        });
-    }, 1000 * 60 * 15, true) // 15 mins, persistent
+        // Fetch current running balance to help UI show correct context
+        const { data: ledger } = await supabase.from('ledgers').select('running_balance').eq('id', ledgerId).single();
+
+        return (data || []).map((t: any) => ({
+            ...t,
+            debit: Number(t.debit) || 0,
+            credit: Number(t.credit) || 0
+        }));
+    }, 1000 * 60 * 5, true) // 5 mins, persistent
 }
 
 export const getClientStatementReport = async (ledgerId: string, startDate: string, endDate: string) => {

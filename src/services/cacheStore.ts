@@ -8,22 +8,24 @@ type FetchFunction<T> = () => Promise<T>;
 
 class CacheStore {
     private cache: Map<string, CacheData> = new Map();
+    private rawCache: Map<string, string> = new Map(); // Store unparsed JSON strings
     private DEFAULT_TTL = 1000 * 60 * 2; // 2 minutes default TTL
     private STORAGE_PREFIX = 'sf_cache_';
     private userId: string | null = null;
 
     constructor() {
-        // Hydrate from localStorage on initialization for specific keys
         this.hydrate();
 
-        // Handle cross-tab invalidation
         if (typeof window !== 'undefined') {
             window.addEventListener('storage', (event) => {
                 if (event.key && event.key.startsWith(this.STORAGE_PREFIX)) {
-                    // Extract the un-prefixed key (e.g. 'userId_dashboard_full_bundle')
                     const fullKey = event.key.replace(this.STORAGE_PREFIX, '');
-                    // Clear internal memory cache if the localStorage was changed by another tab
                     if (event.newValue === null) {
+                        this.cache.delete(fullKey);
+                        this.rawCache.delete(fullKey);
+                    } else {
+                        // Mark as raw for lazy parsing
+                        this.rawCache.set(fullKey, event.newValue);
                         this.cache.delete(fullKey);
                     }
                 }
@@ -31,12 +33,10 @@ class CacheStore {
         }
     }
 
-    /**
-     * Set the current user ID to scope cache keys
-     */
     setUserId(id: string | null) {
         if (this.userId !== id) {
-            this.cache.clear(); // CRITICAL: Stop memory leakage between user sessions
+            this.cache.clear();
+            this.rawCache.clear();
             this.userId = id;
             if (id) {
                 this.hydrate();
@@ -52,14 +52,27 @@ class CacheStore {
     private hydrate() {
         try {
             const prefix = this.userId ? `${this.STORAGE_PREFIX}${this.userId}_` : this.STORAGE_PREFIX;
+
+            // Hydrate from localStorage
             for (let i = 0; i < localStorage.length; i++) {
                 const storageKey = localStorage.key(i);
                 if (storageKey?.startsWith(prefix)) {
                     const raw = localStorage.getItem(storageKey);
                     if (raw) {
-                        const data = JSON.parse(raw);
                         const internalKey = storageKey.replace(this.STORAGE_PREFIX, '');
-                        this.cache.set(internalKey, data);
+                        this.rawCache.set(internalKey, raw);
+                    }
+                }
+            }
+
+            // Also hydrate from sessionStorage (for high-speed session-only data)
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const storageKey = sessionStorage.key(i);
+                if (storageKey?.startsWith(prefix)) {
+                    const raw = sessionStorage.getItem(storageKey);
+                    if (raw) {
+                        const internalKey = storageKey.replace(this.STORAGE_PREFIX, '');
+                        this.rawCache.set(internalKey, raw);
                     }
                 }
             }
@@ -68,12 +81,26 @@ class CacheStore {
         }
     }
 
-    /**
-     * Get cached data if valid, otherwise return null
-     */
     get(key: string) {
         const scopedKey = this.getScopedKey(key);
-        const cached = this.cache.get(scopedKey);
+
+        // Check memory cache first
+        let cached = this.cache.get(scopedKey);
+
+        // If not in memory but in raw cache, parse it now (Lazy Parsing)
+        if (!cached && this.rawCache.has(scopedKey)) {
+            try {
+                const raw = this.rawCache.get(scopedKey);
+                if (raw) {
+                    cached = JSON.parse(raw);
+                    if (cached) this.cache.set(scopedKey, cached);
+                }
+            } catch (e) {
+                this.rawCache.delete(scopedKey);
+                return null;
+            }
+        }
+
         if (!cached) return null;
 
         const ttl = cached.ttl || this.DEFAULT_TTL;
@@ -87,10 +114,7 @@ class CacheStore {
         return cached.data;
     }
 
-    /**
-     * Set data in cache with optional TTL override and persistence
-     */
-    set(key: string, data: any, ttl?: number, persist: boolean = false) {
+    set(key: string, data: any, ttl?: number, persist: 'local' | 'session' | false = false) {
         const scopedKey = this.getScopedKey(key);
         const cacheData: CacheData = {
             data,
@@ -101,32 +125,36 @@ class CacheStore {
 
         if (persist) {
             try {
-                localStorage.setItem(this.STORAGE_PREFIX + scopedKey, JSON.stringify(cacheData));
+                const serialized = JSON.stringify(cacheData);
+                this.rawCache.set(scopedKey, serialized);
+                if (persist === 'local') {
+                    localStorage.setItem(this.STORAGE_PREFIX + scopedKey, serialized);
+                } else if (persist === 'session') {
+                    sessionStorage.setItem(this.STORAGE_PREFIX + scopedKey, serialized);
+                }
             } catch (e) {
-                console.warn('LocalStorage save failed', e);
+                console.warn('Cache save failed', e);
             }
         }
     }
 
-    /**
-     * Invalidate a specific cache key
-     */
     invalidate(key: string) {
         const scopedKey = this.getScopedKey(key);
         this.cache.delete(scopedKey);
+        this.rawCache.delete(scopedKey);
         localStorage.removeItem(this.STORAGE_PREFIX + scopedKey);
+        sessionStorage.removeItem(this.STORAGE_PREFIX + scopedKey);
     }
 
-    /**
-     * Invalidate all cache keys matching a pattern (for current user only)
-     */
     invalidatePattern(pattern: string) {
         const keysToDelete: string[] = [];
         const userPrefix = this.userId ? `${this.userId}_` : '';
 
-        this.cache.forEach((_, key) => {
+        // Check both caches
+        const allKeys = new Set([...this.cache.keys(), ...this.rawCache.keys()]);
+
+        allKeys.forEach(key => {
             if (key.startsWith(userPrefix) && key.includes(pattern)) {
-                // Key in map already has userPrefix, so we strip it for invalidate call
                 const cleanKey = this.userId ? key.replace(`${this.userId}_`, '') : key;
                 keysToDelete.push(cleanKey);
             }
@@ -134,27 +162,32 @@ class CacheStore {
         keysToDelete.forEach(key => this.invalidate(key));
     }
 
-    /**
-     * Clear all cached data for current user or completely
-     */
     clear(all: boolean = false) {
         if (all) {
             this.cache.clear();
+            this.rawCache.clear();
             const keysToRemove: string[] = [];
+            // Clear local
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
-                if (key?.startsWith(this.STORAGE_PREFIX)) {
-                    keysToRemove.push(key);
-                }
+                if (key?.startsWith(this.STORAGE_PREFIX)) keysToRemove.push(key);
             }
             keysToRemove.forEach(k => localStorage.removeItem(k));
+
+            // Clear session
+            const sKeys: string[] = [];
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                if (key?.startsWith(this.STORAGE_PREFIX)) sKeys.push(key);
+            }
+            sKeys.forEach(k => sessionStorage.removeItem(k));
+
         } else if (this.userId) {
-            // Clear only for current user
             const userPrefix = this.getScopedKey('');
             const keysToRemove: string[] = [];
 
-            // Collect keys from memory
-            this.cache.forEach((_, key) => {
+            const allKeys = new Set([...this.cache.keys(), ...this.rawCache.keys()]);
+            allKeys.forEach(key => {
                 if (key.startsWith(userPrefix)) {
                     keysToRemove.push(key.replace(userPrefix, ''));
                 }
@@ -163,19 +196,17 @@ class CacheStore {
         }
     }
 
-    /**
-     * Stale-while-revalidate pattern
-     */
     async getOrFetch<T>(
         key: string,
         fetchFn: FetchFunction<T>,
         ttl?: number,
-        persist: boolean = false
+        persist: 'local' | 'session' | boolean = false
     ): Promise<T> {
         const cached = this.get(key);
+        // Normalize persist boolean to 'local' for backward compatibility
+        const storageMode = persist === true ? 'local' : persist;
 
         if (cached !== null) {
-            // Background refresh if older than 50% of TTL
             const scopedKey = this.getScopedKey(key);
             const cacheData = this.cache.get(scopedKey);
             if (cacheData) {
@@ -184,7 +215,7 @@ class CacheStore {
 
                 if (age > cacheTtl * 0.5) {
                     fetchFn().then(freshData => {
-                        this.set(key, freshData, ttl, persist);
+                        this.set(key, freshData, ttl, storageMode as any);
                     }).catch(() => { });
                 }
             }
@@ -192,7 +223,7 @@ class CacheStore {
         }
 
         const freshData = await fetchFn();
-        this.set(key, freshData, ttl, persist);
+        this.set(key, freshData, ttl, storageMode as any);
         return freshData;
     }
 }
