@@ -1,6 +1,6 @@
 {
-    "name": "Radha Rani ERP",
-    "short_name": "Radha Rani",
+    "name": "NEXORA ERP",
+    "short_name": "NEXORA ERP",
     "description": "Professional jewelry enterprise resource planning system for artisans and showrooms",
     "start_url": "/",
     "scope": "/",
@@ -10,7 +10,13 @@
     "orientation": "portrait-primary",
     "icons": [
         {
-            "src": "/logo.png",
+            "src": "/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icon-512x512.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "any maskable"
