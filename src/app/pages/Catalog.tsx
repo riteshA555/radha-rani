@@ -396,7 +396,7 @@ export function Catalog() {
                         <div className="flex justify-between items-center pt-3 border-t border-gray-50 mt-3">
                           <span className="text-gray-400 font-bold uppercase tracking-tight">Est. Price</span>
                           <span className="font-bold text-indigo-600 text-base">
-                            ₹{formatIndianRupees(((item.default_weight * silverRate) + item.labour_cost) * (1 + (item.gst_rate / 100)))}
+                            ₹{formatIndianRupees(((item.default_weight * (1 + (item.wastage_percent / 100)) * silverRate) + item.labour_cost) * (1 + (item.gst_rate / 100)))}
                           </span>
                         </div>
                       </div>
@@ -661,8 +661,8 @@ export function Catalog() {
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                           <div>
-                            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">Silver Value</div>
-                            <div className="text-sm font-black text-gray-900">₹{formatIndianRupees((Number(form.default_weight) || 0) * silverRate)}</div>
+                            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">Silver Value (incl. Wastage)</div>
+                            <div className="text-sm font-black text-gray-900">₹{formatIndianRupees((Number(form.default_weight) || 0) * (1 + (Number(form.wastage_percent) || 0) / 100) * silverRate)}</div>
                           </div>
                           <div>
                             <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">Labour</div>
@@ -671,13 +671,13 @@ export function Catalog() {
                           <div>
                             <div className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mb-1">GST ({form.gst_rate}%)</div>
                             <div className="text-sm font-black text-gray-900">
-                              ₹{formatIndianRupees(((Number(form.default_weight) || 0) * silverRate + (Number(form.labour_cost) || 0)) * (Number(form.gst_rate) || 3) / 100)}
+                              ₹{formatIndianRupees((((Number(form.default_weight) || 0) * (1 + (Number(form.wastage_percent) || 0) / 100) * silverRate) + (Number(form.labour_cost) || 0)) * (Number(form.gst_rate) || 3) / 100)}
                             </div>
                           </div>
                           <div className="sm:border-l sm:border-indigo-100 sm:pl-4">
                             <div className="text-[10px] text-indigo-400 font-bold uppercase tracking-tight mb-1">Approx Price</div>
                             <div className="text-lg font-black text-indigo-600">
-                              ₹{formatIndianRupees(((Number(form.default_weight) || 0) * silverRate + (Number(form.labour_cost) || 0)) * (1 + (Number(form.gst_rate) || 3) / 100))}
+                              ₹{formatIndianRupees((((Number(form.default_weight) || 0) * (1 + (Number(form.wastage_percent) || 0) / 100) * silverRate) + (Number(form.labour_cost) || 0)) * (1 + (Number(form.gst_rate) || 3) / 100))}
                             </div>
                           </div>
                         </div>

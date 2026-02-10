@@ -230,7 +230,8 @@ export function CreateOrder() {
         taxableAmount = Math.max(0, subtotalBase)
         gstAmount = gstEnabled ? (taxableAmount * currentGstRate) / 100 : 0
         const rawTotal = taxableAmount + gstAmount
-        grandTotal = isNaN(rawTotal) ? 0 : Math.round(rawTotal)
+        // grandTotal = isNaN(rawTotal) ? 0 : Math.round(rawTotal)
+        grandTotal = isNaN(rawTotal) ? 0 : Number(rawTotal.toFixed(2)) // PRESERVE DECIMALS
     }
 
     const roundOffDiff = grandTotal - (taxableAmount + gstAmount)
@@ -319,30 +320,57 @@ export function CreateOrder() {
         if (field === 'product_id' && materialType === 'OWN') {
             const prod = products.find(p => p.id === value)
             if (prod) {
-                // AUTO-ESTIMATE PRICE based on Live Silver Rate
-                const currentSilverRate = silverRate ? (silverRate.selling_rate) : 0
-                const weight = prod.default_weight || 0
-                const wastage = prod.wastage_percent || 0
-                const making = prod.labour_cost || 0
+                // RE-FETCH LATEST RATE to ensure absolute fresh pricing (avoid stale state)
+                getLatestRates().then(rates => {
+                    const freshSilverRate = rates.find(r => r.metal_type === 'SILVER')
+                    const currentSilverRate = freshSilverRate ? freshSilverRate.selling_rate : (silverRate ? silverRate.selling_rate : 0)
 
-                // Formula: ((Weight + Wastage Weight) * Silver Rate) + Making Charges
-                // This is the standard "Real Life" calculation used in shops.
-                const totalWeightWithWastage = weight + (weight * wastage / 100)
-                const silverValue = totalWeightWithWastage * currentSilverRate
-                const estimatedPrice = Math.round(silverValue + making)
+                    const weight = prod.default_weight || 0
+                    const wastage = prod.wastage_percent || 0
+                    const making = prod.labour_cost || 0
 
-                setDraftItem(prev => ({
-                    ...prev,
-                    product_id: prod.id,
-                    service_id: undefined,
-                    description: prod.name,
-                    unit: 'Piece',
-                    rate: estimatedPrice, // Set autofetched price as default rate
-                    weight: prod.default_weight,
-                    wastage_percent: prod.wastage_percent,
-                    labour_cost: prod.labour_cost,
-                    item_type: 'PRODUCT'
-                }))
+                    // Formula: ((Weight + Wastage Weight) * Silver Rate) + Making Charges
+                    const totalWeightWithWastage = weight + (weight * wastage / 100)
+                    const silverValue = totalWeightWithWastage * currentSilverRate
+                    // PRESERVE DECIMALS for accurate billing (User said 341 but should be 353.xx)
+                    const estimatedPrice = Number((silverValue + making).toFixed(2))
+
+                    setDraftItem(prev => ({
+                        ...prev,
+                        product_id: prod.id,
+                        service_id: undefined,
+                        description: prod.name,
+                        unit: 'Piece',
+                        rate: estimatedPrice, // Set autofetched price as default rate
+                        weight: prod.default_weight,
+                        wastage_percent: prod.wastage_percent,
+                        labour_cost: prod.labour_cost,
+                        item_type: 'PRODUCT'
+                    }))
+                }).catch(err => {
+                    console.error('Failed to fetch fresh silver rate for estimation:', err)
+                    // Fallback to state silver rate if fetch fails
+                    const currentSilverRate = silverRate ? (silverRate.selling_rate) : 0
+                    const weight = prod.default_weight || 0
+                    const wastage = prod.wastage_percent || 0
+                    const making = prod.labour_cost || 0
+                    const totalWeightWithWastage = weight + (weight * wastage / 100)
+                    const silverValue = totalWeightWithWastage * currentSilverRate
+                    const estimatedPrice = Number((silverValue + making).toFixed(2))
+
+                    setDraftItem(prev => ({
+                        ...prev,
+                        product_id: prod.id,
+                        service_id: undefined,
+                        description: prod.name,
+                        unit: 'Piece',
+                        rate: estimatedPrice,
+                        weight: prod.default_weight,
+                        wastage_percent: prod.wastage_percent,
+                        labour_cost: prod.labour_cost,
+                        item_type: 'PRODUCT'
+                    }))
+                })
             }
         }
         if (field === 'has_karigar' && !value) {
@@ -531,7 +559,7 @@ export function CreateOrder() {
                 open: true,
                 orderId: result.order_id,
                 customer: data.customer_name,
-                total: result.total || 0,
+                total: result.total_amount || 0, // FIXED: was result.total
                 // Pass items to success state for sharing
                 items: data.items,
                 date: data.order_date
