@@ -319,6 +319,11 @@ export const createLedger = async (data: { name: string, customer_code?: string,
         .select()
 
     if (error) throw error
+
+        // Invalidate caches to ensure UI shows new customer
+        ;['asset_ledgers_list', 'liability_ledgers_list', 'customers_detailed_list', 'customer_list_names'].forEach((k: string) => cacheStore.invalidate(k));
+    cacheStore.invalidatePattern('customer_list');
+
     return res[0]
 }
 
@@ -346,6 +351,12 @@ export const createLedgerWithOpeningBalance = async (data: {
     });
 
     if (error) throw error;
+
+    // Invalidate caches to ensure UI shows new customer/balance
+    ;['asset_ledgers_list', 'liability_ledgers_list', 'customers_detailed_list', 'customer_list_names'].forEach((k: string) => cacheStore.invalidate(k));
+    cacheStore.invalidatePattern('customer_list');
+    cacheStore.invalidatePattern(CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX);
+
     return res;
 };
 
@@ -361,6 +372,12 @@ export const updateLedger = async (id: string, data: { name?: string, customer_c
         .select()
 
     if (error) throw error
+
+        // Invalidate caches to ensure UI shows updated info
+        ;['asset_ledgers_list', 'liability_ledgers_list', 'customers_detailed_list', 'customer_list_names'].forEach((k: string) => cacheStore.invalidate(k));
+    cacheStore.invalidatePattern('customer_list');
+    cacheStore.invalidatePattern(CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX);
+
     return res[0]
 }
 
