@@ -130,17 +130,13 @@ export const getCustomerStatement = async (ledgerId: string, startDate?: string,
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    const cacheKey = `${CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX}${ledgerId}_p${page}_s${pageSize}_${startDate || 'all'}_${endDate || 'all'}`;
+    const cacheKey = `${CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX}${ledgerId}_p${page}_s${pageSize}_${startDate || 'all'}_${endDate || 'all'}_v2`;
 
     return cacheStore.getOrFetch(cacheKey, async () => {
         const from = (page - 1) * pageSize;
         const to = from + pageSize - 1;
 
-        // Note: For true "running balance" with pagination, we ideally fetch the 
-        // starting balance once and then offset. 
-        // For now, we fetch the range and calculate balance relative to ledger's current balance
-        // or just fetch all for balance calc and slice (which is what it did, but lets improve the range)
-
+        // 1. Fetch Transactions
         let query = supabase
             .from('transactions')
             .select('*')
@@ -157,15 +153,65 @@ export const getCustomerStatement = async (ledgerId: string, startDate?: string,
 
         if (error) throw error;
 
-        // Fetch current running balance to help UI show correct context
+        // 2. Fetch Live Running Balance
         const { data: ledger } = await supabase.from('ledgers').select('running_balance').eq('id', ledgerId).single();
 
-        return (data || []).map((t: any) => ({
+        // 3. Calculate Opening Balance for the period
+        // If startDate is provided, we need the sum of all transactions BEFORE that date.
+        // If no startDate, opening is 0 (or we assume "beginning of time").
+        let openingBalance = 0;
+        if (startDate) {
+            const { data: opData, error: opError } = await supabase
+                .from('transactions')
+                .select('debit, credit')
+                .eq('ledger_id', ledgerId)
+                .lt('date', startDate);
+
+            if (!opError && opData) {
+                openingBalance = opData.reduce((sum: number, t: any) => sum + (Number(t.debit) - Number(t.credit)), 0);
+            }
+        }
+
+        const transactions = (data || []).map((t: any) => ({
             ...t,
             debit: Number(t.debit) || 0,
             credit: Number(t.credit) || 0
         }));
+
+        return {
+            transactions,
+            metadata: {
+                running_balance: ledger?.running_balance || 0,
+                opening_balance: openingBalance
+            }
+        };
     }, 1000 * 60 * 5, true) // 5 mins, persistent
+}
+
+export const recordLedgerTransaction = async (ledgerId: string, amount: number, type: 'CREDIT' | 'DEBIT', mode: string, note: string, date: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // CREDIT = Payment Received (Money IN) -> Decrease Receivable (or Increase Cash)
+    // DEBIT = Charge/Penalty (Money OUT from Customer perspective, or just Charge) -> Increase Receivable
+    // RPC 'IN' -> Credit Customer. 'OUT' -> Debit Customer.
+    const p_type = type === 'CREDIT' ? 'IN' : 'OUT';
+
+    const { data, error } = await supabase.rpc('record_ledger_payment_atomic', {
+        p_ledger_id: ledgerId,
+        p_amount: amount,
+        p_mode: mode,
+        p_date: date,
+        p_note: note,
+        p_type: p_type
+    })
+
+    if (error) throw error
+
+    // Invalidate caches
+    cacheStore.invalidatePattern(CACHE_KEYS.CUSTOMER_STATEMENT_PREFIX)
+    cacheStore.invalidate('pl_report')
+    return data
 }
 
 export const getClientStatementReport = async (ledgerId: string, startDate: string, endDate: string) => {

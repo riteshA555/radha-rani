@@ -783,8 +783,8 @@ export function CreateOrder() {
                                     allowCustom={true}
                                     onCustomAdd={handleAddNewCustomer}
                                     loading={isCreatingCustomer}
-                                    placeholder="Search Customer (Name, ID, Phone)..."
-                                    searchPlaceholder="Search Name, ID, Phone..."
+                                    placeholder="Select Customer"
+                                    searchPlaceholder="Search..."
                                     className={`h-[54px] text-lg font-bold ${errors.ledger_id ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200'} rounded-xl`}
                                 />
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Plus, Database, Search, History, Loader2, Download, User, ArrowRightLeft, AlertTriangle, Users, X } from 'lucide-react';
+import { Plus, Database, Search, History, Loader2, Download, User, ArrowRightLeft, AlertTriangle, Users, X, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Tabs } from '../components/ui/tabs';
 import {
@@ -9,6 +9,7 @@ import {
     getClientMaterialBalances,
     deleteClientMaterialTransaction
 } from '../../services/clientMaterialService';
+import { getBaseMaterialTypes, ensureBaseMaterialType, BaseMaterialType } from '../../services/baseMaterialService';
 import { getProducts } from '../../services/productService';
 import { getJobWorkItems } from '../../services/jobWorkService';
 import { getCustomerList } from '../../services/contactService';
@@ -69,6 +70,14 @@ export function ClientMaterialLedger() {
     const [activeTab, setActiveTab] = useState<'STATEMENT' | 'HISTORY'>('STATEMENT');
     const [historySubFilter, setHistorySubFilter] = useState<'ALL' | 'RECEIPT' | 'CONSUMPTION' | 'LOSS'>('ALL');
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Pagination & Filters
+    const [page, setPage] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+    const PAGE_SIZE = 20;
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
@@ -77,6 +86,7 @@ export function ClientMaterialLedger() {
     // Integration States
     const [products, setProducts] = useState<Product[]>([]);
     const [jobWorkItems, setJobWorkItems] = useState<JobWorkItem[]>([]);
+    const [baseMaterialTypes, setBaseMaterialTypes] = useState<BaseMaterialType[]>([]);
     const [selectedConsumptions, setSelectedConsumptions] = useState<string[]>([]);
     const [businessProfile, setBusinessProfile] = useState<any>(null); // New state for print details
     const [showOrderModal, setShowOrderModal] = useState(false);
@@ -105,7 +115,8 @@ export function ClientMaterialLedger() {
         material_type_id: '',
         product_id: '',
         pcs: '',
-        pcs_work_type: 'None'
+        pcs_work_type: 'None',
+        order_details: [] as any[]
     });
 
     const [baseSearch, setBaseSearch] = useState('');
@@ -114,29 +125,36 @@ export function ClientMaterialLedger() {
 
     const [dateDisplay, setDateDisplay] = useState(format(new Date(), 'dd-MM-yyyy'));
 
-    const loadData = useCallback(async (silent = false) => {
-        if (!silent) setLoading(true);
+    const loadMetadata = useCallback(async () => {
         try {
-            const [tx, b, p, c, jw] = await Promise.all([
-                getClientMaterialTransactions(),
+            const [b, p, c, jw, bm] = await Promise.all([
                 getClientMaterialBalances(),
                 getProducts(),
                 getCustomerList(),
-                getJobWorkItems()
+                getJobWorkItems(),
+                getBaseMaterialTypes()
             ]);
-            setTransactions(tx);
-            setBalances(b);
-            setProducts(p);
-            setCustomers(c);
-            setJobWorkItems(jw);
+            setBalances(b); setProducts(p); setCustomers(c); setJobWorkItems(jw); setBaseMaterialTypes(bm);
         } catch (err) {
-            console.error("Failed to load data", err);
-        } finally {
-            if (!silent) setLoading(false);
+            console.error("Failed to load metadata", err);
         }
     }, []);
 
-    useEffect(() => { loadData(); }, [loadData]);
+    const fetchTransactions = useCallback(async () => {
+        setLoading(true);
+        try {
+            const { data, count } = await getClientMaterialTransactions(page, PAGE_SIZE, startDate, endDate, searchQuery, historySubFilter);
+            setTransactions(data);
+            setTotalCount(count);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }, [page, startDate, endDate, searchQuery, historySubFilter]); // Type filter triggers fetch
+
+    useEffect(() => { loadMetadata(); }, [loadMetadata]);
+    useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
 
     // Fetch business profile for print
     useEffect(() => {
@@ -164,7 +182,8 @@ export function ClientMaterialLedger() {
                 job_work_order_id: form.job_work_order_id || undefined,
                 product_id: form.product_id || undefined,
                 pcs: form.pcs ? Number(form.pcs) : undefined,
-                pcs_work_type: form.pcs_work_type || 'None'
+                pcs_work_type: form.pcs_work_type || 'None',
+                order_details: form.transaction_type === 'CONSUMPTION' ? (form.order_details || []) : []
             };
 
             if (editingId) {
@@ -173,9 +192,16 @@ export function ClientMaterialLedger() {
                 await addClientMaterialTransaction(payload);
             }
 
+            // Auto-save base material type
+            if (form.base_type) {
+                const usage = form.transaction_type === 'RECEIPT' ? 'RECEIPT' : 'CONSUMPTION';
+                await ensureBaseMaterialType(form.base_type, usage);
+            }
+
             setShowModal(false);
             resetForm();
-            loadData(true);
+            loadMetadata();
+            fetchTransactions();
         } catch (err: any) {
             alert(err.message);
         } finally {
@@ -200,7 +226,8 @@ export function ClientMaterialLedger() {
             material_type_id: '',
             product_id: '',
             pcs: '',
-            pcs_work_type: 'None'
+            pcs_work_type: 'None',
+            order_details: []
         });
         setEditingId(null);
         setCustomerSearch('');
@@ -224,8 +251,23 @@ export function ClientMaterialLedger() {
         const query = e.target.value;
         setBaseSearch(query);
         setForm(prev => ({ ...prev, base_type: query, product_id: '' }));
+
         if (query.length > 0) {
-            setBaseResults(products.filter(p => p.name.toLowerCase().includes(query.toLowerCase())));
+            const isReceipt = form.transaction_type === 'RECEIPT';
+            const filtered = baseMaterialTypes.filter(t => {
+                const matches = t.name.toLowerCase().includes(query.toLowerCase());
+                if (!matches) return false;
+
+                if (isReceipt) {
+                    return t.usage_type === 'RECEIPT' || t.usage_type === 'BOTH';
+                } else {
+                    // Consumption and Loss share the same "Out" categories
+                    return t.usage_type === 'CONSUMPTION' || t.usage_type === 'BOTH';
+                }
+            });
+
+            // Map to the format expected by the results list (usually just needs a name or label)
+            setBaseResults(filtered);
             setShowBaseResults(true);
         } else {
             setShowBaseResults(false);
@@ -274,18 +316,7 @@ export function ClientMaterialLedger() {
 
     const filteredBalances = useMemo(() => balances.filter(b => b.client_name.toLowerCase().includes(searchQuery.toLowerCase())), [balances, searchQuery]);
 
-    const filteredTransactions = useMemo(() => transactions.filter(t => {
-        const matchesSearch = t.client_name.toLowerCase().includes(searchQuery.toLowerCase()) || (t.remarks || '').toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesFilter = historySubFilter === 'ALL' || t.transaction_type === historySubFilter;
-        return matchesSearch && matchesFilter;
-    }), [transactions, searchQuery, historySubFilter]);
-
-    const historyTotals = useMemo(() => filteredTransactions.reduce((acc, t) => {
-        if (t.transaction_type === 'RECEIPT') acc.received += t.quantity;
-        if (t.transaction_type === 'CONSUMPTION') acc.consumed += t.quantity;
-        if (t.transaction_type === 'LOSS') acc.loss += t.quantity;
-        return acc;
-    }, { received: 0, consumed: 0, loss: 0 }), [filteredTransactions]);
+    // Removed historyTotals as it was unused
 
     const handleEdit = (t: ClientMaterialTransaction) => {
         const parts = (t.remarks || '').split(' - ');
@@ -305,7 +336,8 @@ export function ClientMaterialLedger() {
             material_type_id: '',
             product_id: t.product_id || '',
             pcs: t.pcs?.toString() || '',
-            pcs_work_type: t.pcs_work_type || 'None'
+            pcs_work_type: t.pcs_work_type || 'None',
+            order_details: t.order_details || []
         });
         setCustomerSearch(t.client_name);
         setBaseSearch(parts[0] || '');
@@ -317,35 +349,104 @@ export function ClientMaterialLedger() {
     const handleDelete = async (id: string) => {
         if (window.confirm("Delete this entry?")) {
             await deleteClientMaterialTransaction(id);
-            loadData(true);
+            await deleteClientMaterialTransaction(id);
+            fetchTransactions();
+            loadMetadata();
         }
     };
 
     const handleCreateOrder = () => {
         const selectedItems = transactions.filter(t => selectedConsumptions.includes(t.id));
-        const prefilledItems = selectedItems.map(item => {
-            const baseMaterial = (item.remarks || '').split(' - ')[0] || '';
-            const service = jobWorkItems.find(s => s.name.toLowerCase().includes(baseMaterial.toLowerCase()));
-            return {
-                description: baseMaterial,
-                quantity: item.quantity,
-                unit: 'KG',
-                rate: service?.default_rate || 0,
-                product_id: item.product_id,
-                item_type: 'PRODUCT'
-            };
+
+        // Aggregate items for Order
+        const prefilledItems: any[] = [];
+
+        selectedItems.forEach(tx => {
+            if (tx.order_details && tx.order_details.length > 0) {
+                // If we have granular details, use them!
+                tx.order_details.forEach((detail: any) => {
+                    const jw = jobWorkItems.find(j => j.name === detail.description);
+
+                    prefilledItems.push({
+                        description: detail.description,
+                        quantity: detail.base_quantity || detail.weight || 1,
+                        base_quantity: detail.base_quantity || detail.weight || 1,
+                        unit: detail.unit || 'Piece',
+                        weight: detail.base_quantity || detail.weight || 0,
+                        rate: detail.base_rate || detail.rate || 0,
+                        base_rate: detail.base_rate || detail.rate || 0,
+                        item_type: 'SERVICE',
+                        service_id: jw?.id
+                    });
+
+                    // Add Add-on Service if exists (New Structure)
+                    if (detail.has_addon && detail.addon_service_id) {
+                        const addonJw = jobWorkItems.find(j => j.id === detail.addon_service_id);
+                        if (addonJw) {
+                            prefilledItems.push({
+                                description: addonJw.name,
+                                quantity: detail.addon_quantity || 1,
+                                base_quantity: detail.addon_quantity || 1,
+                                unit: addonJw.unit || 'Piece',
+                                rate: detail.addon_rate || addonJw.default_rate || 0,
+                                base_rate: detail.addon_rate || addonJw.default_rate || 0,
+                                item_type: 'SERVICE',
+                                service_id: addonJw.id
+                            });
+                        }
+                    }
+
+                    // Legacy structure support (strings array)
+                    if (detail.addon_services && detail.addon_services.length > 0) {
+                        detail.addon_services.forEach((addonName: string) => {
+                            const addonJw = jobWorkItems.find(j =>
+                                j.name.toLowerCase().includes(addonName.toLowerCase()) ||
+                                addonName.toLowerCase().includes(j.name.toLowerCase())
+                            );
+                            prefilledItems.push({
+                                description: addonName,
+                                quantity: 1,
+                                base_quantity: 1,
+                                unit: addonJw?.unit || 'Piece',
+                                rate: addonJw?.default_rate || 0,
+                                base_rate: addonJw?.default_rate || 0,
+                                item_type: 'SERVICE',
+                                service_id: addonJw?.id
+                            });
+                        });
+                    }
+                });
+            } else {
+                // Fallback to basic tx info if no granular details
+                const baseMaterial = (tx.remarks || '').split(' - ')[0] || '';
+                const service = jobWorkItems.find(s => s.name.toLowerCase().includes(baseMaterial.toLowerCase()));
+                prefilledItems.push({
+                    description: baseMaterial || 'Job Work',
+                    quantity: tx.pcs || 1,
+                    base_quantity: tx.pcs || 1,
+                    unit: 'Piece',
+                    rate: service?.default_rate || 0,
+                    base_rate: service?.default_rate || 0,
+                    weight: tx.quantity,
+                    item_type: 'SERVICE',
+                    service_id: service?.id
+                });
+            }
         });
 
         navigate('/orders/create', {
             state: {
                 prefilled: {
                     customer_name: orderForm.customer_name || selectedItems[0]?.client_name,
+                    ledger_id: selectedItems[0]?.client_id,
                     order_date: orderForm.order_date,
                     material_type: 'CLIENT',
-                    items: prefilledItems
+                    items: prefilledItems,
+                    gst_enabled: false
                 }
             }
         });
+        setShowOrderModal(false);
     };
 
     const handlePrint = () => {
@@ -401,7 +502,7 @@ export function ClientMaterialLedger() {
                                     {(['ALL', 'RECEIPT', 'CONSUMPTION', 'LOSS'] as const).map((f) => (
                                         <button
                                             key={f}
-                                            onClick={() => setHistorySubFilter(f)}
+                                            onClick={() => { setHistorySubFilter(f); setPage(1); }}
                                             className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${historySubFilter === f ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                                         >
                                             {f}
@@ -415,10 +516,34 @@ export function ClientMaterialLedger() {
                                     type="text"
                                     placeholder="Search by client name..."
                                     value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
                                     className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm font-medium"
                                 />
                             </div>
+
+                            {/* Date Filter */}
+                            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
+                                <Calendar className="w-4 h-4 text-gray-400" />
+                                <input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="bg-transparent text-xs font-bold outline-none text-gray-600 w-24"
+                                />
+                                <span className="text-gray-300">-</span>
+                                <input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="bg-transparent text-xs font-bold outline-none text-gray-600 w-24"
+                                />
+                                {(startDate || endDate) && (
+                                    <button onClick={() => { setStartDate(''); setEndDate(''); }} className="ml-1 text-gray-400 hover:text-rose-500">
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+
                             <button onClick={handlePrint} className="p-2.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 border border-gray-200 rounded-xl transition-all shadow-sm">
                                 <Download className="w-5 h-5" />
                             </button>
@@ -460,9 +585,9 @@ export function ClientMaterialLedger() {
                                                     <input
                                                         type="checkbox"
                                                         className="rounded border-gray-300 text-indigo-600"
-                                                        checked={selectedConsumptions.length > 0 && selectedConsumptions.length === filteredTransactions.filter(t => t.transaction_type === 'CONSUMPTION').length}
+                                                        checked={selectedConsumptions.length > 0 && selectedConsumptions.length === transactions.filter(t => t.transaction_type === 'CONSUMPTION').length}
                                                         onChange={(e) => {
-                                                            const allCons = filteredTransactions.filter(t => t.transaction_type === 'CONSUMPTION').map(t => t.id);
+                                                            const allCons = transactions.filter(t => t.transaction_type === 'CONSUMPTION').map(t => t.id);
                                                             setSelectedConsumptions(e.target.checked ? allCons : []);
                                                         }}
                                                     />
@@ -477,7 +602,7 @@ export function ClientMaterialLedger() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
-                                            {filteredTransactions.map((t) => (
+                                            {transactions.map((t) => (
                                                 <CompactTransactionRow
                                                     key={t.id}
                                                     transaction={t}
@@ -487,13 +612,38 @@ export function ClientMaterialLedger() {
                                                     onDelete={handleDelete}
                                                 />
                                             ))}
-                                            {filteredTransactions.length === 0 && (
+                                            {transactions.length === 0 && (
                                                 <tr><td colSpan={8} className="py-24 text-center text-gray-400 font-bold italic">No history found.</td></tr>
                                             )}
                                         </tbody>
                                     </table>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* Pagination Controls */}
+                    {activeTab === 'HISTORY' && totalCount > 0 && (
+                        <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-100">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                Showing {((page - 1) * PAGE_SIZE) + 1} - {Math.min(page * PAGE_SIZE, totalCount)} of {totalCount}
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    disabled={page === 1}
+                                    onClick={() => setPage(p => p - 1)}
+                                    className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-all border border-gray-200"
+                                >
+                                    <ChevronLeft className="w-5 h-5 text-gray-600" />
+                                </button>
+                                <button
+                                    disabled={page * PAGE_SIZE >= totalCount}
+                                    onClick={() => setPage(p => p + 1)}
+                                    className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition-all border border-gray-200"
+                                >
+                                    <ChevronRight className="w-5 h-5 text-gray-600" />
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -522,6 +672,8 @@ export function ClientMaterialLedger() {
                 submitting={submitting}
                 setShowCustomerResults={setShowCustomerResults}
                 setShowBaseResults={setShowBaseResults}
+                setCustomerSearch={setCustomerSearch}
+                setBaseSearch={setBaseSearch}
                 jobWorkItems={jobWorkItems}
             />
 
@@ -594,7 +746,7 @@ export function ClientMaterialLedger() {
             <ClientMaterialPrint
                 clientName={searchQuery || "All Clients"}
                 balance={balances.find(b => b.client_name === searchQuery)}
-                transactions={filteredTransactions}
+                transactions={transactions}
                 shopName={businessProfile?.companyName || "STERLINGFLOW ERP"}
                 businessProfile={businessProfile}
             />

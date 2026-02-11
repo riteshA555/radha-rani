@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Search, Plus, Calendar, Download, Printer, ArrowUpRight, ArrowDownLeft, Wallet, Loader2, X, IndianRupee, Trash2 } from 'lucide-react';
-import { getCustomerStatement, getAssetLedgers, recordPayment, CustomerLedger, deleteTransaction } from '../../services/accountingService';
+import { getCustomerStatement, getAssetLedgers, recordLedgerTransaction, CustomerLedger, deleteTransaction } from '../../services/accountingService';
 import { formatIndianRupees } from '../../shared/utils/formatters';
 import { PageHeader } from '../components/ui/PageHeader';
 import { exportToExcel, formatLedgerForExport } from '../../services/reportService';
@@ -9,6 +9,7 @@ export function Ledger() {
   const [customers, setCustomers] = useState<{ id: string, name: string, customer_code?: string, is_system?: boolean }[]>([]);
   const [selectedLedgerId, setSelectedLedgerId] = useState('');
   const [transactions, setTransactions] = useState<CustomerLedger[]>([]);
+  const [metadata, setMetadata] = useState({ running_balance: 0, opening_balance: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,7 +20,13 @@ export function Ledger() {
   // Payment Modal
   const [showPayModal, setShowPayModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [payForm, setPayForm] = useState({ amount: '', mode: 'Cash', note: '' });
+  const [payForm, setPayForm] = useState({
+    amount: '',
+    mode: 'Cash',
+    note: '',
+    date: new Date().toISOString().split('T')[0],
+    type: 'CREDIT' as 'CREDIT' | 'DEBIT'
+  });
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -46,15 +53,17 @@ export function Ledger() {
     setLoading(true);
     setError('');
     try {
-      const data = await getCustomerStatement(selectedLedgerId, startDate, endDate, pageNum, PAGE_SIZE);
+      const response = await getCustomerStatement(selectedLedgerId, startDate, endDate, pageNum, PAGE_SIZE);
 
       if (isInitial) {
-        setTransactions(data || []);
+        setTransactions(response.transactions || []);
+        setMetadata(response.metadata);
       } else {
-        setTransactions((prev: any[]) => [...prev, ...(data || [])]);
+        setTransactions((prev: any[]) => [...prev, ...(response.transactions || [])]);
+        setMetadata(response.metadata);
       }
 
-      setHasMore((data || []).length === PAGE_SIZE);
+      setHasMore((response.transactions || []).length === PAGE_SIZE);
       setPage(pageNum);
     } catch (err: any) {
       setError(err.message);
@@ -86,19 +95,21 @@ export function Ledger() {
     if (!selectedLedgerId) return;
     setSubmitting(true);
     try {
-      await recordPayment(
+      await recordLedgerTransaction(
         selectedLedgerId,
         Number(payForm.amount),
+        payForm.type,
         payForm.mode,
-        payForm.note
+        payForm.note,
+        payForm.date
       );
 
       setShowPayModal(false);
-      setPayForm({ amount: '', mode: 'Cash', note: '' });
+      setPayForm({ amount: '', mode: 'Cash', note: '', date: new Date().toISOString().split('T')[0], type: 'CREDIT' });
       fetchStatement(1, true);
-      alert("Payment recorded successfully");
+      alert("Transaction recorded successfully");
     } catch (err: any) {
-      alert('Payment Failed: ' + err.message);
+      alert('Transaction Failed: ' + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -172,7 +183,7 @@ export function Ledger() {
                 onClick={() => setShowPayModal(true)}
                 className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition shadow-sm font-medium"
               >
-                <Plus className="w-5 h-5" /> Receive Payment
+                <Plus className="w-5 h-5" /> New Entry
               </button>
             </div>
           )
@@ -230,13 +241,9 @@ export function Ledger() {
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <LedgerSummaryCard
               label="Opening Bal"
-              value={`₹${formatIndianRupees(Math.abs(transactions.find(t => t.description === 'Opening Balance')?.balance || 0))}`}
+              value={`₹${formatIndianRupees(Math.abs(metadata.opening_balance))}`}
               icon={<ArrowUpRight className="w-5 h-5 text-gray-400" />}
-              statusText={(() => {
-                const ob = transactions.find(t => t.description === 'Opening Balance');
-                if (!ob) return 'N/A';
-                return (ob.debit > 0) ? 'Receivable' : 'Advance';
-              })()}
+              statusText={metadata.opening_balance > 0 ? 'Receivable' : (metadata.opening_balance < 0 ? 'Advance' : 'Nil')}
             />
             <LedgerSummaryCard
               label="Billed (Dr)"
@@ -250,10 +257,10 @@ export function Ledger() {
             />
             <LedgerSummaryCard
               label="Current Balance"
-              value={`₹${formatIndianRupees(Math.abs(balance))}`}
+              value={`₹${formatIndianRupees(Math.abs(metadata.running_balance))}`}
               icon={<Wallet className="w-5 h-5 text-amber-600" />}
-              isWarning={balance > 0}
-              statusText={balance > 0 ? 'Receivable' : 'Advance'}
+              isWarning={metadata.running_balance > 0}
+              statusText={metadata.running_balance > 0 ? 'Receivable' : 'Advance'}
             />
           </div>
 
@@ -346,7 +353,7 @@ export function Ledger() {
             <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Receive Payment</h2>
-                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Record incoming funds for {customers.find(c => c.id === selectedLedgerId)?.name || 'Account'}</p>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Record transaction for {customers.find(c => c.id === selectedLedgerId)?.name || 'Account'}</p>
               </div>
               <button onClick={() => setShowPayModal(false)} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <X size={20} />
@@ -354,20 +361,54 @@ export function Ledger() {
             </div>
 
             <form id="payment-form" onSubmit={handlePaymentSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
-              <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
-                <label className="block text-[10px] font-bold text-emerald-700 uppercase tracking-widest mb-1.5 ml-1">Amount to Receive (₹)</label>
+
+              <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setPayForm({ ...payForm, type: 'CREDIT' })}
+                  className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${payForm.type === 'CREDIT' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  Receive Payment
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayForm({ ...payForm, type: 'DEBIT' })}
+                  className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${payForm.type === 'DEBIT' ? 'bg-white text-rose-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  Add Charge / Penalty
+                </button>
+              </div>
+
+              <div className={payForm.type === 'CREDIT' ? 'bg-emerald-50/50 p-4 rounded-xl border border-emerald-100' : 'bg-rose-50/50 p-4 rounded-xl border border-rose-100'}>
+                <label className={`block text-[10px] font-bold uppercase tracking-widest mb-1.5 ml-1 ${payForm.type === 'CREDIT' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {payForm.type === 'CREDIT' ? 'Amount Received (₹)' : 'Debit Amount (₹)'}
+                </label>
                 <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">₹</div>
+                  <div className={`absolute left-3 top-1/2 -translate-y-1/2 font-bold ${payForm.type === 'CREDIT' ? 'text-emerald-600' : 'text-rose-600'}`}>₹</div>
                   <input
                     type="number"
                     required
                     autoFocus
                     value={payForm.amount}
                     onChange={e => setPayForm({ ...payForm, amount: e.target.value })}
-                    className="w-full pl-8 pr-4 py-4 bg-white border border-emerald-200 rounded-xl text-3xl font-black text-emerald-900 focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                    className={`w-full pl-8 pr-4 py-4 bg-white border rounded-xl text-3xl font-black focus:ring-2 outline-none transition-all ${payForm.type === 'CREDIT'
+                      ? 'border-emerald-200 text-emerald-900 focus:ring-emerald-500'
+                      : 'border-rose-200 text-rose-900 focus:ring-rose-500'
+                      }`}
                     placeholder="0.00"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Date</label>
+                <input
+                  type="date"
+                  required
+                  value={payForm.date}
+                  onChange={e => setPayForm({ ...payForm, date: e.target.value })}
+                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 focus:ring-1 focus:ring-indigo-500 outline-none focus:bg-white transition-all"
+                />
               </div>
 
               <div>
@@ -416,7 +457,7 @@ export function Ledger() {
                 className="flex-[2] h-14 text-white font-bold bg-indigo-600 hover:bg-indigo-700 rounded-2xl transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-widest shadow-lg shadow-indigo-100 disabled:opacity-50"
               >
                 {submitting ? <Loader2 className="animate-spin w-4 h-4" /> : <IndianRupee size={18} />}
-                Confirm Payment
+                Save Transaction
               </button>
             </div>
           </div>

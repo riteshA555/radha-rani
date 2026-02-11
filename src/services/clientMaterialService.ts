@@ -7,21 +7,52 @@ const CACHE_KEYS = {
     STATEMENT: 'client_material_statement'
 }
 
-export const getClientMaterialTransactions = async (): Promise<ClientMaterialTransaction[]> => {
+export const getClientMaterialTransactions = async (page: number = 1, pageSize: number = 20, startDate?: string, endDate?: string, search?: string, type?: string) => {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return []
+    if (!user) return { data: [], count: 0 }
 
-    return cacheStore.getOrFetch(CACHE_KEYS.TRANSACTIONS, async () => {
-        const { data, error } = await supabase
+    const cacheKey = `${CACHE_KEYS.TRANSACTIONS}_p${page}_s${pageSize}_${startDate || 'all'}_${endDate || 'all'}_${search || 'all'}_${type || 'ALL'}`;
+
+    // Note: Search cache invalidation might be tricky if we don't clear pattern
+    // We'll stick to network-first or short cache for search?
+    // For now, using getOrFetch with 2 min cache.
+
+    return cacheStore.getOrFetch(cacheKey, async () => {
+        let query = supabase
             .from('client_raw_material_ledger')
-            .select('*')
-            .eq('user_id', user.id)
+            .select('*', { count: 'exact' })
+            .eq('user_id', user.id);
+
+        if (startDate) query = query.gte('transaction_date', startDate);
+        if (endDate) query = query.lte('transaction_date', endDate);
+
+        if (search) {
+            // Search in client_name OR remarks
+            // or logic needs specific syntax in Supabase
+            query = query.or(`client_name.ilike.%${search}%,remarks.ilike.%${search}%`);
+        }
+
+        if (type && type !== 'ALL') {
+            query = query.eq('transaction_type', type);
+        }
+
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+
+        const { data, error, count } = await query
             .order('transaction_date', { ascending: false })
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .range(from, to);
 
         if (error) throw error;
-        return data as ClientMaterialTransaction[];
-    });
+
+        const mappedData = (data as any[] || []).map(tx => ({
+            ...tx,
+            quantity: Number(tx.quantity || 0)
+        }));
+
+        return { data: mappedData as ClientMaterialTransaction[], count: count || 0 };
+    }, 1000 * 60 * 2, true); // 2 mins
 };
 
 export const addClientMaterialTransaction = async (
@@ -101,16 +132,25 @@ export const getClientMaterialBalances = async (): Promise<ClientMaterialBalance
         const summary: Record<string, ClientMaterialBalance> = {};
 
         (transactions as any[] || []).forEach(tx => {
-            const key = tx.client_id || tx.client_name;
+            // Group by Name (Normalized) to merge "Ritesh" (ID) and "Ritesh" (No ID)
+            const rawName = tx.client_name || 'Unknown';
+            const key = rawName.trim().toLowerCase();
+
             if (!summary[key]) {
                 summary[key] = {
-                    client_name: tx.client_name,
-                    client_id: tx.client_id,
+                    client_name: rawName.trim(),
+                    client_id: tx.client_id || null,
                     received: 0,
                     consumed: 0,
                     loss: 0,
                     balance: 0
                 };
+            }
+
+            // If we find a specific ID later for the same name, capture it
+            if (tx.client_id && !summary[key].client_id) {
+                summary[key].client_id = tx.client_id;
+                summary[key].client_name = rawName.trim(); // Prefer name from linked account
             }
 
             if (tx.transaction_type === 'RECEIPT') summary[key].received += Number(tx.quantity);
@@ -138,5 +178,8 @@ export const getClientMaterialDetailStatement = async (clientName: string): Prom
         .order('created_at', { ascending: true });
 
     if (error) throw error;
-    return data as ClientMaterialTransaction[];
+    return (data as any[] || []).map(tx => ({
+        ...tx,
+        quantity: Number(tx.quantity || 0)
+    })) as ClientMaterialTransaction[];
 };

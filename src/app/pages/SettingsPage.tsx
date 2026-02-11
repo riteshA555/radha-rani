@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { t } from '../../shared/utils/i18n';
 import { ReAuthModal } from '../components/shared/ReAuthModal';
 import { ImageUpload } from '../../components/shared/ImageUpload';
@@ -24,6 +24,7 @@ import { triggerHaptic } from '../../utils/haptics';
 
 const TABS = [
   { id: 'business_profile', label: 'Business Profile', labelKey: 'business_profile', icon: Building2, color: 'text-blue-600', bg: 'bg-blue-50', description: 'Company branding & contact' },
+  { id: 'subscription_billing', label: 'Subscription & Billing', labelKey: 'subscription_billing', icon: CreditCard, color: 'text-purple-600', bg: 'bg-purple-50', description: 'Manage plan & invoices' },
   { id: 'user_settings', label: 'User Preferences', labelKey: 'user_preferences', icon: User, color: 'text-indigo-600', bg: 'bg-indigo-50', description: 'Language, theme & display' },
   { id: 'gst_settings', label: 'Tax & GST', labelKey: 'tax_gst', icon: Calculator, color: 'text-emerald-600', bg: 'bg-emerald-50', description: 'GST rates & tax logic' },
   { id: 'invoice_settings', label: 'Invoicing', labelKey: 'invoice_settings', icon: FileText, color: 'text-violet-600', bg: 'bg-violet-50', description: 'Invoice prefixes & bank info' },
@@ -40,13 +41,29 @@ export function SettingsPage() {
   const { settings, updateSetting, loading: globalLoading } = useSettings();
   const lang = settings.user_settings?.language || 'en';
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('business_profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'business_profile';
+
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [saving, setSaving] = useState(false);
   const [showReAuth, setShowReAuth] = useState(false);
   const [importing, setImporting] = useState(false);
 
   // Local state for edits
   const [localData, setLocalData] = useState<any>(null);
+
+  // Sync tab with URL
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && TABS.find(t => t.id === tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    setSearchParams({ tab: tabId });
+  };
 
   // Sync local data when settings or tab changes
   useEffect(() => {
@@ -181,6 +198,90 @@ export function SettingsPage() {
                 rows={4} value={localData.termsAndConditions} onChange={(e: any) => setLocalData({ ...localData, termsAndConditions: e.target.value })}
                 placeholder="Write your business terms here..."
               />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'subscription_billing' && (
+          <div className="space-y-6">
+            {/* Current Plan Card */}
+            <div className="bg-gradient-to-br from-indigo-900 via-indigo-800 to-indigo-900 rounded-3xl p-8 text-white relative overflow-hidden shadow-xl shadow-indigo-200">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+              <div className="absolute bottom-0 left-0 w-40 h-40 bg-indigo-500/20 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4"></div>
+
+              <div className="relative z-10 flex flex-col md:flex-row gap-8 items-start md:items-center justify-between">
+                <div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/30 border border-indigo-400/30 text-[10px] font-black uppercase tracking-widest mb-4 backdrop-blur-md">
+                    <Sparkles size={12} className="text-amber-400" /> Current Plan
+                  </div>
+                  <h2 className="text-3xl font-black tracking-tight mb-2">Gold Enterprise</h2>
+                  <p className="text-indigo-200 font-medium max-w-md text-sm leading-relaxed">
+                    Full access to all modules including Karigar Management, Advanced Inventory, and Multi-Level User Roles.
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-2 text-right">
+                  <div className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest">Next Billing Date</div>
+                  <div className="text-xl font-bold">Oct 24, 2024</div>
+                  <div className="text-xs text-indigo-300 bg-indigo-950/50 px-3 py-1.5 rounded-lg border border-indigo-500/30 mt-1">
+                    Auto-renewal enabled
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Usage Stats (Mock) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col gap-2">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Storage Used</span>
+                <div className="text-2xl font-black text-gray-900">45%</div>
+                <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-indigo-500 h-full w-[45%] rounded-full"></div>
+                </div>
+              </div>
+              <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col gap-2">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Users Active</span>
+                <div className="text-2xl font-black text-gray-900">4<span className="text-gray-300 text-lg">/10</span></div>
+                <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-emerald-500 h-full w-[40%] rounded-full"></div>
+                </div>
+              </div>
+              <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col gap-2">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">API Calls</span>
+                <div className="text-2xl font-black text-gray-900">12.5k</div>
+                <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-amber-500 h-full w-[65%] rounded-full"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Billing History */}
+            <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <h4 className="font-bold text-sm text-gray-900 flex items-center gap-2">
+                  <CreditCard size={16} className="text-gray-400" /> Invoice History
+                </h4>
+                <button className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest hover:underline">Download All</button>
+              </div>
+
+              <div className="space-y-4">
+                {[1, 2, 3].map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2.5 bg-white rounded-xl text-gray-400 border border-gray-200">
+                        <FileText size={16} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-gray-900">Invoice #{2024001 + i}</div>
+                        <div className="text-[10px] text-gray-500 font-medium">Sep {24 - i}, 2024</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-gray-900">₹2,499.00</div>
+                      <div className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-1">PAID</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

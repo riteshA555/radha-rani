@@ -1,9 +1,12 @@
-import { Menu, X, Bell, User, LogOut } from 'lucide-react';
+import { Menu, X, Bell } from 'lucide-react';
 import { useState } from 'react';
 import { BottomNav } from './BottomNav';
 import { Sidebar } from './Sidebar';
 import { NotificationCenter } from './NotificationCenter';
 import { InstallPrompt } from './InstallPrompt';
+import { useRef } from 'react';
+// Import UserProfile component
+import { UserProfile } from './UserProfile';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 
@@ -44,27 +47,8 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
         </div>
         <div className="flex items-center gap-3">
           {/* User Profile & Sign Out - Production Grade */}
-          <div className="flex items-center gap-1.5 sm:gap-3 mr-0.5 sm:mr-2 px-1.5 sm:px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-sm border border-indigo-400">
-                <User size={14} />
-              </div>
-              <div className="flex flex-col hidden min-[450px]:flex">
-                <span className="text-[10px] font-black text-gray-900 leading-none truncate max-w-[80px] sm:max-w-[100px]">
-                  {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
-                </span>
-                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">{t('gold_member')}</span>
-              </div>
-            </div>
-            <div className="h-4 w-[1px] bg-gray-200 mx-0.5 sm:mx-1"></div>
-            <button
-              onClick={() => signOut()}
-              className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-all"
-              title={t('logout')}
-            >
-              <LogOut size={16} />
-            </button>
-          </div>
+          {/* User Profile & Sign Out - Production Grade */}
+          <UserProfile />
 
           <NotificationCenter />
 

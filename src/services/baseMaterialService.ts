@@ -54,3 +54,37 @@ export const deleteBaseMaterialType = async (id: string) => {
     if (error) throw error;
     cacheStore.invalidate(CACHE_KEY);
 };
+
+export const ensureBaseMaterialType = async (name: string, usage: 'RECEIPT' | 'CONSUMPTION'): Promise<void> => {
+    if (!name || name.trim() === '') return;
+
+    const normalized = name.trim();
+
+    // Check if exists (case-insensitive)
+    const { data: existing, error: fetchError } = await supabase
+        .from('base_material_types')
+        .select('*')
+        .ilike('name', normalized)
+        .maybeSingle();
+
+    if (fetchError) {
+        console.error('Error checking base material:', fetchError);
+        return;
+    }
+
+    if (existing) {
+        // Upgrade usage_type if necessary
+        let newUsage = existing.usage_type;
+        if (existing.usage_type === 'BOTH') return;
+        if (existing.usage_type !== usage) {
+            newUsage = 'BOTH';
+        } else {
+            return; // No change needed
+        }
+
+        await updateBaseMaterialType(existing.id, { usage_type: newUsage });
+    } else {
+        // Create new
+        await createBaseMaterialType(normalized, usage);
+    }
+};

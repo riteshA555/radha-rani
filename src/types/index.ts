@@ -129,6 +129,7 @@ export interface ClientMaterialTransaction {
     product_id?: string;
     pcs?: number;
     pcs_work_type?: string;
+    order_details?: any; // New field for granular items
     user_id: string;
     created_at: string;
 }

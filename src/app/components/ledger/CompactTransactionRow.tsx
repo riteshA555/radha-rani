@@ -67,8 +67,8 @@ export const CompactTransactionRow: React.FC<CompactTransactionRowProps> = ({
             </td>
             <td className="px-6 py-4 text-right">
                 <div className="flex flex-col items-end">
-                    <div className="text-sm font-black text-gray-900">{transaction.quantity.toFixed(3)} KG</div>
-                    {transaction.pcs > 0 && (
+                    <div className="text-sm font-black text-gray-900">{Number(transaction.quantity || 0).toFixed(3)} KG</div>
+                    {Number(transaction.pcs || 0) > 0 && (
                         <div className="text-[9px] font-bold text-indigo-600 leading-none mt-0.5">
                             {transaction.pcs} PCS
                         </div>
