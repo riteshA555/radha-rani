@@ -36,6 +36,11 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event
 self.addEventListener('fetch', (event) => {
+    // Skip non-GET requests and Supabase/external API calls
+    if (event.request.method !== 'GET' || event.request.url.includes('supabase.co')) {
+        return;
+    }
+
     // 1. Navigation (HTML) - Network First, fallback to cache
     if (event.request.mode === 'navigate') {
         event.respondWith(
