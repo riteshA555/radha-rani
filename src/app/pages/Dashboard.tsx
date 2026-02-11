@@ -112,14 +112,6 @@ export function Dashboard() {
         } as any);
       }
 
-      const balances: any = {};
-      (data.karigar_overview || []).forEach(k => {
-        balances[k.id] = { cash: k.current_balance, metal: k.current_metal_balance };
-      });
-      setKarigarBalances(balances);
-      setKarigars(data.karigar_overview || []);
-      setLocalRate(data.local_rate);
-      setLocalRateGold(data.local_rate_gold);
       if (data.live_rate_gold) {
         setRateGold({
           id: 'live_gold',
@@ -129,6 +121,15 @@ export function Dashboard() {
           source: 'Market'
         } as any);
       }
+
+      const balances: any = {};
+      (data.karigar_overview || []).forEach(k => {
+        balances[k.id] = { cash: k.current_balance, metal: k.current_metal_balance };
+      });
+      setKarigarBalances(balances);
+      setKarigars(data.karigar_overview || []);
+      setLocalRate(data.local_rate);
+      setLocalRateGold(data.local_rate_gold);
 
       if (data.local_rate && newLocalRate.metal === 'SILVER') {
         setNewLocalRate(prev => ({
@@ -144,8 +145,10 @@ export function Dashboard() {
         }));
       }
 
-      // Fetch products separately (still 1 extra call, but improved)
-      getProducts().then(setProducts).catch(err => console.warn("Product fetch warn", err));
+      // NEW: Use low stock products from the Super RPC instead of a separate fetch
+      if (data.low_stock_products) {
+        setProducts(data.low_stock_products);
+      }
 
     } catch (e: any) {
       console.error('Core refresh failed', e);
@@ -217,8 +220,6 @@ export function Dashboard() {
     const rateChangeAmt = currentRate10g - prevRate;
     const currentRateKg = (rate?.selling_rate || 0) * 1000;
 
-    const lowStockItems = products.filter(p => p.current_stock < (p.min_stock || 5));
-
     return {
       totalSilverStockKg,
       currentRateKg,
@@ -228,7 +229,7 @@ export function Dashboard() {
       pendingValue: kpis?.stats_pending_value || 0,
       monthlySales: kpis?.stats_monthly_sales || 0,
       monthlyOrdersCount: kpis?.stats_monthly_count || 0,
-      lowStockCount: lowStockItems.length
+      lowStockCount: products.length // Use the filtered list directly
     };
   }, [inventory, finishedWeight, recentRates, rate, products, kpis]);
 

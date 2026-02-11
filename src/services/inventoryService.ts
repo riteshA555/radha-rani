@@ -12,7 +12,8 @@ const CACHE_KEYS = {
     STOCK_SUMMARY: 'stock_summary',
     FINISHED_GOODS: 'finished_goods',
     STOCK_TRANSACTIONS: 'stock_transactions',
-    STOCK_TRANSACTIONS_PREFIX: 'stock_transactions_'
+    STOCK_TRANSACTIONS_PREFIX: 'stock_transactions_',
+    LOW_STOCK_ALERTS: 'low_stock_alerts'
 }
 
 export const getStockSummary = async (currentSilverRate: number): Promise<StockSummary> => {
@@ -120,6 +121,17 @@ export const getFinishedGoodsInventory = async () => {
         if (error) throw error
         return data as Product[]
     }, 1000 * 60 * 30, true) // 30 mins, persistent
+}
+
+export const getLowStockAlerts = async (): Promise<any[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    return cacheStore.getOrFetch(CACHE_KEYS.LOW_STOCK_ALERTS, async () => {
+        const { data, error } = await supabase.rpc('get_low_stock_alerts');
+        if (error) throw error;
+        return data || [];
+    }, 1000 * 60 * 5, true); // 5 mins, persistent
 }
 
 // Legacy helpers kept for compatibility

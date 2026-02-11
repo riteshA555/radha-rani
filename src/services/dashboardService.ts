@@ -15,6 +15,7 @@ export interface DashboardCompositeData {
     recent_orders: any[];
     recent_rates: any[];
     karigar_overview: any[];
+    low_stock_products?: any[];
     live_rate: number;
     live_rate_gold: number;
     local_rate?: {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell, Package, AlertTriangle, X, Check } from 'lucide-react';
-import { getFinishedGoodsInventory } from '../../services/inventoryService';
+import { getFinishedGoodsInventory, getLowStockAlerts } from '../../services/inventoryService';
 import { getSettings } from '../../services/settingsService';
 import { InventorySettings } from '../../types/settings';
 import { useAuth } from '../../context/AuthContext';
@@ -75,33 +75,26 @@ export function NotificationCenter() {
             // Check if signal is already aborted
             if (signal?.aborted) return;
 
-            const products = await getFinishedGoodsInventory();
+            // NEW: Fetch ONLY products that match the threshold on the server
+            const lowStockItems = await getLowStockAlerts();
 
             if (signal?.aborted) return;
-
-            const settings = await getSettings<InventorySettings>('inventory_settings');
-
-            if (signal?.aborted) return;
-
-            const globalThreshold = settings?.lowStockThreshold || 10;
 
             const newNotifications: Notification[] = [];
 
-            products.forEach(p => {
+            lowStockItems.forEach((p: any) => {
                 const stock = Number(p.current_stock);
-                const itemThreshold = p.min_stock || globalThreshold;
+                const threshold = p.min_stock;
 
-                if (stock <= itemThreshold) {
-                    newNotifications.push({
-                        id: `low-stock-${p.id}`,
-                        type: 'stock',
-                        title: stock === 0 ? 'Out of Stock' : 'Low Stock Alert',
-                        message: `${p.name} is running low (${stock} ${settings?.defaultUnit || 'pcs'} left)`,
-                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        read: localStorage.getItem(`read-${p.id}`) === 'true',
-                        priority: stock === 0 ? 'high' : 'medium'
-                    });
-                }
+                newNotifications.push({
+                    id: `low-stock-${p.id}`,
+                    type: 'stock',
+                    title: stock === 0 ? 'Out of Stock' : 'Low Stock Alert',
+                    message: `${p.name} is running low (${stock} units left)`,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    read: localStorage.getItem(`read-${p.id}`) === 'true',
+                    priority: stock === 0 ? 'high' : 'medium'
+                });
             });
 
             setNotifications(newNotifications);

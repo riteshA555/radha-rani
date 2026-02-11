@@ -65,6 +65,7 @@ type FormValues = {
     advance_amount?: number
     payment_mode?: 'CASH' | 'ONLINE' | 'BANK'
     include_ledger_balance: boolean
+    source_ledger_ids?: string[] // NEW: Track source from ledger
 }
 
 export function CreateOrder() {
@@ -282,6 +283,7 @@ export function CreateOrder() {
             if (prefilled.items && prefilled.items.length > 0) {
                 replace(prefilled.items);
             }
+            if (prefilled.source_ledger_ids) setValue('source_ledger_ids', prefilled.source_ledger_ids);
             // Clear location state to prevent re-fill on refresh if needed
             // window.history.replaceState({}, document.title);
         }
@@ -575,7 +577,8 @@ export function CreateOrder() {
                 notes: data.notes,
                 is_quotation: data.is_quotation,
                 old_gold_value: totalOldGoldValue,
-                old_gold_details: data.old_gold_details
+                old_gold_details: data.old_gold_details,
+                source_ledger_ids: data.source_ledger_ids // PASS SOURCE IDs
             }, cleanedItems, data.gst_enabled, gstRateValue, data.advance_amount || 0, data.payment_mode || 'CASH', data.include_ledger_balance)
 
             // SHOW SUCCESS MODAL INSTEAD OF NAVIGATING

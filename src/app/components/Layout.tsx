@@ -1,5 +1,5 @@
 import { Menu, X, Bell } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { BottomNav } from './BottomNav';
 import { Sidebar } from './Sidebar';
 import { NotificationCenter } from './NotificationCenter';
@@ -20,6 +20,14 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { t, i18n } = useTranslation();
+
+  const formattedDate = useMemo(() => {
+    return new Date().toLocaleDateString(i18n.language === 'hi' ? 'hi-IN' : 'en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  }, [i18n.language]);
 
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-50 overflow-hidden select-none safe-pb">
@@ -57,7 +65,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
           <div className="hidden md:flex flex-col items-end">
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">{t('current_date')}</span>
             <span className="text-xs font-bold text-gray-700">
-              {new Date().toLocaleDateString(i18n.language === 'hi' ? 'hi-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              {formattedDate}
             </span>
           </div>
         </div>

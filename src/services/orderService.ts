@@ -68,7 +68,8 @@ export const createOrder = async (
         notes?: string,
         is_quotation?: boolean,
         old_gold_value?: number,
-        old_gold_details?: any
+        old_gold_details?: any,
+        source_ledger_ids?: string[]
     },
     items: Omit<OrderItem, 'id' | 'order_id' | 'amount'>[],
     gstEnabled: boolean = false,
@@ -115,7 +116,8 @@ export const createOrder = async (
         p_advance_amount: advanceAmount,
         p_payment_mode: paymentMode,
         p_include_ledger_balance: includeLedgerBalance,
-        p_ledger_id: order.ledger_id
+        p_ledger_id: order.ledger_id,
+        p_source_ledger_ids: order.source_ledger_ids || null
     })
 
     if (error) {

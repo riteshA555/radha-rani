@@ -442,7 +442,8 @@ export function ClientMaterialLedger() {
                     order_date: orderForm.order_date,
                     material_type: 'CLIENT',
                     items: prefilledItems,
-                    gst_enabled: false
+                    gst_enabled: false,
+                    source_ledger_ids: selectedItems.map(tx => tx.id) // NEW: Link to ledger consumption entries
                 }
             }
         });
