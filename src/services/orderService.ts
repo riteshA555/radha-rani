@@ -131,7 +131,7 @@ export const createOrder = async (
     }
 
     // Invalidate related caches
-    cacheStore.invalidate(CACHE_KEYS.ORDERS)
+    cacheStore.invalidatePattern(CACHE_KEYS.ORDERS)
     cacheStore.invalidate('dashboard_stats')
     cacheStore.invalidate('finished_goods')
     cacheStore.invalidatePattern('stock_')
@@ -149,7 +149,7 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
     if (status.toLowerCase() === 'cancelled') {
         const { data, error } = await supabase.rpc('cancel_order_atomic', { p_order_id: orderId })
         if (error) throw error
-        cacheStore.invalidate(CACHE_KEYS.ORDERS)
+        cacheStore.invalidatePattern(CACHE_KEYS.ORDERS)
         cacheStore.invalidate('dashboard_stats')
         cacheStore.invalidatePattern('stock_')
         cacheStore.invalidatePattern('ledger_')
@@ -166,7 +166,7 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
     if (error) throw error
     if (data.length === 0) throw new Error('Order not found or access denied')
 
-    cacheStore.invalidate(CACHE_KEYS.ORDERS)
+    cacheStore.invalidatePattern(CACHE_KEYS.ORDERS)
     cacheStore.invalidate('dashboard_stats')
     return data[0]
 }
@@ -190,7 +190,7 @@ export const deleteOrder = async (orderId: string) => {
     }
 
     // Invalidate related caches
-    cacheStore.invalidate(CACHE_KEYS.ORDERS)
+    cacheStore.invalidatePattern(CACHE_KEYS.ORDERS)
     cacheStore.invalidate('dashboard_stats')
     cacheStore.invalidatePattern('stock_') // Deleting orders affects stock
     cacheStore.invalidatePattern('ledger_') // Ledger entries are removed
@@ -235,7 +235,7 @@ export const deleteOrders = async (orderIds: string[]) => {
     if (error) throw error
 
     // Invalidate related caches
-    cacheStore.invalidate(CACHE_KEYS.ORDERS)
+    cacheStore.invalidatePattern(CACHE_KEYS.ORDERS)
     cacheStore.invalidate('dashboard_stats')
     cacheStore.invalidatePattern('stock_')
 }

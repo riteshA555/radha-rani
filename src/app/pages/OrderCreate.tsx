@@ -552,6 +552,8 @@ export function CreateOrder() {
 
             const cleanedItems = data.items.map(item => ({
                 ...item,
+                // Sanitize: Services shouldn't have product_id, but some staleness might exist in prefilled data
+                product_id: item.item_type === 'SERVICE' ? undefined : item.product_id,
                 karigar_id: item.has_karigar ? item.karigar_id : undefined,
                 karigar_rate: item.has_karigar ? item.karigar_rate : undefined,
                 karigar_quantity: item.has_karigar ? item.karigar_quantity : undefined
@@ -571,7 +573,6 @@ export function CreateOrder() {
                 ledger_id: data.ledger_id, // PASS THE ID
                 order_date: data.order_date,
                 material_type: data.material_type,
-                status: 'Pending',
                 discount_amount: data.discount_amount,
                 delivery_date: data.delivery_date,
                 notes: data.notes,
@@ -599,8 +600,13 @@ export function CreateOrder() {
         } catch (err: any) {
             console.error(err)
             let msg = err.message
-            if (msg.includes('products_current_stock_check') || msg.includes('check constraint')) {
+
+            // Refined error mapping: Only map actual stock check violations
+            if (msg.includes('products_current_stock_check')) {
                 msg = "Insufficient Stock! Current stock level prevents this order."
+            } else if (msg.includes('check constraint')) {
+                // If it's a generic check constraint, show it as a validation error
+                msg = `Validation Error: ${msg}`
             }
             setSubmissionError(msg)
         }

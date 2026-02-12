@@ -123,6 +123,7 @@ export const getFinishedGoodsInventory = async () => {
     }, 1000 * 60 * 30, true) // 30 mins, persistent
 }
 
+// Finalized export for runtime stability
 export const getLowStockAlerts = async (): Promise<any[]> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];

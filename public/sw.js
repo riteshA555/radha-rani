@@ -1,5 +1,5 @@
 // Service Worker for PWA
-const CACHE_NAME = 'radha-rani-erp-v2';
+const CACHE_NAME = 'radha-rani-erp-v3';
 const urlsToCache = [
     '/',
     '/index.html',
@@ -55,26 +55,25 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // 2. Assets (JS, CSS, Images) - Cache First, fallback to network
+    // 2. Assets (JS, CSS, Images) - Network First, fallback to cache
+    // This ensures we always get the latest code if online
     event.respondWith(
-        caches.match(event.request)
+        fetch(event.request)
             .then((response) => {
-                if (response) {
+                // Cache new assets found
+                if (!response || response.status !== 200 || response.type !== 'basic') {
                     return response;
                 }
-                return fetch(event.request).then((response) => {
-                    // Cache new assets found
-                    if (!response || response.status !== 200 || response.type !== 'basic') {
-                        return response;
-                    }
-                    if (event.request.url.startsWith('http') && !event.request.url.includes('supabase')) {
-                        const responseToCache = response.clone();
-                        caches.open(CACHE_NAME).then((cache) => {
-                            cache.put(event.request, responseToCache);
-                        });
-                    }
-                    return response;
-                });
+                if (event.request.url.startsWith('http') && !event.request.url.includes('supabase')) {
+                    const responseToCache = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseToCache);
+                    });
+                }
+                return response;
+            })
+            .catch(() => {
+                return caches.match(event.request);
             })
     );
 });

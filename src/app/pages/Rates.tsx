@@ -141,7 +141,7 @@ export function Rates() {
                 </div>
                 <div className="flex gap-2 w-full sm:w-auto">
                     <button
-                        onClick={loadData}
+                        onClick={() => loadData()}
                         className="p-2.5 bg-white border border-gray-200 rounded-lg text-gray-400 hover:text-indigo-600 hover:border-indigo-100 transition-all shrink-0"
                     >
                         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />

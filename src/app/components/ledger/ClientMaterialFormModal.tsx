@@ -269,16 +269,14 @@ export const ClientMaterialFormModal: React.FC<ClientMaterialFormModalProps> = (
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
                                                     <div className="sm:col-span-2">
                                                         <label className="block text-[9px] font-bold text-amber-700 uppercase mb-1 ml-1">Select Addon Service</label>
-                                                        <select
+                                                        <Combobox
+                                                            options={jobWorkItems.map(j => ({ value: j.id, label: `${j.name} - ₹${j.default_rate}` }))}
                                                             value={draftSpec.addon_service_id}
-                                                            onChange={(e) => handleDraftChange('addon_service_id', e.target.value)}
-                                                            className="w-full h-10 px-3 bg-white border border-amber-200 rounded-lg text-sm font-bold outline-none focus:ring-1 focus:ring-amber-500"
-                                                        >
-                                                            <option value="">-- Select Service --</option>
-                                                            {jobWorkItems.filter(j => j.name.toLowerCase().includes('cutting') || j.name.toLowerCase().includes('chala')).map(j => (
-                                                                <option key={j.id} value={j.id}>{j.name} (₹{j.default_rate})</option>
-                                                            ))}
-                                                        </select>
+                                                            onValueChange={(val) => handleDraftChange('addon_service_id', val)}
+                                                            placeholder="-- Select Service --"
+                                                            searchPlaceholder="Search service..."
+                                                            className="h-10 text-xs font-bold border-amber-200 rounded-lg bg-white"
+                                                        />
                                                     </div>
                                                     <div>
                                                         <label className="block text-[9px] font-bold text-amber-700 uppercase mb-1 ml-1">PCS</label>
@@ -428,7 +426,7 @@ export const ClientMaterialFormModal: React.FC<ClientMaterialFormModalProps> = (
                                                         key={m.id}
                                                         type="button"
                                                         onMouseDown={() => {
-                                                            setForm({ ...form, product_id: (m as any).id, base_type: m.name });
+                                                            setForm({ ...form, base_type: m.name });
                                                             setBaseSearch(m.name);
                                                             setShowBaseResults(false);
                                                         }}

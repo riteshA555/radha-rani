@@ -120,7 +120,7 @@ export function Catalog() {
     const channel = supabase
       .channel('catalog_granular_updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, dProducts)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'jobwork_items' }, dServices)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'job_work_items' }, dServices)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'metal_rates' }, dRates)
       .subscribe();
 

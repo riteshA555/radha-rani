@@ -3,7 +3,8 @@ import {
   User, Building2, Bell, Lock, Palette, Database, HelpCircle, LogOut,
   ChevronRight, Loader2, Save, FileText, Calculator, Package, Settings,
   Trash2, AlertTriangle, CreditCard, Download, Upload, Globe, Calendar,
-  Clock, HardDrive, Smartphone, Share2, ShieldCheck, Mail, MessageSquare
+  Clock, HardDrive, Smartphone, Share2, ShieldCheck, Mail, MessageSquare,
+  Sparkles
 } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../context/AuthContext';
