@@ -27,6 +27,8 @@ export interface InvoiceSettings {
     termsAndConditions: string
     showHsnCode: boolean
     autoGenerate: boolean
+    paymentQrUrl?: string
+    signatureUrl?: string
 }
 
 export interface GSTSettings {
@@ -151,7 +153,9 @@ export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
     branchName: '',
     termsAndConditions: '',
     showHsnCode: true,
-    autoGenerate: true
+    autoGenerate: true,
+    paymentQrUrl: '',
+    signatureUrl: ''
 }
 
 export const DEFAULT_GST_SETTINGS: GSTSettings = {

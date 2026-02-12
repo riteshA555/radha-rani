@@ -340,10 +340,57 @@ export const ClientMaterialPrint: React.FC<ClientMaterialPrintProps> = ({
                                             {t.material_type}
                                         </td>
                                         <td style={{ padding: '8px', border: '1px solid #dcfce7' }}>
-                                            <div style={{ fontWeight: 600, color: '#111827' }}>{t.remarks?.split(' - ')[0] || '-'}</div>
-                                            <div style={{ fontSize: '9px', color: '#9ca3af', fontStyle: 'italic' }}>
-                                                {(t.remarks?.split(' - ').slice(1).join(' - ')) || '-'}
-                                            </div>
+                                            {(() => {
+                                                let details = [];
+                                                try {
+                                                    if (t.order_details) {
+                                                        details = Array.isArray(t.order_details) ? t.order_details : JSON.parse(t.order_details);
+                                                    }
+                                                } catch (e) { }
+
+                                                if (details.length > 0) {
+                                                    return (
+                                                        <div>
+                                                            {details.map((item: any, idx: number) => {
+                                                                const baseTotal = Number(item.base_quantity) * Number(item.base_rate);
+                                                                const addonTotal = item.has_addon ? Number(item.addon_quantity) * Number(item.addon_rate) : 0;
+
+                                                                return (
+                                                                    <div key={idx} style={{ marginBottom: '4px', borderBottom: idx < details.length - 1 ? '1px dashed #e5e7eb' : 'none', paddingBottom: '4px' }}>
+                                                                        <div style={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', color: '#111827' }}>
+                                                                            <span>{item.description}</span>
+                                                                            <span>₹{(baseTotal + addonTotal).toLocaleString()}</span>
+                                                                        </div>
+                                                                        <div style={{ fontSize: '9px', color: '#4b5563' }}>
+                                                                            {item.base_quantity} {item.unit} x ₹{item.base_rate}
+                                                                        </div>
+                                                                        {item.has_addon && (
+                                                                            <div style={{ fontSize: '9px', color: '#b45309', paddingLeft: '4px', borderLeft: '2px solid #fcd34d', marginTop: '2px' }}>
+                                                                                + {item.addon_quantity} pcs @ ₹{item.addon_rate}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                            {details.length > 1 && (
+                                                                <div style={{ borderTop: '1px solid #d1fae5', paddingTop: '4px', marginTop: '4px', fontWeight: 900, display: 'flex', justifyContent: 'space-between', color: '#047857', fontSize: '10px' }}>
+                                                                    <span>Total Value:</span>
+                                                                    <span>₹{details.reduce((acc: number, item: any) => acc + (Number(item.base_quantity) * Number(item.base_rate)) + (item.has_addon ? Number(item.addon_quantity) * Number(item.addon_rate) : 0), 0).toLocaleString()}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <>
+                                                            <div style={{ fontWeight: 600, color: '#111827' }}>{t.remarks?.split(' - ')[0] || '-'}</div>
+                                                            <div style={{ fontSize: '9px', color: '#9ca3af', fontStyle: 'italic' }}>
+                                                                {(t.remarks?.split(' - ').slice(1).join(' - ')) || '-'}
+                                                            </div>
+                                                        </>
+                                                    );
+                                                }
+                                            })()}
                                         </td>
                                         <td style={{ padding: '8px', textAlign: 'right', fontWeight: 900, color: '#059669', border: '1px solid #dcfce7' }}>
                                             {t.quantity.toFixed(3)}

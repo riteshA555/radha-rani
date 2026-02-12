@@ -348,6 +348,29 @@ export function SettingsPage() {
                 <Input label="IFSC Code" value={localData.ifscCode} onChange={(v: string) => setLocalData({ ...localData, ifscCode: v })} />
                 <Input label="Branch" value={localData.branchName} onChange={(v: string) => setLocalData({ ...localData, branchName: v })} />
               </div>
+              <div className="mt-6 space-y-4">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Payment QR Code</label>
+                <div className="w-40">
+                  <ImageUpload
+                    currentImageUrl={localData.paymentQrUrl}
+                    onImageUploaded={(url: string) => setLocalData({ ...localData, paymentQrUrl: url })}
+                    bucketName="logos"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400">Upload your UPI/Payment QR code to be displayed on invoices.</p>
+              </div>
+
+              <div className="mt-8 pt-8 border-t border-gray-50 space-y-4">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Digital Authorized Signature</label>
+                <div className="w-64">
+                  <ImageUpload
+                    currentImageUrl={localData.signatureUrl}
+                    onImageUploaded={(url: string) => setLocalData({ ...localData, signatureUrl: url })}
+                    bucketName="logos"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400">Upload a PNG signature (transparent background recommended) to be displayed on invoices. It will be auto-blended for a realistic look.</p>
+              </div>
             </div>
           </div>
         )}

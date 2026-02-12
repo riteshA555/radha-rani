@@ -179,135 +179,112 @@ export function OrderPrint() {
 
             {/* Invoice Page */}
             <div
-                className="bg-white shadow-lg mx-auto p-6 sm:p-10 print:shadow-none print:p-0 w-full min-h-auto"
+                className="invoice-container bg-white shadow-2xl mx-auto p-8 sm:p-12 my-8 print:shadow-none print:m-0 print:p-0 w-full"
                 style={{
                     fontFamily: '"Inter", sans-serif',
-                    maxWidth: '190mm',
-                    color: '#111827'
+                    maxWidth: '210mm',
+                    color: '#000',
+                    lineHeight: '1.4'
                 }}
             >
-                {/* Header / Business Info */}
-                <div className="flex flex-col sm:flex-row justify-between border-b-[3px] border-[#111827] pb-6 mb-8 gap-6">
-                    <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-center sm:items-start text-center sm:text-left">
+                {/* Header */}
+                <div className="flex justify-between items-start mb-8 pb-6 border-b border-gray-900">
+                    <div className="flex gap-4 items-start">
                         {business?.logoUrl && (
-                            <div className="w-20 h-20 sm:w-[100px] sm:h-[100px] rounded-xl overflow-hidden border border-gray-100 p-2.5">
+                            <div className="w-16 h-16 object-contain">
                                 <img src={business.logoUrl} alt="Logo" className="w-full h-full object-contain" />
                             </div>
                         )}
                         <div>
-                            <h1 className="text-2xl sm:text-[32px] font-black leading-tight uppercase tracking-wider text-[#111827] mb-2">
+                            <h1 className="text-xl font-bold uppercase tracking-tight text-gray-900 mb-1">
                                 {business?.businessName || 'Business Name'}
                             </h1>
-                            <div className="text-xs sm:text-[13px] [line-height:1.6] text-[#374151] max-w-full sm:max-w-[400px]">
-                                {business?.address && <div className="font-semibold">{business.address}</div>}
-                                <div className="font-semibold">
+                            <div className="text-[11px] text-gray-600 leading-snug max-w-[300px]">
+                                {business?.address && <div>{business.address}</div>}
+                                <div>
                                     {[business?.city, business?.state, business?.pincode].filter(Boolean).join(', ')}
                                 </div>
-                                <div className="mt-1.5 flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-1">
-                                    {business?.phone && <span><strong>Phone:</strong> {business.phone}</span>}
-                                    {business?.email && <span><strong>Email:</strong> {business.email}</span>}
+                                <div className="mt-1">
+                                    {business?.phone && <span className="mr-3">Ph: {business.phone}</span>}
+                                    {business?.email && <span>Email: {business.email}</span>}
                                 </div>
-                                {business?.gstin && <div className="mt-1 italic text-[#111827]"><strong>GSTIN:</strong> {business.gstin}</div>}
+                                {business?.gstin && <div className="mt-1 font-medium text-gray-900">GSTIN: {business.gstin}</div>}
                             </div>
                         </div>
                     </div>
-                    <div className="text-center sm:text-right flex flex-col items-center sm:items-end">
-                        <div className={`inline-block px-6 py-2 rounded-lg text-sm sm:text-lg font-black uppercase mb-4 tracking-[2px] ${order.is_quotation ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-[#111827] text-white'}`}>
-                            {order.is_quotation ? 'Proforma / Quotation' : 'Tax Invoice'}
-                        </div>
-                        <div className="text-xs sm:text-[14px] text-[#111827]">
+                    <div className="text-right">
+                        <h2 className="text-3xl font-light text-gray-400 uppercase tracking-[4px] mb-2">{order.is_quotation ? 'QUOTATION' : 'INVOICE'}</h2>
+                        <div className="text-[12px] text-gray-900">
                             <div className="mb-1">
-                                <strong>Invoice No:</strong>
-                                <span className="font-mono text-sm sm:text-[16px]">
+                                <span className="text-gray-500 mr-2 uppercase text-[10px]">Invoice No:</span>
+                                <span className="font-semibold font-mono text-base">
                                     {settings.invoice_settings?.invoicePrefix || ''}{order.order_number || `#${order.id.slice(0, 8)}`}
                                 </span>
                             </div>
-                            <div><strong>Date:</strong> {new Date(order.order_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
-                            <div className="mt-2">
-                                <span className={`
-                                    px-3 py-1 border border-[#111827] rounded-md text-[10px] sm:text-[12px] font-extrabold uppercase
-                                    ${order.status === 'Completed' ? 'bg-[#111827] text-white' : 'bg-transparent text-[#111827]'}
-                                `}>
-                                    Status: {order.status}
+                            <div>
+                                <span className="text-gray-500 mr-2 uppercase text-[10px]">Date:</span>
+                                <span className="font-medium">
+                                    {new Date(order.order_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                 </span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Party Details */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-10 mb-10">
-                    <div className="p-5 bg-slate-50 rounded-xl border border-slate-200">
-                        <h3 className="m-0 mb-3 text-[10px] sm:text-[11px] uppercase text-slate-500 font-black tracking-wider">Billing To</h3>
-                        <div className="text-lg sm:text-[20px] font-black text-slate-900 mb-1">{order.customer_name}</div>
-                        <div className="text-xs sm:text-[13px] text-slate-600 font-semibold px-2 py-0.5 bg-white border border-slate-100 rounded inline-block">Premium Customer</div>
+                {/* Billing Info */}
+                <div className="mb-8 flex justify-between items-end">
+                    <div>
+                        <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1 font-semibold">Bill To</div>
+                        <div className="text-lg font-bold text-gray-900 leading-none mb-1">{order.customer_name}</div>
+                        <div className="text-[11px] text-gray-600">Premium Customer</div>
                     </div>
-                    <div className="p-5 bg-slate-50 rounded-xl border border-slate-200">
-                        <h3 className="m-0 mb-3 text-[10px] sm:text-[11px] uppercase text-slate-500 font-black tracking-wider">Shipping Details</h3>
-                        <div className="text-sm sm:text-[14px] text-slate-600 font-semibold">Standard Delivery Service</div>
-                        <div className="text-xs sm:text-[13px] text-slate-400 mt-1">Refer to billing address for delivery location.</div>
-                    </div>
+                    {/* Add shipping info if distinct, otherwise keep minimal */}
                 </div>
 
                 {/* Table */}
-                <div className="rounded-xl overflow-hidden border border-slate-200 mb-8 overflow-x-auto">
-                    <table className="w-full border-collapse min-w-[600px] sm:min-w-0">
+                <div className="mb-8">
+                    <table className="w-full border-collapse">
                         <thead>
-                            <tr className="bg-[#111827] text-white">
-                                <th className="px-5 py-3.5 text-left text-[11px] font-extrabold uppercase">#</th>
-                                <th className="px-5 py-3.5 text-left text-[11px] font-extrabold uppercase">Description</th>
+                            <tr className="border-b-2 border-gray-900">
+                                <th className="py-2 text-left text-[10px] uppercase font-bold text-gray-900 w-10">SR</th>
+                                <th className="py-2 text-left text-[10px] uppercase font-bold text-gray-900">Item Description</th>
                                 {settings.invoice_settings?.showHsnCode && (
-                                    <th className="px-5 py-3.5 text-center text-[11px] font-extrabold uppercase">HSN</th>
+                                    <th className="py-2 text-center text-[10px] uppercase font-bold text-gray-900 w-20">HSN</th>
                                 )}
-                                <th className="px-5 py-3.5 text-center text-[11px] font-extrabold uppercase">Qty</th>
-                                <th className="px-5 py-3.5 text-right text-[11px] font-extrabold uppercase">Rate (₹)</th>
-                                <th className="px-5 py-3.5 text-right text-[11px] font-extrabold uppercase">Amount (₹)</th>
+                                <th className="py-2 text-center text-[10px] uppercase font-bold text-gray-900 w-20">Qty</th>
+                                <th className="py-2 text-right text-[10px] uppercase font-bold text-gray-900 w-24">Rate</th>
+                                <th className="py-2 text-right text-[10px] uppercase font-bold text-gray-900 w-24">Amount</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody>
                             {order.order_items?.map((item: any, idx: number) => (
-                                <tr key={item.id} className="border-b border-slate-100 last:border-0">
-                                    <td className="px-5 py-4 text-slate-400 text-[13px]">{String(idx + 1).padStart(2, '0')}</td>
-                                    <td className="px-5 py-4">
-                                        <div className="font-extrabold text-slate-800 text-sm">{item.description}</div>
-
-                                        <div className="mt-2 space-y-1">
-                                            {/* Base Breakdown */}
-                                            <div className="text-[11px] sm:text-[12px] text-slate-600 flex items-center gap-2">
-                                                <span className="font-bold">Base:</span>
-                                                <span>{item.base_quantity || item.quantity} {item.unit} × ₹{item.base_rate || item.rate} = ₹{formatIndianRupees((item.base_quantity || item.quantity) * (item.base_rate || item.rate))}</span>
-                                            </div>
-
-                                            {/* Addon Breakdown */}
-                                            {item.addon_service_id && (
-                                                <div className="text-[11px] sm:text-[12px] text-amber-700 flex items-center gap-2 bg-amber-50 px-1.5 py-0.5 rounded w-fit">
-                                                    <span className="font-bold">
-                                                        {jobWorkItems.find(j => j.id === item.addon_service_id)?.name || 'Addon'}:
+                                <tr key={item.id} className="border-b border-gray-100">
+                                    <td className="py-3 text-[11px] text-gray-500 align-top">{String(idx + 1).padStart(2, '0')}</td>
+                                    <td className="py-3 text-[12px] text-gray-900 font-medium align-top">
+                                        <div>{item.description}</div>
+                                        {(item.base_quantity || item.addon_service_id) && (
+                                            <div className="text-[10px] text-gray-500 mt-1">
+                                                {item.base_quantity && (
+                                                    <span>Base: {item.base_quantity} {item.unit} @ {item.base_rate}</span>
+                                                )}
+                                                {item.addon_service_id && (
+                                                    <span className={item.base_quantity ? "ml-3 border-l pl-3 border-gray-300" : ""}>
+                                                        Addon: {jobWorkItems.find(j => j.id === item.addon_service_id)?.name} ({item.addon_quantity} pcs @ {item.addon_rate})
                                                     </span>
-                                                    <span>{item.addon_quantity} PCS × ₹{item.addon_rate} = ₹{formatIndianRupees(item.addon_quantity * item.addon_rate)}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </td>
-                                    {settings.invoice_settings?.showHsnCode && (
-                                        <td className="px-5 py-4 text-center font-bold text-slate-700 text-xs">
-                                            {item.hsn_code || '--'}
-                                        </td>
-                                    )}
-                                    <td className="px-5 py-4 text-center font-bold text-slate-700">
-                                        {item.addon_service_id ? (
-                                            <div className="text-[11px]">
-                                                <div className="text-slate-900">{item.base_quantity || item.quantity} {item.unit}</div>
-                                                <div className="text-amber-700">+ {item.addon_quantity} PCS</div>
+                                                )}
                                             </div>
-                                        ) : (
-                                            <div className="text-slate-900">{item.quantity} <span className="text-[10px] text-slate-400 font-normal ml-1">{item.unit}</span></div>
                                         )}
                                     </td>
-                                    <td className="px-5 py-4 text-right font-bold text-slate-700 text-sm">
+                                    {settings.invoice_settings?.showHsnCode && (
+                                        <td className="py-3 text-center text-[11px] text-gray-600 align-top">{item.hsn_code || '-'}</td>
+                                    )}
+                                    <td className="py-3 text-center text-[11px] text-gray-900 align-top">
+                                        {item.quantity} {item.unit}
+                                    </td>
+                                    <td className="py-3 text-right text-[11px] text-gray-900 align-top">
                                         {item.addon_service_id ? '-' : formatIndianRupees(item.rate)}
                                     </td>
-                                    <td className="px-5 py-4 text-right font-black text-[#111827] text-base">
+                                    <td className="py-3 text-right text-[12px] font-bold text-gray-900 align-top">
                                         {formatIndianRupees(item.amount || (
                                             ((item.base_quantity || item.quantity) * (item.base_rate || item.rate)) +
                                             ((item.addon_quantity || 0) * (item.addon_rate || 0))
@@ -319,150 +296,146 @@ export function OrderPrint() {
                     </table>
                 </div>
 
-                {/* Old Gold Details Table (If exists) */}
+                {/* Old Gold / Exchange */}
                 {order.old_gold_details && order.old_gold_details.length > 0 && (
-                    <div className="mb-8 animate-fade-in">
-                        <h4 className="text-[10px] font-black uppercase text-amber-600 mb-3 tracking-widest bg-amber-50 w-fit px-3 py-1 rounded-full border border-amber-100">Old Gold Exchange / पुराना सोना एक्सचेंज</h4>
-                        <div className="rounded-xl overflow-hidden border border-amber-100 bg-amber-50/20">
-                            <table className="w-full text-xs">
-                                <thead className="bg-amber-100/50 text-amber-900">
-                                    <tr>
-                                        <th className="px-4 py-2 text-left">Description</th>
-                                        <th className="px-4 py-2 text-center">Weight</th>
-                                        <th className="px-4 py-2 text-center">Purity</th>
-                                        <th className="px-4 py-2 text-right">Net Wt</th>
-                                        <th className="px-4 py-2 text-right">Rate</th>
-                                        <th className="px-4 py-2 text-right">Value</th>
+                    <div className="mb-6 pb-6 border-b border-gray-100">
+                        <h4 className="text-[10px] uppercase font-bold text-gray-500 mb-2">Old Gold Exchange</h4>
+                        <table className="w-full text-[11px]">
+                            <thead>
+                                <tr className="text-gray-400 border-b border-gray-50">
+                                    <th className="text-left font-normal pb-1">Description</th>
+                                    <th className="text-center font-normal pb-1">Gross Wt</th>
+                                    <th className="text-center font-normal pb-1">Purity</th>
+                                    <th className="text-right font-normal pb-1">Net Wt</th>
+                                    <th className="text-right font-normal pb-1">Rate</th>
+                                    <th className="text-right font-normal pb-1 text-gray-900">Value</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {order.old_gold_details.map((og: any, i: number) => (
+                                    <tr key={i} className="text-gray-600">
+                                        <td className="py-1">{og.description}</td>
+                                        <td className="text-center py-1">{og.weight}g</td>
+                                        <td className="text-center py-1">{og.purity}%</td>
+                                        <td className="text-right py-1">{Number(og.net_weight).toFixed(3)}g</td>
+                                        <td className="text-right py-1">{formatIndianRupees(og.rate)}</td>
+                                        <td className="text-right py-1 font-bold text-gray-900">{formatIndianRupees(og.value)}</td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    {order.old_gold_details.map((og: any, i: number) => (
-                                        <tr key={i} className="border-t border-amber-100/50 text-amber-800">
-                                            <td className="px-4 py-2 font-medium">{og.description}</td>
-                                            <td className="px-4 py-2 text-center">{og.weight}g</td>
-                                            <td className="px-4 py-2 text-center">{og.purity}%</td>
-                                            <td className="px-4 py-2 text-right font-bold">{Number(og.net_weight).toFixed(3)}g</td>
-                                            <td className="px-4 py-2 text-right">₹{formatIndianRupees(og.rate)}</td>
-                                            <td className="px-4 py-2 text-right font-black">₹{formatIndianRupees(og.value)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 )}
 
-                {/* Totals & Notes */}
-                <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-10 lg:gap-16">
-                    <div>
-                        {/* Bank Details */}
-                        <div className="p-6 border-2 border-dashed border-slate-200 rounded-2xl mb-8">
-                            <h4 className="m-0 mb-4 text-[11px] font-black uppercase text-slate-400 tracking-wider">Payment Information</h4>
-                            <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-xs sm:text-[13px] text-slate-700 font-bold">
-                                <span className="text-slate-400 uppercase text-[10px]">Bank:</span> <span>{settings.invoice_settings?.bankName || '--'}</span>
-                                <span className="text-slate-400 uppercase text-[10px]">A/c No:</span> <span className="font-mono">{settings.invoice_settings?.accountNumber || '--'}</span>
-                                <span className="text-slate-400 uppercase text-[10px]">IFSC:</span> <span className="font-mono">{settings.invoice_settings?.ifscCode || '--'}</span>
-                                <span className="text-slate-400 uppercase text-[10px]">Branch:</span> <span>{settings.invoice_settings?.branchName || '--'}</span>
+                {/* Footer Section: Notes & Totals */}
+                <div className="flex flex-col sm:flex-row gap-8">
+                    {/* Left Side: Bank & Terms */}
+                    <div className="flex-1">
+                        <div className="mb-6">
+                            <h4 className="text-[10px] uppercase font-bold text-gray-500 mb-2">Bank Details</h4>
+                            <div className="text-[11px] text-gray-800 grid grid-cols-[60px_1fr] gap-y-1">
+                                <span className="text-gray-500">Bank:</span> <span className="font-medium">{settings.invoice_settings?.bankName || '-'}</span>
+                                <span className="text-gray-500">A/c No:</span> <span className="font-mono">{settings.invoice_settings?.accountNumber || '-'}</span>
+                                <span className="text-gray-500">IFSC:</span> <span className="font-mono">{settings.invoice_settings?.ifscCode || '-'}</span>
+                                <span className="text-gray-500">Branch:</span> <span>{settings.invoice_settings?.branchName || '-'}</span>
                             </div>
                         </div>
 
-                        {/* Terms */}
-                        <div className="text-[11px] leading-[1.6] text-slate-500">
-                            <strong className="block text-slate-700 mb-2 uppercase font-black tracking-wide">Terms & Conditions:</strong>
-                            {settings.business_profile?.termsAndConditions ? (
-                                <div className="whitespace-pre-line">{settings.business_profile.termsAndConditions}</div>
-                            ) : (
-                                <ul className="m-0 pl-4 list-disc space-y-1">
-                                    <li>Goods once sold will not be taken back.</li>
-                                    <li>All disputes are subject to local jurisdiction.</li>
-                                    <li>Interest @18% will be charged if not paid within due date.</li>
-                                </ul>
+                        <div>
+                            <h4 className="text-[10px] uppercase font-bold text-gray-500 mb-2">Terms & Conditions</h4>
+                            <div className="text-[10px] text-gray-500 leading-relaxed whitespace-pre-line">
+                                {settings.business_profile?.termsAndConditions ||
+                                    "1. Goods once sold will not be taken back.\n2. Interest @18% charged if not paid by due date.\n3. Subject to local jurisdiction."
+                                }
+                            </div>
+
+                            {settings.invoice_settings?.paymentQrUrl && (
+                                <div className="mt-6 flex flex-col items-start gap-1">
+                                    <div className="w-20 h-20 bg-white border border-gray-200 p-1 rounded-sm">
+                                        <img
+                                            src={settings.invoice_settings.paymentQrUrl}
+                                            className="w-full h-full object-contain"
+                                            alt="Pay"
+                                        />
+                                    </div>
+                                    <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest pl-1">Scan to Pay</span>
+                                </div>
                             )}
                         </div>
                     </div>
 
-                    <div className="p-6 sm:p-8 bg-slate-50 rounded-[2rem] border-2 border-[#111827] shadow-xl shadow-slate-100 h-fit">
-                        <div className="flex justify-between items-center py-2.5 border-b border-slate-200 text-[13px] sm:text-[14px]">
-                            <span className="text-slate-500 font-bold uppercase tracking-wider">Subtotal</span>
-                            <span className="font-black text-slate-900">₹{formatIndianRupees(order.subtotal || order.total_amount)}</span>
-                        </div>
-                        {order.gst_enabled && (
-                            <div className="flex justify-between items-center py-2.5 border-b border-slate-200 text-[13px] sm:text-[14px]">
-                                <span className="text-slate-500 font-bold uppercase tracking-wider">GST ({order.gst_rate}%)</span>
-                                <span className="font-black text-slate-900">₹{formatIndianRupees(order.gst_amount || 0)}</span>
+                    {/* Right Side: Totals */}
+                    <div className="w-full sm:w-1/3 min-w-[250px]">
+                        <div className="space-y-2 text-[12px] text-gray-700 pb-4 border-b border-gray-200">
+                            <div className="flex justify-between">
+                                <span>Subtotal</span>
+                                <span className="font-semibold text-gray-900">₹{formatIndianRupees(order.subtotal || order.total_amount)}</span>
                             </div>
-                        )}
-                        <div className="flex justify-between items-center py-2.5 border-b border-slate-200 text-[13px] sm:text-[14px]">
-                            <span className="text-slate-500 font-bold uppercase tracking-wider">Gross Total</span>
-                            <span className="font-black text-slate-900">₹{formatIndianRupees(order.total_amount)}</span>
-                        </div>
-                        {Number(order.old_gold_value || 0) > 0 && (
-                            <div className="flex justify-between items-center py-2.5 border-b border-rose-100 text-[13px] sm:text-[14px] bg-rose-50 px-2 rounded-lg mt-1">
-                                <span className="text-rose-600 font-bold uppercase tracking-wider">Old Gold (-)</span>
-                                <span className="font-black text-rose-700">- ₹{formatIndianRupees(order.old_gold_value)}</span>
+                            {order.gst_enabled && (
+                                <div className="flex justify-between">
+                                    <span>GST ({order.gst_rate}%)</span>
+                                    <span className="font-semibold text-gray-900">₹{formatIndianRupees(order.gst_amount || 0)}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between font-bold text-gray-900 pt-2">
+                                <span>Gross Total</span>
+                                <span>₹{formatIndianRupees(order.total_amount)}</span>
                             </div>
-                        )}
-                        <div className="flex justify-between items-end py-6 mt-2">
-                            <span className="text-sm font-black uppercase text-[#111827]">Net Payable</span>
-                            <span className="text-3xl font-black text-[#111827] leading-none">₹{formatIndianRupees(Number(order.total_amount) - Number(order.old_gold_value || 0))}</span>
+                            {Number(order.old_gold_value || 0) > 0 && (
+                                <div className="flex justify-between text-red-600">
+                                    <span>Old Gold (-)</span>
+                                    <span>- ₹{formatIndianRupees(order.old_gold_value)}</span>
+                                </div>
+                            )}
                         </div>
 
-                        {/* RUNNING BALANCE SUMMARY */}
-                        <div className="mt-6 pt-6 border-t-2 border-[#111827]">
-                            <div className="text-[11px] font-black uppercase text-slate-500 mb-5 tracking-[2px] text-center">
-                                {order.include_ledger_balance ? 'Account Summary / खाता विवरण' : 'Bill Summary / विल विवरण'}
+                        <div className="py-4">
+                            <div className="flex justify-between items-baseline mb-1">
+                                <span className="text-base font-bold text-gray-900">Net Payable</span>
+                                <span className="text-2xl font-black text-gray-900">₹{formatIndianRupees(Number(order.total_amount) - Number(order.old_gold_value || 0))}</span>
                             </div>
-                            <div className="space-y-3">
-                                {order.include_ledger_balance ? (
-                                    <>
-                                        <div className="flex justify-between text-[12px] sm:text-[13px]">
-                                            <span className="text-slate-600 font-bold">Previous Bal:</span>
-                                            <span className="font-black text-slate-900">₹{formatIndianRupees(Math.abs(Number(order.ledger_balance_before || 0)))} {Number(order.ledger_balance_before || 0) >= 0 ? '(Dr)' : '(Cr)'}</span>
-                                        </div>
-                                        <div className="flex justify-between text-[12px] sm:text-[13px]">
-                                            <span className="text-slate-600 font-bold">Current Bill:</span>
-                                            <span className="font-black text-slate-900">₹{formatIndianRupees(order.total_amount)}</span>
-                                        </div>
-                                        <div className="flex justify-between text-[12px] sm:text-[13px]">
-                                            <span className="text-emerald-600 font-black">Paid Amount:</span>
-                                            <span className="font-black text-emerald-600">- ₹{formatIndianRupees(order.advance_amount || 0)}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center p-4 bg-[#111827] text-white rounded-2xl text-base font-black mt-6 shadow-lg shadow-slate-200">
-                                            <span className="text-[11px] uppercase tracking-wider">Final Bal:</span>
-                                            <span className="text-xl">₹{formatIndianRupees(Math.abs(Number(order.ledger_balance_after || 0)))}</span>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="flex justify-between text-[12px] sm:text-[13px]">
-                                            <span className="text-slate-600 font-bold">Net Bill:</span>
-                                            <span className="font-black text-slate-900">₹{formatIndianRupees(Number(order.total_amount) - Number(order.old_gold_value || 0))}</span>
-                                        </div>
-                                        <div className="flex justify-between text-[12px] sm:text-[13px]">
-                                            <span className="text-emerald-600 font-black">Paid Today:</span>
-                                            <span className="font-black text-emerald-600">₹{formatIndianRupees(order.advance_amount || 0)}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center p-4 bg-[#111827] text-white rounded-2xl text-base font-black mt-6 shadow-lg shadow-slate-200">
-                                            <span className="text-[11px] uppercase tracking-wider">Balance Due:</span>
-                                            <span className="text-xl">₹{formatIndianRupees(Math.max(0, (Number(order.total_amount) - Number(order.old_gold_value || 0)) - (order.advance_amount || 0)))}</span>
-                                        </div>
-                                    </>
-                                )}
+                            <div className="text-[10px] text-gray-400 text-right italic">
+                                ({Number(order.advance_amount) > 0 ? `Paid: ₹${formatIndianRupees(order.advance_amount)}` : 'Unpaid'})
                             </div>
                         </div>
 
-                        <div className="text-[10px] sm:text-[11px] text-slate-400 text-right font-bold italic mt-4 px-2">
-                            Rupees {[order.total_amount].toLocaleString()} Only
-                        </div>
+                        {/* Balance Summary Minimal */}
+                        {order.include_ledger_balance && (
+                            <div className="bg-gray-50 p-3 rounded text-[11px] mt-2 border border-gray-100">
+                                <div className="flex justify-between mb-1">
+                                    <span className="text-gray-500">Prev Balance</span>
+                                    <span>₹{formatIndianRupees(Math.abs(Number(order.ledger_balance_before || 0)))} {Number(order.ledger_balance_before || 0) >= 0 ? 'Dr' : 'Cr'}</span>
+                                </div>
+                                <div className="flex justify-between font-bold text-gray-900 pt-1 border-t border-gray-200 mt-1">
+                                    <span>Balance Due</span>
+                                    <span>₹{formatIndianRupees(Math.abs(Number(order.ledger_balance_after || 0)))}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Signature */}
-                <div className="mt-16 flex justify-center sm:justify-end">
-                    <div className="text-center min-w-[220px]">
-                        <div className="mb-14 font-black text-sm text-[#111827] uppercase tracking-wider">For {business?.businessName || 'Us'}</div>
-                        <div className="border-t-2 border-[#111827] pt-3 text-[12px] font-extrabold text-slate-500 uppercase tracking-widest">Authorized Signatory</div>
-                        <div className="text-[10px] text-slate-300 mt-1">This is a computer generated document</div>
+                {/* Footer Signature */}
+                <div className="mt-12 pt-8 flex justify-between items-end">
+                    <div className="text-[10px] text-gray-400">
+                        This is a computer generated invoice.
+                    </div>
+                    <div className="text-center flex flex-col items-center justify-end h-32 w-48 relative">
+                        <div className="text-[11px] font-bold text-gray-900 uppercase tracking-widest absolute top-0 w-full">For {business?.businessName}</div>
+
+                        {settings.invoice_settings?.signatureUrl && (
+                            <div className="absolute bottom-6 left-0 right-0 mx-auto w-32 h-16 mix-blend-multiply pointer-events-none z-10">
+                                <img
+                                    src={settings.invoice_settings.signatureUrl}
+                                    className="w-full h-full object-contain opacity-90"
+                                    alt="Sign"
+                                    style={{ mixBlendMode: 'multiply' }}
+                                />
+                            </div>
+                        )}
+
+                        <div className="border-t border-gray-900 w-40 z-0"></div>
+                        <div className="text-[10px] text-gray-500 mt-1 uppercase font-bold tracking-wider">Authorized Signatory</div>
                     </div>
                 </div>
             </div>
@@ -471,16 +444,41 @@ export function OrderPrint() {
                 @media print {
                     @page { 
                         size: A4;
-                        margin: 10mm; 
+                        margin: 0; 
                     }
                     body { 
                         background: white !important;
                         margin: 0 !important; 
                         padding: 0 !important;
+                        width: 210mm !important;
+                        height: 297mm !important;
                     }
                     .no-print, nav, header, aside, .print\\:hidden { 
                         display: none !important; 
                     }
+                    
+                    /* Reset main wrapper */
+                    .bg-gray-100 {
+                        background: white !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                    }
+
+                    /* Invoice Container */
+                    .invoice-container {
+                        width: 210mm !important;
+                        min-height: 297mm !important;
+                        margin: 0 !important;
+                        padding: 15mm 15mm !important; /* 15mm standard margin */
+                        box-sizing: border-box !important;
+                        position: absolute !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        background: white !important;
+                        box-shadow: none !important;
+                        max-width: none !important;
+                    }
+
                     * {
                         -webkit-print-color-adjust: exact !important;
                         print-color-adjust: exact !important;

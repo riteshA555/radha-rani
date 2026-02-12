@@ -170,6 +170,11 @@ export function ClientMaterialLedger() {
             const finalRemarksParts = [form.base_type, form.specification, form.manual_remarks].filter(Boolean);
             const finalRemarks = finalRemarksParts.join(' - ') || (form.transaction_type === 'LOSS' ? form.reason : '');
 
+            // Prepare order_details for storage
+            const orderDetailsForDb = form.transaction_type === 'CONSUMPTION' && form.order_details && form.order_details.length > 0
+                ? form.order_details
+                : undefined;
+
             const payload = {
                 client_name: form.client_name,
                 client_id: form.client_id || undefined,
@@ -181,9 +186,9 @@ export function ClientMaterialLedger() {
                 reason: form.transaction_type === 'LOSS' ? form.reason : undefined,
                 job_work_order_id: form.job_work_order_id || undefined,
                 product_id: form.product_id || undefined,
-                pcs: form.pcs ? Number(form.pcs) : undefined,
+                pcs: form.pcs && form.pcs !== '' ? Number(form.pcs) : undefined,
                 pcs_work_type: form.pcs_work_type || 'None',
-                order_details: form.transaction_type === 'CONSUMPTION' ? (form.order_details || []) : []
+                order_details: orderDetailsForDb
             };
 
             if (editingId) {
@@ -318,8 +323,24 @@ export function ClientMaterialLedger() {
 
     // Removed historyTotals as it was unused
 
-    const handleEdit = (t: ClientMaterialTransaction) => {
+    const handleEdit = useCallback((t: ClientMaterialTransaction) => {
         const parts = (t.remarks || '').split(' - ');
+
+        // Parse order_details if it's a string (from database)
+        let parsedOrderDetails = [];
+        if (t.order_details) {
+            if (typeof t.order_details === 'string') {
+                try {
+                    parsedOrderDetails = JSON.parse(t.order_details);
+                } catch (e) {
+                    console.error('Failed to parse order_details:', e);
+                    parsedOrderDetails = [];
+                }
+            } else if (Array.isArray(t.order_details)) {
+                parsedOrderDetails = t.order_details;
+            }
+        }
+
         setForm({
             client_name: t.client_name,
             client_id: t.client_id || '',
@@ -337,23 +358,27 @@ export function ClientMaterialLedger() {
             product_id: t.product_id || '',
             pcs: t.pcs?.toString() || '',
             pcs_work_type: t.pcs_work_type || 'None',
-            order_details: t.order_details || []
+            order_details: parsedOrderDetails
         });
         setCustomerSearch(t.client_name);
         setBaseSearch(parts[0] || '');
         setDateDisplay(format(new Date(t.transaction_date), 'dd-MM-yyyy'));
         setEditingId(t.id);
         setShowModal(true);
-    };
+    }, []);
 
-    const handleDelete = async (id: string) => {
+    const handleDelete = useCallback(async (id: string) => {
         if (window.confirm("Delete this entry?")) {
             await deleteClientMaterialTransaction(id);
             await deleteClientMaterialTransaction(id);
             fetchTransactions();
             loadMetadata();
         }
-    };
+    }, [fetchTransactions, loadMetadata]);
+
+    const handleToggleSelection = useCallback((id: string) => {
+        setSelectedConsumptions(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    }, []);
 
     const handleCreateOrder = () => {
         const selectedItems = transactions.filter(t => selectedConsumptions.includes(t.id));
@@ -608,7 +633,7 @@ export function ClientMaterialLedger() {
                                                     key={t.id}
                                                     transaction={t}
                                                     isSelected={selectedConsumptions.includes(t.id)}
-                                                    onToggle={(id) => setSelectedConsumptions(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                                                    onToggle={handleToggleSelection}
                                                     onEdit={handleEdit}
                                                     onDelete={handleDelete}
                                                 />
