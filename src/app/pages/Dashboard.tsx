@@ -16,7 +16,9 @@ import {
   ChevronRight,
   User,
   ArrowUpRight,
-  ArrowDownLeft
+  ArrowDownLeft,
+  QrCode,
+  RefreshCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../supabaseClient';
@@ -30,6 +32,9 @@ import { Karigar } from '../../services/karigarService';
 import { Order, Product } from '../../types';
 import { useSettings } from '../../context/SettingsContext';
 import { GstCalculatorModal } from '@/app/components/modals/GstCalculatorModal';
+import { QrScannerModal } from '../components/QrScannerModal'; // Added QrScannerModal import
+import { ProductQuickView } from '../components/ProductQuickView'; // Added ProductQuickView import
+import { triggerHaptic } from '../../utils/haptics'; // Added triggerHaptic import
 
 // Helper Components
 const CardSkeleton = memo(({ loading, children }: { loading: boolean, children: React.ReactNode }) => {
@@ -48,6 +53,8 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showGstCalc, setShowGstCalc] = useState(false);
+  const [showScanner, setShowScanner] = useState(false); // Added showScanner state
+  const [scannedProduct, setScannedProduct] = useState<Product | null>(null); // Added scannedProduct state
 
   // ... (rest of the component)
 
@@ -253,6 +260,24 @@ export function Dashboard() {
     }
   }, [refreshAll]);
 
+  const handleQrScan = async (data: string) => {
+    setShowScanner(false);
+    if (data.startsWith('nexora:product:')) {
+      const productId = data.replace('nexora:product:', '');
+      try {
+        const allProducts = await getProducts();
+        const found = allProducts.find(p => p.id === productId);
+        if (found) {
+          setScannedProduct(found);
+        } else {
+          alert("Product not found in catalog");
+        }
+      } catch (err) {
+        console.error("Scan lookup failed", err);
+      }
+    }
+  };
+
   const handleDownloadInvoice = async (orderId: string) => {
     try {
       const fullOrder = await getOrderById(orderId);
@@ -295,13 +320,21 @@ export function Dashboard() {
               )}
             </p>
           </div>
-          <button
-            onClick={() => refreshAll(true, true)}
-            className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors"
-            title="Refresh Data"
-          >
-            <Clock size={18} className={loading ? "animate-spin" : ""} />
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { triggerHaptic('medium'); setShowScanner(true); }}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all font-bold flex items-center gap-2 shadow-lg shadow-indigo-200"
+            >
+              <QrCode size={18} />
+              <span className="hidden sm:inline">Scan Product</span>
+            </button>
+            <button
+              onClick={() => refreshAll(true, true)}
+              className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all"
+            >
+              <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -678,6 +711,22 @@ export function Dashboard() {
       </div>
 
       {showGstCalc && <GstCalculatorModal onClose={() => setShowGstCalc(false)} />}
+      {/* Scanner Modal Overlay */}
+      {showScanner && (
+        <QrScannerModal
+          onScan={handleQrScan}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
+      {/* Product Quick View (from Scan) */}
+      {scannedProduct && (
+        <ProductQuickView
+          product={scannedProduct}
+          silverRate={stats.currentRateKg}
+          onClose={() => setScannedProduct(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus, Search, Grid3x3, List, Gem, Eye, Edit2, Trash2, Hammer, Package, Calculator, X, Check, Loader2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Grid3x3, List, Gem, Eye, Edit2, Trash2, Hammer, Package, Calculator, X, Check, Loader2, RefreshCw, QrCode } from 'lucide-react';
 import { getProducts, updateProduct, deleteProduct, addProduct } from '../../services/productService';
 import { getJobWorkItems, updateJobWorkItem, deleteJobWorkItem, addJobWorkItem } from '../../services/jobWorkService';
 import { getLatestRates } from '../../services/rateService';
+import { triggerHaptic } from '../../utils/haptics';
+import { ProductQrModal } from '../components/ProductQrModal';
 import { getSettings } from '../../services/settingsService';
 import { GSTSettings, PricingSettings, InventorySettings } from '../../types/settings';
 import { Product, JobWorkItem } from '../../types';
@@ -31,6 +33,7 @@ export function Catalog() {
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedQrProduct, setSelectedQrProduct] = useState<any>(null);
 
   // Form State
   const [form, setForm] = useState<any>({
@@ -362,6 +365,9 @@ export function Catalog() {
                       )}
 
                       <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
+                        <button onClick={() => { triggerHaptic('light'); setSelectedQrProduct(item); }} className="p-2 bg-white/90 backdrop-blur-sm text-amber-600 rounded-lg hover:bg-amber-600 hover:text-white border border-gray-100 shadow-sm transition-all" title="Generate QR Code">
+                          <QrCode size={14} />
+                        </button>
                         <button onClick={() => handleEdit(item)} className="p-2 bg-white/90 backdrop-blur-sm text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white border border-gray-100 shadow-sm transition-all">
                           <Edit2 size={14} />
                         </button>
@@ -444,6 +450,9 @@ export function Catalog() {
                         <td className="px-6 py-4 text-right font-bold text-gray-700">₹{item.labour_cost}</td>
                         <td className="px-6 py-4 text-center">
                           <div className="flex justify-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => { triggerHaptic('light'); setSelectedQrProduct(item); }} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors bg-amber-50/50 sm:bg-transparent" title="Generate QR Code">
+                              <QrCode size={16} />
+                            </button>
                             <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors bg-indigo-50/50 sm:bg-transparent">
                               <Edit2 size={16} />
                             </button>
@@ -698,6 +707,14 @@ export function Catalog() {
           </div>
         )
       }
+      {/* QR Code Modal */}
+      {selectedQrProduct && (
+        <ProductQrModal
+          product={selectedQrProduct}
+          silverRate={silverRate}
+          onClose={() => setSelectedQrProduct(null)}
+        />
+      )}
     </div >
   );
 }

@@ -8,6 +8,8 @@ import { getProducts } from '../../services/productService'
 import { getKarigars, Karigar } from '../../services/karigarService'
 import { getLatestRates, MetalRate } from '../../services/rateService'
 import { addCustomer } from '../../services/contactService'
+// @ts-ignore
+import QRCode from 'qrcode';
 import { MaterialType, JobWorkItem, Product } from '../../types'
 import { supabase } from '../../supabaseClient'
 import {
@@ -72,6 +74,8 @@ export function CreateOrder() {
     const navigate = useNavigate()
     const location = useLocation()
     const [submissionError, setSubmissionError] = useState('')
+    const [silverRates, setSilverRates] = useState<MetalRate[]>([])
+    const [isLoadingData, setIsLoadingData] = useState(true)
     const [jobWorkItems, setJobWorkItems] = useState<JobWorkItem[]>([])
     const [products, setProducts] = useState<Product[]>([])
     const [karigars, setKarigars] = useState<Karigar[]>([])
@@ -91,6 +95,7 @@ export function CreateOrder() {
         items: any[],
         date: string
     } | null>(null)
+    const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
     // Workbench State
     const [draftItem, setDraftItem] = useState<{
@@ -172,12 +177,15 @@ export function CreateOrder() {
                     setJobWorkItems(jwData || [])
                     setProducts(prodData || [])
                     setKarigars(karigarData || [])
+                    setSilverRates(currentRate || []) // Store all rates
                     const silverRate = currentRate.find(r => r.metal_type === 'SILVER') || null
                     setSilverRate(silverRate)
                     setSavedCustomers(customerList || [])
+                    setIsLoadingData(false)
                 }
             } catch (err: any) {
                 console.error('Error fetching catalog data:', err)
+                setIsLoadingData(false)
             }
         }
         loadData()
@@ -289,6 +297,44 @@ export function CreateOrder() {
         }
     }, [location.state, setValue, replace]);
 
+    // Handle Auto-Add Product (from Scan/Catalog)
+    useEffect(() => {
+        if (location.state?.autoAddProduct && products.length > 0 && silverRates.length > 0) {
+            const product = location.state.autoAddProduct;
+            const silverRateRaw = silverRates.find(r => r.metal_type === 'SILVER')?.selling_rate || 0;
+
+            // Re-apply logic from handleDraftItemChange for products
+            const currentLiveRate = silverRateRaw;
+            const wastage_percent = product.wastage_percent || 0;
+            const weight = product.default_weight || 0;
+            const labor = product.labour_cost || 0;
+
+            const costPerGm = currentLiveRate * (1 + (wastage_percent / 100));
+            const totalMetalCost = costPerGm * weight;
+            const finalRatePerPc = totalMetalCost + labor;
+
+            setDraftItem({
+                item_type: 'PRODUCT',
+                product_id: product.id,
+                description: product.name,
+                quantity: 1,
+                unit: 'Piece', // Changed from PCS to Piece for consistency
+                weight: weight,
+                wastage_percent: wastage_percent,
+                labour_cost: labor,
+                rate: Number(finalRatePerPc.toFixed(2)), // Ensure rate is rounded to 2 decimal places
+                base_quantity: 1, // Base quantity is 1 piece
+                base_rate: Number(finalRatePerPc.toFixed(2)), // Base rate is the calculated price per piece
+                has_addon: false,
+                addon_quantity: 0,
+                addon_rate: 0
+            });
+
+            // Clear up state so it doesn't re-trigger
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state, products, silverRates]);
+
     // --- HANDLERS ---
     const handleDraftItemChange = (field: string, value: any) => {
         setDraftItem(prev => ({ ...prev, [field]: value }))
@@ -351,6 +397,7 @@ export function CreateOrder() {
                     const weight = prod.default_weight || 0
                     const wastage = prod.wastage_percent || 0
                     const making = prod.labour_cost || 0
+                    const gstRate = prod.gst_rate || 3; // Fallback for gst_rate
 
                     // Formula: ((Weight + Wastage Weight) * Silver Rate) + Making Charges
                     const totalWeightWithWastage = weight + (weight * wastage / 100)
@@ -377,6 +424,8 @@ export function CreateOrder() {
                     const weight = prod.default_weight || 0
                     const wastage = prod.wastage_percent || 0
                     const making = prod.labour_cost || 0
+                    const gstRate = prod.gst_rate || 3; // Fallback for gst_rate
+
                     const totalWeightWithWastage = weight + (weight * wastage / 100)
                     const silverValue = totalWeightWithWastage * currentSilverRate
                     const estimatedPrice = Number((silverValue + making).toFixed(2))
@@ -474,7 +523,7 @@ export function CreateOrder() {
                 // MULTI-SPLIT MODE
                 const totalSplit = karigarSplits.reduce((acc, curr) => acc + curr.quantity, 0)
                 if (Math.abs(totalSplit - Number(draftItem.quantity)) > 0.01) {
-                    return setDraftError(`Split quantity (\${totalSplit}) does not match Total Quantity (\${draftItem.quantity})`)
+                    return setDraftError(`Split quantity (${totalSplit}) does not match Total Quantity (${draftItem.quantity})`)
                 }
 
                 // Add each split as a separate line item
@@ -544,7 +593,7 @@ export function CreateOrder() {
                     if (item.product_id) {
                         const p = products.find(prod => prod.id === item.product_id)
                         if (p && Number(item.quantity) > p.current_stock) {
-                            throw new Error(`Stock changed! Insufficient stock for \${p.name}`)
+                            throw new Error(`Stock changed! Insufficient stock for ${p.name}`)
                         }
                     }
                 }
@@ -592,6 +641,19 @@ export function CreateOrder() {
                 items: data.items,
                 date: data.order_date
             })
+
+            const qrText = `${window.location.origin}/orders/${result.order_id}`;
+            QRCode.toDataURL(qrText, {
+                width: 400,
+                margin: 2,
+                color: {
+                    dark: '#4f46e5', // Indigo-600
+                    light: '#ffffff'
+                }
+            }, (err: Error | null | undefined, url: string) => {
+                if (err) console.error(err);
+                else setQrDataUrl(url);
+            });
 
             // Clear Form
             replace([])

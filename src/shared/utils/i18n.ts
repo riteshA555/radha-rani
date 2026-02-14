@@ -77,7 +77,12 @@ export const translations = {
         production: "Production",
         adjustment: "Adjustment",
         stock_in: "Stock IN",
-        stock_out: "Stock OUT"
+        stock_out: "Stock OUT",
+        scan_qr: "Scan QR Product",
+        product_label: "Product Label",
+        download_qr: "Download QR",
+        add_to_order: "Add to Order",
+        product_details: "Product Details"
     },
     hi: {
         dashboard: 'डैशबोर्ड',
@@ -155,7 +160,12 @@ export const translations = {
         production: "उत्पादन",
         adjustment: "समायोजन",
         stock_in: "स्टॉक प्राप्त",
-        stock_out: "स्टॉक जारी"
+        stock_out: "स्टॉक जारी",
+        scan_qr: "QR प्रॉडक्ट स्कैन",
+        product_label: "प्रॉडक्ट लेबल",
+        download_qr: "QR डाउनलोड",
+        add_to_order: "ऑर्डर में जोड़ें",
+        product_details: "उत्पाद विवरण"
     }
 }
 
