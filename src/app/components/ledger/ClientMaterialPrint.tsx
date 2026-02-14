@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { ClientMaterialTransaction, ClientMaterialBalance } from '../../../types';
 
 interface ClientMaterialPrintProps {
@@ -263,7 +263,7 @@ export const ClientMaterialPrint: React.FC<ClientMaterialPrintProps> = ({
                                 {received.sort((a, b) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()).map((t) => (
                                     <tr key={t.id}>
                                         <td style={{ padding: '8px', fontWeight: 600, color: '#6b7280', border: '1px solid #dbeafe' }}>
-                                            {format(new Date(t.transaction_date), 'dd/MM/yyyy')}
+                                            {format(parse(t.transaction_date, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')}
                                         </td>
                                         <td style={{ padding: '8px', fontWeight: 700, color: '#1f2937', border: '1px solid #dbeafe' }}>
                                             {t.material_type}
@@ -334,7 +334,7 @@ export const ClientMaterialPrint: React.FC<ClientMaterialPrintProps> = ({
                                 {consumed.sort((a, b) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()).map((t) => (
                                     <tr key={t.id}>
                                         <td style={{ padding: '8px', fontWeight: 600, color: '#6b7280', border: '1px solid #dcfce7' }}>
-                                            {format(new Date(t.transaction_date), 'dd/MM/yyyy')}
+                                            {format(parse(t.transaction_date, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')}
                                         </td>
                                         <td style={{ padding: '8px', fontWeight: 700, color: '#1f2937', border: '1px solid #dcfce7' }}>
                                             {t.material_type}
@@ -452,7 +452,7 @@ export const ClientMaterialPrint: React.FC<ClientMaterialPrintProps> = ({
                                 {losses.sort((a, b) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()).map((t) => (
                                     <tr key={t.id}>
                                         <td style={{ padding: '8px', fontWeight: 600, color: '#6b7280', border: '1px solid #fee2e2' }}>
-                                            {format(new Date(t.transaction_date), 'dd/MM/yyyy')}
+                                            {format(parse(t.transaction_date, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy')}
                                         </td>
                                         <td style={{ padding: '8px', fontWeight: 700, color: '#1f2937', border: '1px solid #fee2e2' }}>
                                             {t.material_type}

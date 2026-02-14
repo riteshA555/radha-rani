@@ -141,7 +141,7 @@ export function Accounting() {
             />
             <BreakdownRow
               label="General Operating Expenses"
-              value={data.generalExpenses}
+              value={data.staffSalary + data.rent + data.electricity + data.otherExpenses}
               type="expense"
             />
 

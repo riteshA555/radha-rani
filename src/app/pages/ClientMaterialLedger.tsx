@@ -70,6 +70,14 @@ export function ClientMaterialLedger() {
     const [activeTab, setActiveTab] = useState<'STATEMENT' | 'HISTORY'>('STATEMENT');
     const [historySubFilter, setHistorySubFilter] = useState<'ALL' | 'RECEIPT' | 'CONSUMPTION' | 'LOSS'>('ALL');
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+        }, 500); // 500ms debounce
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
     // Pagination & Filters
     const [page, setPage] = useState(1);
@@ -143,7 +151,7 @@ export function ClientMaterialLedger() {
     const fetchTransactions = useCallback(async () => {
         setLoading(true);
         try {
-            const { data, count } = await getClientMaterialTransactions(page, PAGE_SIZE, startDate, endDate, searchQuery, historySubFilter);
+            const { data, count } = await getClientMaterialTransactions(page, PAGE_SIZE, startDate, endDate, debouncedSearch, historySubFilter);
             setTransactions(data);
             setTotalCount(count);
         } catch (err) {
@@ -151,7 +159,7 @@ export function ClientMaterialLedger() {
         } finally {
             setLoading(false);
         }
-    }, [page, startDate, endDate, searchQuery, historySubFilter]); // Type filter triggers fetch
+    }, [page, startDate, endDate, debouncedSearch, historySubFilter]); // Type filter triggers fetch
 
     useEffect(() => { loadMetadata(); }, [loadMetadata]);
     useEffect(() => { fetchTransactions(); }, [fetchTransactions]);
@@ -282,9 +290,27 @@ export function ClientMaterialLedger() {
     const handleDateDisplayChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setDateDisplay(val);
-        if (val.length === 10) {
-            const parsed = parse(val, 'dd-MM-yyyy', new Date());
-            if (isValid(parsed)) setForm(prev => ({ ...prev, transaction_date: format(parsed, 'yyyy-MM-dd') }));
+
+        // Normalize slashes/dots to dashes for flexible entry
+        const normalized = val.replace(/[\/\.]/g, '-');
+
+        // Match formats like 1-4-2025, 01-04-2025, etc.
+        // We try parsing if length is at least 6 (d-m-yy)
+        if (normalized.length >= 6) {
+            const possibleFormats = ['dd-MM-yyyy', 'd-M-yyyy', 'dd-MM-yy', 'd-M-yy', 'yyyy-MM-dd'];
+            let parsedDate: Date | null = null;
+
+            for (const fmt of possibleFormats) {
+                const p = parse(normalized, fmt, new Date());
+                if (isValid(p)) {
+                    parsedDate = p;
+                    break;
+                }
+            }
+
+            if (parsedDate) {
+                setForm(prev => ({ ...prev, transaction_date: format(parsedDate!, 'yyyy-MM-dd') }));
+            }
         }
     };
 
@@ -292,7 +318,8 @@ export function ClientMaterialLedger() {
         const val = e.target.value;
         if (val) {
             setForm(prev => ({ ...prev, transaction_date: val }));
-            setDateDisplay(format(new Date(val), 'dd-MM-yyyy'));
+            // Use parse to ensure local time is preserved and not shifted by timezone
+            setDateDisplay(format(parse(val, 'yyyy-MM-dd', new Date()), 'dd-MM-yyyy'));
         }
     };
 
@@ -347,7 +374,7 @@ export function ClientMaterialLedger() {
             material_type: t.material_type,
             transaction_type: t.transaction_type,
             quantity: t.quantity.toString(),
-            transaction_date: format(new Date(t.transaction_date), 'yyyy-MM-dd'),
+            transaction_date: t.transaction_date,
             manual_remarks: parts.slice(2).join(' - '),
             base_type: parts[0] || '',
             specification: parts[1] || '',
@@ -362,7 +389,28 @@ export function ClientMaterialLedger() {
         });
         setCustomerSearch(t.client_name);
         setBaseSearch(parts[0] || '');
-        setDateDisplay(format(new Date(t.transaction_date), 'dd-MM-yyyy'));
+
+        // Safely parse the date for display
+        if (t.transaction_date) {
+            // transaction_date is yyyy-MM-dd from DB
+            const parts = t.transaction_date.split('-');
+            if (parts.length === 3) {
+                const y = parseInt(parts[0]);
+                const m = parseInt(parts[1]);
+                const d = parseInt(parts[2]);
+                const pDate = new Date(y, m - 1, d);
+                if (isValid(pDate)) {
+                    setDateDisplay(format(pDate, 'dd-MM-yyyy'));
+                } else {
+                    setDateDisplay(format(new Date(t.transaction_date), 'dd-MM-yyyy'));
+                }
+            } else {
+                setDateDisplay(format(new Date(t.transaction_date), 'dd-MM-yyyy'));
+            }
+        } else {
+            setDateDisplay(format(new Date(), 'dd-MM-yyyy'));
+        }
+
         setEditingId(t.id);
         setShowModal(true);
     }, []);

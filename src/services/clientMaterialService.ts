@@ -13,9 +13,8 @@ export const getClientMaterialTransactions = async (page: number = 1, pageSize: 
 
     const cacheKey = `${CACHE_KEYS.TRANSACTIONS}_p${page}_s${pageSize}_${startDate || 'all'}_${endDate || 'all'}_${search || 'all'}_${type || 'ALL'}`;
 
-    // Note: Search cache invalidation might be tricky if we don't clear pattern
-    // We'll stick to network-first or short cache for search?
-    // For now, using getOrFetch with 2 min cache.
+    // Note: Search cache invalidation needs pattern matching
+    // We used to use invalidate() which only cleared exact keys. Now we use invalidatePattern() in mutators.
 
     return cacheStore.getOrFetch(cacheKey, async () => {
         let query = supabase
@@ -70,7 +69,7 @@ export const addClientMaterialTransaction = async (
     if (error) throw error;
 
     // Invalidate caches
-    cacheStore.invalidate(CACHE_KEYS.TRANSACTIONS);
+    cacheStore.invalidatePattern(CACHE_KEYS.TRANSACTIONS);
     cacheStore.invalidate(CACHE_KEYS.STATEMENT);
 
     return data as ClientMaterialTransaction;
@@ -94,7 +93,7 @@ export const updateClientMaterialTransaction = async (
     if (error) throw error;
 
     // Invalidate caches
-    cacheStore.invalidate(CACHE_KEYS.TRANSACTIONS);
+    cacheStore.invalidatePattern(CACHE_KEYS.TRANSACTIONS);
     cacheStore.invalidate(CACHE_KEYS.STATEMENT);
 
     return data as ClientMaterialTransaction;
@@ -113,7 +112,7 @@ export const deleteClientMaterialTransaction = async (id: string) => {
     if (error) throw error;
 
     // Invalidate caches
-    cacheStore.invalidate(CACHE_KEYS.TRANSACTIONS);
+    cacheStore.invalidatePattern(CACHE_KEYS.TRANSACTIONS);
     cacheStore.invalidate(CACHE_KEYS.STATEMENT);
 };
 
@@ -122,45 +121,60 @@ export const getClientMaterialBalances = async (): Promise<ClientMaterialBalance
     if (!user) return []
 
     return cacheStore.getOrFetch(CACHE_KEYS.STATEMENT, async () => {
-        const { data: transactions, error: txError } = await supabase
-            .from('client_raw_material_ledger')
-            .select('client_name, client_id, transaction_type, quantity')
-            .eq('user_id', user.id);
-
-        if (txError) throw txError;
-
-        const summary: Record<string, ClientMaterialBalance> = {};
-
-        (transactions as any[] || []).forEach(tx => {
-            // Group by Name (Normalized) to merge "Ritesh" (ID) and "Ritesh" (No ID)
-            const rawName = tx.client_name || 'Unknown';
-            const key = rawName.trim().toLowerCase();
-
-            if (!summary[key]) {
-                summary[key] = {
-                    client_name: rawName.trim(),
-                    client_id: tx.client_id || null,
-                    received: 0,
-                    consumed: 0,
-                    loss: 0,
-                    balance: 0
-                };
-            }
-
-            // If we find a specific ID later for the same name, capture it
-            if (tx.client_id && !summary[key].client_id) {
-                summary[key].client_id = tx.client_id;
-                summary[key].client_name = rawName.trim(); // Prefer name from linked account
-            }
-
-            if (tx.transaction_type === 'RECEIPT') summary[key].received += Number(tx.quantity);
-            if (tx.transaction_type === 'CONSUMPTION') summary[key].consumed += Number(tx.quantity);
-            if (tx.transaction_type === 'LOSS') summary[key].loss += Number(tx.quantity);
+        // Use RPC for server-side aggregation (Much faster for large datasets)
+        const { data, error } = await supabase.rpc('get_client_material_balances', {
+            p_user_id: user.id
         });
 
-        return Object.values(summary).map(s => ({
-            ...s,
-            balance: s.received - s.consumed - s.loss
+        if (error) {
+            console.error('RPC Error:', error);
+            // Fallback to client-side if RPC fails (or not deployed)
+            const { data: transactions, error: txError } = await supabase
+                .from('client_raw_material_ledger')
+                .select('client_name, client_id, transaction_type, quantity')
+                .eq('user_id', user.id);
+
+            if (txError) throw txError;
+
+            const summary: Record<string, ClientMaterialBalance> = {};
+            (transactions as any[] || []).forEach(tx => {
+                const rawName = tx.client_name || 'Unknown';
+                const key = rawName.trim().toLowerCase();
+
+                if (!summary[key]) {
+                    summary[key] = {
+                        client_name: rawName.trim(),
+                        client_id: tx.client_id || null,
+                        received: 0,
+                        consumed: 0,
+                        loss: 0,
+                        balance: 0
+                    };
+                }
+                if (tx.client_id && !summary[key].client_id) {
+                    summary[key].client_id = tx.client_id;
+                    summary[key].client_name = rawName.trim();
+                }
+
+                if (tx.transaction_type === 'RECEIPT') summary[key].received += Number(tx.quantity);
+                if (tx.transaction_type === 'CONSUMPTION') summary[key].consumed += Number(tx.quantity);
+                if (tx.transaction_type === 'LOSS') summary[key].loss += Number(tx.quantity);
+            });
+
+            return Object.values(summary).map(s => ({
+                ...s,
+                balance: s.received - s.consumed - s.loss
+            }));
+        }
+
+        // Map RPC result
+        return (data as any[] || []).map(row => ({
+            client_name: row.client_name,
+            client_id: row.client_id,
+            received: Number(row.received),
+            consumed: Number(row.consumed),
+            loss: Number(row.loss),
+            balance: Number(row.received) - Number(row.consumed) - Number(row.loss)
         }));
     });
 };

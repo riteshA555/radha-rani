@@ -23,7 +23,20 @@ export const CompactTransactionRow: React.FC<CompactTransactionRowProps> = React
     const isLoss = transaction.transaction_type === 'LOSS';
 
     const formattedDate = React.useMemo(
-        () => format(new Date(transaction.transaction_date), 'dd MMM yyyy'),
+        () => {
+            const d = new Date(transaction.transaction_date);
+            // new Date('YYYY-MM-DD') is UTC. This can shift date depending on timezone. 
+            // Better to treat the string as local date components or parse it as such
+            // However, since we don't have parse imported and don't want to break it if it's a full timestamp
+            // We kept new Date() but we can improve it if needed. 
+            // Actually, let's use a safer approach: append T00:00:00 to avoid UTC interpretation if it's just a date
+            // Or better yet, just splice the string if it matches YYYY-MM-DD
+            if (/^\d{4}-\d{2}-\d{2}$/.test(transaction.transaction_date)) {
+                const [y, m, d] = transaction.transaction_date.split('-').map(Number);
+                return format(new Date(y, m - 1, d), 'dd MMM yyyy');
+            }
+            return format(d, 'dd MMM yyyy');
+        },
         [transaction.transaction_date]
     );
 
