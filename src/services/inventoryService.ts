@@ -75,6 +75,7 @@ export const addStockTransaction = async (
     cacheStore.invalidatePattern(CACHE_KEYS.STOCK_SUMMARY)
     cacheStore.invalidatePattern(CACHE_KEYS.STOCK_TRANSACTIONS)
     cacheStore.invalidate(CACHE_KEYS.FINISHED_GOODS)
+    cacheStore.invalidate('products_list') // Ensure Catalog reflects updated stock
 
     return data
 }

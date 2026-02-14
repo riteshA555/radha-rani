@@ -134,6 +134,7 @@ export const createOrder = async (
     cacheStore.invalidatePattern(CACHE_KEYS.ORDERS)
     cacheStore.invalidate('dashboard_stats')
     cacheStore.invalidate('finished_goods')
+    cacheStore.invalidate('products_list') // REQUIRED: Ensure Catalog reflects updated stock
     cacheStore.invalidatePattern('stock_')
     cacheStore.invalidatePattern('customer_statement_') // REQUIRED FOR LEDGER SYNC
     cacheStore.invalidate('asset_ledgers_list') // Update running balances in dropdowns

@@ -177,6 +177,8 @@ export function SettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-50">
               <Input label="Business Name" value={localData.businessName} onChange={(v: string) => setLocalData({ ...localData, businessName: v })} required />
               <Input label="GSTIN" value={localData.gstin} onChange={(v: string) => setLocalData({ ...localData, gstin: v })} />
+              <Input label="PAN Number" value={localData.pan} onChange={(v: string) => setLocalData({ ...localData, pan: v })} />
+              <Input label="Website" value={localData.website} onChange={(v: string) => setLocalData({ ...localData, website: v })} />
               <Input label="Email" value={localData.email} onChange={(v: string) => setLocalData({ ...localData, email: v })} />
               <Input label="Phone" value={localData.phone} onChange={(v: string) => setLocalData({ ...localData, phone: v })} />
             </div>

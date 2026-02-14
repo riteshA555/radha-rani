@@ -11,7 +11,7 @@ export function OrderPrint() {
     const { id } = useParams();
     const navigate = useNavigate();
     const [order, setOrder] = useState<any>(null);
-    const { settings } = useSettings();
+    const { settings, loading: settingsLoading } = useSettings();
     const business = settings.business_profile;
     const [loading, setLoading] = useState(true);
     const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -97,7 +97,7 @@ export function OrderPrint() {
         }
     };
 
-    if (loading) return <div className="h-screen flex items-center justify-center gap-2"><Loader2 className="animate-spin" /> Loading Invoice...</div>;
+    if (loading || settingsLoading) return <div className="h-screen flex items-center justify-center gap-2"><Loader2 className="animate-spin" /> Loading Invoice...</div>;
 
     if (!order) return <div className="p-8 text-center text-red-500">Order not found.</div>;
 
@@ -208,7 +208,11 @@ export function OrderPrint() {
                                     {business?.phone && <span className="mr-3">Ph: {business.phone}</span>}
                                     {business?.email && <span>Email: {business.email}</span>}
                                 </div>
-                                {business?.gstin && <div className="mt-1 font-medium text-gray-900">GSTIN: {business.gstin}</div>}
+                                <div className="mt-1">
+                                    {business?.gstin && <span className="mr-3 font-medium text-gray-900">GSTIN: {business.gstin}</span>}
+                                    {business?.pan && <span className="font-medium text-gray-900">PAN: {business.pan}</span>}
+                                </div>
+                                {business?.website && <div className="mt-1 text-indigo-600 truncate">{business.website}</div>}
                             </div>
                         </div>
                     </div>

@@ -31,9 +31,12 @@ export function Stock() {
   const [auditLog, setAuditLog] = useState<StockTransaction[]>([]);
 
   // Settings & Context
+  const { settings } = useSettings();
+  const lang = settings.user_settings.language || 'en';
+
   const [silverRate, setSilverRate] = useState(0);
   const [rateChange, setRateChange] = useState(0);
-  const [invSettings, setInvSettings] = useState<InventorySettings | null>(null);
+  const [invSettings, setInvSettings] = useState<InventorySettings>(settings.inventory_settings);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -60,14 +63,14 @@ export function Stock() {
 
       const [rates, rateHist] = await Promise.all([
         getLatestRates(),
-        getRateHistory()
+        getRateHistory('SILVER', '999')
       ]);
 
       const silverRate = rates.find(r => r.metal_type === 'SILVER') || null;
       const currentRateKg = silverRate ? (silverRate.selling_rate * 1000) : 75000;
       setSilverRate(currentRateKg);
 
-      if (rateHist && rateHist.length > 1) {
+      if (rateHist && rateHist.length >= 2) {
         const prev = rateHist[rateHist.length - 2].selling_rate * 1000;
         setRateChange(((currentRateKg - prev) / prev) * 100);
       }
@@ -81,7 +84,6 @@ export function Stock() {
         getStockSummary(currentRateKg),
         getFinishedGoodsInventory(),
         getLiabilityLedgers(),
-        getSettings('inventory_settings'),
         getStockTransactions('FINISHED_GOODS') // Always fetch audit log
       ];
 
@@ -92,12 +94,12 @@ export function Stock() {
         promises.push(Promise.resolve([]));
       }
 
-      const [stockSummary, fgInventory, vendorList, invSet, fgHistory, tabTransactions] = await Promise.all(promises);
+      const [stockSummary, fgInventory, vendorList, fgHistory, tabTransactions] = await Promise.all(promises);
 
       setSummary(stockSummary);
       setFinishedGoods(fgInventory);
       setVendors(vendorList);
-      setInvSettings(invSet);
+      setInvSettings(settings.inventory_settings);
       setAuditLog(fgHistory);
 
       if (transactionType) {
@@ -424,10 +426,10 @@ export function Stock() {
               {/* Transaction Type Selector */}
               <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200">
                 {[
-                  { id: 'RAW_IN', label: 'Stock IN', icon: <Plus size={14} /> },
-                  { id: 'RAW_OUT', label: 'Stock OUT', icon: <Minus size={14} /> },
-                  { id: 'PRODUCTION', label: 'Production', icon: <RefreshCw size={14} /> },
-                  { id: 'ADJUSTMENT', label: 'Adjust', icon: <TrendingUp size={14} /> }
+                  { id: 'RAW_IN', label: t('stock_in', lang), icon: <Plus size={14} /> },
+                  { id: 'RAW_OUT', label: t('stock_out', lang), icon: <Minus size={14} /> },
+                  { id: 'PRODUCTION', label: t('production', lang), icon: <RefreshCw size={14} /> },
+                  { id: 'ADJUSTMENT', label: t('adjustment', lang), icon: <TrendingUp size={14} /> }
                 ].map(mode => (
                   <button
                     key={mode.id}
@@ -537,6 +539,7 @@ export function Stock() {
                       <select
                         value={form.vendorId}
                         onChange={(e) => setForm({ ...form, vendorId: e.target.value })}
+                        required={form.record_purchase && form.payment_mode === 'Credit'}
                         className="w-full p-2.5 bg-white border border-emerald-200 rounded-lg text-sm font-bold"
                       >
                         <option value="">Select Vendor</option>
@@ -549,6 +552,7 @@ export function Stock() {
                         <input
                           type="number"
                           value={form.payment_amount}
+                          required={form.record_purchase}
                           onChange={(e) => setForm({ ...form, payment_amount: e.target.value })}
                           className="w-full p-2.5 bg-white border border-emerald-200 rounded-lg text-sm font-bold"
                         />

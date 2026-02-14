@@ -72,7 +72,12 @@ export const translations = {
         save: "Save",
         search: "Search",
         edit: "Edit",
-        delete: "Delete"
+        delete: "Delete",
+        stock_entry: "Stock Entry",
+        production: "Production",
+        adjustment: "Adjustment",
+        stock_in: "Stock IN",
+        stock_out: "Stock OUT"
     },
     hi: {
         dashboard: 'डैशबोर्ड',
@@ -145,7 +150,12 @@ export const translations = {
         save: "सहेजें",
         search: "खोजें",
         edit: "संपादित करें",
-        delete: "हटाएं"
+        delete: "हटाएं",
+        stock_entry: "स्टॉक एंट्री",
+        production: "उत्पादन",
+        adjustment: "समायोजन",
+        stock_in: "स्टॉक प्राप्त",
+        stock_out: "स्टॉक जारी"
     }
 }
 
