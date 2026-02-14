@@ -12,6 +12,7 @@ import { addCustomer } from '../../services/contactService'
 import QRCode from 'qrcode';
 import { MaterialType, JobWorkItem, Product } from '../../types'
 import { supabase } from '../../supabaseClient'
+import { cacheStore } from '../../services/cacheStore'
 import {
     Trash2, Plus, ShoppingCart, User, Package, Hammer,
     CheckCircle2, AlertTriangle, Loader2, ArrowRight, X, ChevronLeft,
@@ -75,7 +76,9 @@ export function CreateOrder() {
     const location = useLocation()
     const [submissionError, setSubmissionError] = useState('')
     const [silverRates, setSilverRates] = useState<MetalRate[]>([])
-    const [isLoadingData, setIsLoadingData] = useState(true)
+    // Check if we have core data in cache to avoid blocking loader
+    const hasCachedData = !!cacheStore.get('products_list') && !!cacheStore.get('job_work_items')
+    const [isLoadingData, setIsLoadingData] = useState(!hasCachedData)
     const [jobWorkItems, setJobWorkItems] = useState<JobWorkItem[]>([])
     const [products, setProducts] = useState<Product[]>([])
     const [karigars, setKarigars] = useState<Karigar[]>([])

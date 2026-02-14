@@ -77,7 +77,9 @@ export function Dashboard() {
   const [newLocalRate, setNewLocalRate] = useState({ selling: '', buying: '', metal: 'SILVER' as 'SILVER' | 'GOLD' });
 
   const refreshAll = useCallback(async (showLoader = false, force = false) => {
-    if (showLoader) setLoading(true);
+    // Only show loader if we have absolutely no data yet
+    const shouldShowLoader = showLoader && !dashboardData;
+    if (shouldShowLoader) setLoading(true);
     setError(null);
 
     try {

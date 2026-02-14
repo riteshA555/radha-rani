@@ -101,15 +101,21 @@ export function Catalog() {
   }, []);
 
   const loadData = useCallback(async (isInitial = false) => {
-    if (isInitial) setLoading(true);
-    await Promise.all([
-      fetchProducts(),
-      fetchServices(),
-      fetchRates(),
-      fetchSettingsData(isInitial)
-    ]);
-    if (isInitial) setLoading(false);
-  }, [fetchProducts, fetchServices, fetchRates, fetchSettingsData]);
+    // Only show full page loader if we have NO data at all (first time ever)
+    const hasInitialData = products.length > 0 || services.length > 0;
+    if (isInitial && !hasInitialData) setLoading(true);
+
+    try {
+      await Promise.all([
+        fetchProducts(),
+        fetchServices(),
+        fetchRates(),
+        fetchSettingsData(isInitial)
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchProducts, fetchServices, fetchRates, fetchSettingsData, products.length, services.length]);
 
   useEffect(() => {
     loadData(true);

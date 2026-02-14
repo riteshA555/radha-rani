@@ -1,6 +1,15 @@
 import { Home, ShoppingBag, Package, Calculator, Settings } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { triggerHaptic } from '../../utils/haptics';
+import * as Pages from '../lazyPages';
+
+const preloadMap: Record<string, any> = {
+  '/': Pages.Dashboard,
+  '/orders': Pages.Orders,
+  '/stock': Pages.Stock,
+  '/accounting': Pages.Accounting,
+  '/settings': Pages.SettingsPage
+};
 
 interface BottomNavProps {
   currentPage: string;
@@ -26,6 +35,18 @@ export function BottomNav({ currentPage, onNavigate }: BottomNavProps) {
             <NavLink
               key={item.id}
               to={item.path}
+              onMouseEnter={() => {
+                const component = preloadMap[item.path];
+                if (component && (component as any)._payload) {
+                  try { (component as any)._payload._result(); } catch (e) { }
+                }
+              }}
+              onTouchStart={() => {
+                const component = preloadMap[item.path];
+                if (component && (component as any)._payload) {
+                  try { (component as any)._payload._result(); } catch (e) { }
+                }
+              }}
               onClick={() => triggerHaptic('light')}
               className={({ isActive }) => `flex flex-col items-center justify-center py-2 px-1 transition-colors ${isActive
                 ? 'text-indigo-600'

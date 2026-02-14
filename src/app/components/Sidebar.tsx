@@ -25,6 +25,21 @@ import {
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { triggerHaptic } from '../../utils/haptics';
+import * as Pages from '../lazyPages';
+
+const preloadMap: Record<string, any> = {
+  '/': Pages.Dashboard,
+  '/orders': Pages.Orders,
+  '/orders/create': Pages.CreateOrder,
+  '/stock': Pages.Stock,
+  '/catalog': Pages.Catalog,
+  '/karigar': Pages.Karigars,
+  '/rates': Pages.Rates,
+  '/accounting': Pages.Accounting,
+  '/ledger': Pages.Ledger,
+  '/settings': Pages.SettingsPage,
+  '/client-material': Pages.ClientMaterialLedger
+};
 
 interface SidebarProps {
   currentPage: string;
@@ -109,6 +124,14 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 <NavLink
                   key={item.id}
                   to={item.path}
+                  onMouseEnter={() => {
+                    // Trigger preloading of the module
+                    const component = preloadMap[item.path];
+                    if (component && (component as any)._payload) {
+                      // Internal React lazy trigger (hacky but works for preloading)
+                      try { (component as any)._payload._result(); } catch (e) { }
+                    }
+                  }}
                   onClick={() => {
                     triggerHaptic('light');
                     onNavigate(item.path);
