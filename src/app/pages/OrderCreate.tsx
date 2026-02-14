@@ -303,7 +303,7 @@ export function CreateOrder() {
             const product = location.state.autoAddProduct;
             const silverRateRaw = silverRates.find(r => r.metal_type === 'SILVER')?.selling_rate || 0;
 
-            // Re-apply logic from handleDraftItemChange for products
+            // Re-apply logic for products
             const currentLiveRate = silverRateRaw;
             const wastage_percent = product.wastage_percent || 0;
             const weight = product.default_weight || 0;
@@ -313,27 +313,36 @@ export function CreateOrder() {
             const totalMetalCost = costPerGm * weight;
             const finalRatePerPc = totalMetalCost + labor;
 
-            setDraftItem({
-                item_type: 'PRODUCT',
+            const newItem = {
+                item_type: 'PRODUCT' as const,
                 product_id: product.id,
                 description: product.name,
                 quantity: 1,
-                unit: 'Piece', // Changed from PCS to Piece for consistency
+                unit: 'Piece',
                 weight: weight,
                 wastage_percent: wastage_percent,
                 labour_cost: labor,
-                rate: Number(finalRatePerPc.toFixed(2)), // Ensure rate is rounded to 2 decimal places
-                base_quantity: 1, // Base quantity is 1 piece
-                base_rate: Number(finalRatePerPc.toFixed(2)), // Base rate is the calculated price per piece
+                rate: Number(finalRatePerPc.toFixed(2)),
+                base_quantity: 1,
+                base_rate: Number(finalRatePerPc.toFixed(2)),
                 has_addon: false,
                 addon_quantity: 0,
                 addon_rate: 0
-            });
+            };
+
+            // Switch to OWN mode for catalog products
+            setValue('material_type', 'OWN');
+
+            // Add directly to bill if it's a new request
+            append(newItem);
+
+            // Also set as draft for convenience
+            setDraftItem(newItem);
 
             // Clear up state so it doesn't re-trigger
             window.history.replaceState({}, document.title);
         }
-    }, [location.state, products, silverRates]);
+    }, [location.state, products, silverRates, setValue, append]);
 
     // --- HANDLERS ---
     const handleDraftItemChange = (field: string, value: any) => {
