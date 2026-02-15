@@ -43,8 +43,21 @@ export function ProductQrModal({ product, silverRate, onClose }: ProductQrModalP
 
     const handlePrint = () => {
         triggerHaptic('medium');
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) return;
+
+        // Remove any existing print iframe
+        const existingFrame = document.getElementById('print-iframe');
+        if (existingFrame) existingFrame.remove();
+
+        // Create a new hidden iframe
+        const printFrame = document.createElement('iframe');
+        printFrame.id = 'print-iframe';
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        document.body.appendChild(printFrame);
 
         const estPrice = ((product.default_weight * (1 + (product.wastage_percent / 100)) * silverRate) + product.labour_cost);
 
@@ -65,39 +78,53 @@ export function ProductQrModal({ product, silverRate, onClose }: ProductQrModalP
         // Repeat for copies
         const allLabels = Array(copies).fill(labelHtml).join('');
 
-        printWindow.document.write(`
+        const content = `
       <html>
         <head>
-          <title>Sheet - ${product.name}</title>
+          <title>Label - ${product.name}</title>
           <style>
             @page { 
-              size: ${printFormat === 'a4' ? 'A4' : '50mm 30mm'}; 
-              margin: ${printFormat === 'a4' ? '5mm' : '0'}; 
+              size: ${printFormat === 'a4' ? 'A4' : '50mm 25mm'}; 
+              margin: 0 !important; 
             }
-            body { 
-              margin: 0; 
-              padding: 0; 
-              font-family: 'Segoe UI', Arial, sans-serif; 
+            * { 
+              -webkit-print-color-adjust: exact !important; 
+              print-color-adjust: exact !important; 
+              box-sizing: border-box;
+            }
+            html, body { 
+              margin: 0 !important; 
+              padding: 0 !important; 
+              width: ${printFormat === 'a4' ? '100%' : '50mm'};
               background: white;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             }
             .sheet {
               display: flex;
-              flex-wrap: wrap;
-              gap: 2mm;
-              ${printFormat === 'a4' ? 'padding: 5mm;' : ''}
+              flex-direction: column;
+              align-items: ${printFormat === 'a4' ? 'flex-start' : 'center'};
+              width: 100%;
+              ${printFormat === 'a4' ? 'padding: 5mm; gap: 2mm; flex-wrap: wrap; flex-direction: row;' : 'padding: 0;'}
             }
             .label-box { 
               width: 50mm; 
-              height: 30mm; 
+              height: 25mm; 
               padding: 2mm; 
-              box-sizing: border-box;
               display: flex;
               gap: 2mm;
               align-items: center;
-              border: ${printFormat === 'a4' ? '0.1mm solid #eee' : 'none'};
-              ${printFormat === 'a4' ? 'page-break-inside: avoid;' : ''}
+              page-break-inside: avoid;
+              break-inside: avoid;
+              overflow: hidden;
+              ${printFormat === 'a4' ? 'border: 0.1mm solid #eee;' : 'border-bottom: 0.1mm dashed #ccc;'}
+              background: white;
             }
-            .qr-code { width: 22mm; height: 22mm; flex-shrink: 0; }
+            .qr-code { 
+              width: 18mm; 
+              height: 18mm; 
+              flex-shrink: 0; 
+              ${printFormat === 'thermal' ? 'filter: contrast(150%) brightness(90%);' : ''}
+            }
             .details { 
               flex: 1; 
               display: flex; 
@@ -105,20 +132,83 @@ export function ProductQrModal({ product, silverRate, onClose }: ProductQrModalP
               justify-content: center;
               overflow: hidden;
             }
-            .name { font-size: 8pt; font-weight: bold; margin-bottom: 1mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #000; }
-            .info { font-size: 6pt; color: #444; font-weight: bold; margin-bottom: 0.5mm; }
-            .price { font-size: 9pt; font-weight: 900; color: #4f46e5; margin-top: 1mm; }
-            .brand { font-size: 5pt; color: #999; text-transform: uppercase; letter-spacing: 0.5pt; margin-top: auto; }
+            .name { 
+              font-size: 8pt; 
+              font-weight: 900; 
+              margin-bottom: 0.5mm; 
+              white-space: nowrap; 
+              overflow: hidden; 
+              text-overflow: ellipsis; 
+              color: #000;
+              line-height: 1.1;
+            }
+            .info { 
+              font-size: 6pt; 
+              color: #333; 
+              font-weight: 700; 
+              margin-bottom: 0.2mm; 
+              white-space: nowrap;
+            }
+            .price { 
+              font-size: 11pt; 
+              font-weight: 950; 
+              color: #000 !important; 
+              margin-top: 1mm;
+              letter-spacing: -0.2pt;
+            }
+            .brand { 
+              font-size: 5pt; 
+              color: #666; 
+              text-transform: uppercase; 
+              letter-spacing: 0.5pt; 
+              margin-top: auto; 
+              text-align: right;
+              font-weight: 700;
+            }
+            
+            @media print {
+              body, html { 
+                width: ${printFormat === 'a4' ? '210mm' : '50mm'} !important;
+                height: auto !important;
+              }
+              .label-box { 
+                page-break-after: always; 
+                break-after: always;
+              }
+              /* Hide browser headers/footers */
+              @page { margin: 0; }
+            }
           </style>
         </head>
-        <body onload="window.print(); window.close();">
+        <body>
           <div class="sheet">
             ${allLabels}
           </div>
+          <script>
+            window.onload = function() {
+              setTimeout(() => {
+                window.focus();
+                window.print();
+                setTimeout(() => {
+                   // Only remove if not cancelled
+                   window.parent.document.getElementById('print-iframe').remove();
+                }, 1000);
+              }, 1000);
+            };
+          </script>
         </body>
       </html>
-    `);
-        printWindow.document.close();
+    `;
+
+        const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
+        if (frameDoc) {
+            // @ts-ignore
+            frameDoc.open();
+            // @ts-ignore
+            frameDoc.write(content);
+            // @ts-ignore
+            frameDoc.close();
+        }
     };
 
     return (

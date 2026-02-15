@@ -76,12 +76,15 @@ const LayoutWrapper = () => {
   );
 };
 
+import { Toaster } from 'sonner';
+
 export default function App() {
   return (
     <AuthProvider>
       <SettingsProvider>
         <BrowserRouter>
           <SessionTimeout />
+          <Toaster position="top-center" richColors />
           <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-indigo-50/10">
             <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
           </div>}>

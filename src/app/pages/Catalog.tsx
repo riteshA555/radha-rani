@@ -134,7 +134,9 @@ export function Catalog() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
       clearTimeout(timerProducts); clearTimeout(timerServices); clearTimeout(timerRates);
     };
   }, [loadData, fetchProducts, fetchServices, fetchRates]);
@@ -370,11 +372,11 @@ export function Catalog() {
                         <Gem className="w-12 h-12 text-gray-200" />
                       )}
 
-                      <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
-                        <button onClick={() => { triggerHaptic('light'); setSelectedQrProduct(item); }} className="p-2 bg-white/90 backdrop-blur-sm text-amber-600 rounded-lg hover:bg-amber-600 hover:text-white border border-gray-100 shadow-sm transition-all" title="Generate QR Code">
+                      <div className="absolute top-2 right-2 flex gap-1 z-10">
+                        <button onClick={() => { triggerHaptic('light'); setSelectedQrProduct(item); }} className="p-2 bg-white text-amber-600 rounded-lg hover:bg-amber-600 hover:text-white border border-gray-100 shadow-sm transition-all" title="Generate QR Code">
                           <QrCode size={14} />
                         </button>
-                        <button onClick={() => handleEdit(item)} className="p-2 bg-white/90 backdrop-blur-sm text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white border border-gray-100 shadow-sm transition-all">
+                        <button onClick={() => handleEdit(item)} className="p-2 bg-white text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white border border-gray-100 shadow-sm transition-all">
                           <Edit2 size={14} />
                         </button>
                         <button onClick={() => handleDelete(item.id, item.name)} className="p-2 bg-white/90 backdrop-blur-sm text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white border border-gray-100 shadow-sm transition-all">
@@ -455,11 +457,11 @@ export function Catalog() {
                         <td className="px-6 py-4 text-right font-bold text-gray-700">{item.wastage_percent}%</td>
                         <td className="px-6 py-4 text-right font-bold text-gray-700">₹{item.labour_cost}</td>
                         <td className="px-6 py-4 text-center">
-                          <div className="flex justify-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => { triggerHaptic('light'); setSelectedQrProduct(item); }} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors bg-amber-50/50 sm:bg-transparent" title="Generate QR Code">
+                          <div className="flex justify-center gap-1">
+                            <button onClick={() => { triggerHaptic('light'); setSelectedQrProduct(item); }} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors bg-amber-50" title="Generate QR Code">
                               <QrCode size={16} />
                             </button>
-                            <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors bg-indigo-50/50 sm:bg-transparent">
+                            <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors bg-indigo-50">
                               <Edit2 size={16} />
                             </button>
                             <button onClick={() => handleDelete(item.id, item.name)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors bg-rose-50/50 sm:bg-transparent">
@@ -488,11 +490,11 @@ export function Catalog() {
                         <Hammer className="w-12 h-12 text-gray-200" />
                       )}
 
-                      <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
-                        <button onClick={() => handleEdit(item)} className="p-2 bg-white/90 backdrop-blur-sm text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white border border-gray-100 shadow-sm transition-all">
+                      <div className="absolute top-2 right-2 flex gap-1 z-10">
+                        <button onClick={() => handleEdit(item)} className="p-2 bg-white text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white border border-gray-100 shadow-sm transition-all">
                           <Edit2 size={14} />
                         </button>
-                        <button onClick={() => handleDelete(item.id, item.name)} className="p-2 bg-white/90 backdrop-blur-sm text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white border border-gray-100 shadow-sm transition-all">
+                        <button onClick={() => handleDelete(item.id, item.name)} className="p-2 bg-white text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white border border-gray-100 shadow-sm transition-all">
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -544,11 +546,11 @@ export function Catalog() {
                         </td>
                         <td className="px-6 py-4 text-right font-bold text-indigo-600 text-base">₹{formatIndianRupees(item.default_rate)}</td>
                         <td className="px-6 py-4 text-center">
-                          <div className="flex justify-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors bg-indigo-50/50 sm:bg-transparent">
+                          <div className="flex justify-center gap-2">
+                            <button onClick={() => handleEdit(item)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors bg-indigo-50">
                               <Edit2 size={16} />
                             </button>
-                            <button onClick={() => handleDelete(item.id, item.name)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors bg-rose-50/50 sm:bg-transparent">
+                            <button onClick={() => handleDelete(item.id, item.name)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors bg-rose-50">
                               <Trash2 size={16} />
                             </button>
                           </div>

@@ -211,7 +211,9 @@ export function Dashboard() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(dashboardChannel);
+      if (dashboardChannel) {
+        supabase.removeChannel(dashboardChannel);
+      }
       clearTimeout(timer);
     };
   }, [refreshAll]);

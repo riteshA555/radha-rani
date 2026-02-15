@@ -11,7 +11,9 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { t } from '../../shared/utils/i18n';
 import { ReAuthModal } from '../components/shared/ReAuthModal';
+import { toast } from 'sonner';
 import { ImageUpload } from '../../components/shared/ImageUpload';
+import { canInstallPWA, installPWA, isInstalled } from '../../shared/utils/pwaInstall';
 import {
   exportFullData,
   importFullData,
@@ -81,9 +83,9 @@ export function SettingsPage() {
     setSaving(true);
     try {
       await updateSetting(activeTab as any, localData);
-      // alert('Settings saved successfully!');
+      toast.success('Settings saved successfully');
     } catch (err: any) {
-      alert('Failed to save: ' + err.message);
+      toast.error('Failed to save: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -99,7 +101,7 @@ export function SettingsPage() {
       a.download = `sterlingflow_full_system_backup_${new Date().toISOString().split('T')[0]}.json`;
       a.click();
     } catch (err) {
-      alert("Full Backup failed");
+      toast.error("Full Backup failed");
     }
   };
 
@@ -114,10 +116,10 @@ export function SettingsPage() {
       reader.onload = async (event) => {
         try {
           await importFullData(event.target?.result as string);
-          alert("Full System data restored successfully. Refreshing page...");
-          window.location.reload();
+          toast.success("Full System data restored successfully");
+          setTimeout(() => window.location.reload(), 2000);
         } catch (err: any) {
-          alert("Restore failed: " + err.message);
+          toast.error("Restore failed: " + err.message);
         }
       };
       reader.readAsText(file);
@@ -309,6 +311,38 @@ export function SettingsPage() {
                 <option value="international">International (123,456.00)</option>
               </Select>
               <Input label="Session Timeout (Min)" type="number" value={localData.sessionTimeout} onChange={(v: string) => setLocalData({ ...localData, sessionTimeout: Number(v) })} />
+            </div>
+
+            <div className="pt-8 border-t border-gray-50 space-y-4">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">App Experience</label>
+              <div className="bg-gray-50 rounded-2xl p-6 flex items-center justify-between group hover:bg-indigo-50/50 transition-all border border-gray-100">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-white rounded-xl text-indigo-600 shadow-sm">
+                    <Smartphone size={20} />
+                  </div>
+                  <div>
+                    <h5 className="text-sm font-bold text-gray-900">Progressive Web App</h5>
+                    <p className="text-[10px] text-gray-400 font-medium">Install SterlingFlow on your home screen for a native experience.</p>
+                  </div>
+                </div>
+                {isInstalled() ? (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                    <ShieldCheck size={14} /> Already Installed
+                  </div>
+                ) : canInstallPWA() ? (
+                  <button
+                    onClick={async () => {
+                      const success = await installPWA();
+                      if (success) toast.success('App installed successfully');
+                    }}
+                    className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95"
+                  >
+                    Install Now
+                  </button>
+                ) : (
+                  <div className="text-[10px] text-gray-400 font-bold italic">Already Added</div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -583,10 +617,12 @@ export function SettingsPage() {
           setShowReAuth(false);
           try {
             await factoryReset();
-            alert("System wiped successfully. The application will now restart.");
-            await signOut();
-            window.location.href = '/'; // Hard reload to clear application state
-          } catch (e: any) { alert("Reset failed: " + e.message); }
+            toast.success("System wiped successfully. The application will now restart.");
+            setTimeout(async () => {
+              await signOut();
+              window.location.href = '/';
+            }, 3000);
+          } catch (e: any) { toast.error("Reset failed: " + e.message); }
         }}
         title="Authorize Wipe"
         description="Type your password to confirm full system factory reset."

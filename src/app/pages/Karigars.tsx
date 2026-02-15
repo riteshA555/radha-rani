@@ -18,8 +18,12 @@ import {
     ChevronRight,
     AlertCircle,
     Printer,
-    FileText
+    FileText,
+    MessageSquare,
+    ExternalLink,
+    Smartphone
 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
     getKarigars,
     createKarigar,
@@ -139,14 +143,16 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
         try {
             if (editingId) {
                 await updateKarigar(editingId, registerForm as any);
+                toast.success('Artisan profile updated successfully');
             } else {
                 await createKarigar(registerForm as any);
+                toast.success('New artisan registered successfully');
             }
             setShowRegisterModal(false);
             setEditingId(null);
             loadData();
         } catch (err: any) {
-            alert('Error: ' + err.message);
+            toast.error(err.message || 'Operation failed');
         } finally {
             setSubmitting(false);
         }
@@ -158,12 +164,13 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
         setSubmitting(true);
         try {
             await issueMetalToKarigar(selectedKarigarId, Number(issueForm.weight), issueForm.date, issueForm.note);
+            toast.success(`${issueForm.weight}g metal issued successfully`);
             setShowActionModal(null);
             setIssueForm({ weight: '', date: new Date().toISOString().split('T')[0], note: '' });
             loadData();
             loadHistory();
         } catch (err: any) {
-            alert('Error: ' + err.message);
+            toast.error(err.message || 'Issue failed');
         } finally {
             setSubmitting(false);
         }
@@ -184,12 +191,13 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
                 receiveForm.date,
                 receiveForm.note
             );
+            toast.success('Production received and inventory updated');
             setShowActionModal(null);
             setReceiveForm({ productId: '', quantity: '', weight: '', wastage: '', laborRate: '', date: new Date().toISOString().split('T')[0], note: '' });
             loadData();
             loadHistory();
         } catch (err: any) {
-            alert('Error: ' + err.message);
+            toast.error(err.message || 'Receipt failed');
         } finally {
             setSubmitting(false);
         }
@@ -207,12 +215,13 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
                 payoutForm.date,
                 payoutForm.notes
             );
+            toast.success(`Payout of ₹${payoutForm.amount} recorded`);
             setShowActionModal(null);
             setPayoutForm({ amount: '', mode: 'Cash', date: new Date().toISOString().split('T')[0], notes: '' });
             loadData();
             loadHistory();
         } catch (err: any) {
-            alert('Error: ' + err.message);
+            toast.error(err.message || 'Payout failed');
         } finally {
             setSubmitting(false);
         }
@@ -271,7 +280,7 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
                             type="text"
-                            placeholder="Search artisans..."
+                            placeholder="Search artisans by name or specialization..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-1 focus:ring-indigo-500 outline-none"
@@ -280,29 +289,75 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {filteredKarigars.map(k => (
-                            <div key={k.id} className="bg-white p-5 rounded-2xl border border-gray-100 hover:shadow-sm transition-all group relative overflow-hidden">
+                            <div key={k.id} className="bg-white p-5 rounded-2xl border border-gray-100 hover:shadow-md transition-all group relative overflow-hidden flex flex-col h-full">
                                 <div className="flex justify-between items-start mb-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center font-bold text-gray-400 group-hover:bg-indigo-50 group-hover:text-indigo-600">
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black text-lg group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
                                             {k.name.charAt(0).toUpperCase()}
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-gray-900 leading-none">{k.name}</h3>
-                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter mt-1 block">{k.work_type}</span>
+                                            <h3 className="font-bold text-gray-900 leading-none group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{k.name}</h3>
+                                            <div className="flex items-center gap-2 mt-1.5">
+                                                <span className="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-black uppercase tracking-widest">{k.work_type}</span>
+                                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-widest ${k.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
+                                                    {k.status}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => { setEditingId(k.id); setRegisterForm({ ...k, contact_number: k.contact_number || '', specialization: k.specialization || '', address: k.address || '' } as any); setShowRegisterModal(true); }} className="p-1.5 text-gray-400 hover:text-indigo-600"><Edit2 size={14} /></button>
-                                        <button onClick={async () => { if (confirm('Delete?')) { await deleteKarigar(k.id); loadData(); } }} className="p-1.5 text-gray-400 hover:text-rose-500"><Trash2 size={14} /></button>
+                                    <div className="flex gap-1 items-center bg-gray-50/50 p-1 rounded-lg">
+                                        <button onClick={() => { setEditingId(k.id); setRegisterForm({ ...k, contact_number: k.contact_number || '', specialization: k.specialization || '', address: k.address || '' } as any); setShowRegisterModal(true); }} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-white rounded-md transition-all shadow-sm" title="Edit Profile"><Edit2 size={13} /></button>
+                                        <button onClick={async () => {
+                                            if (confirm(`Are you sure you want to delete ${k.name}? This will permanently remove them from the system.`)) {
+                                                try {
+                                                    await deleteKarigar(k.id);
+                                                    toast.success('Artisan deleted successfully');
+                                                    loadData();
+                                                } catch (err: any) {
+                                                    toast.error(err.message);
+                                                }
+                                            }
+                                        }} className="p-2 text-gray-400 hover:text-rose-600 hover:bg-white rounded-md transition-all shadow-sm" title="Delete Profile"><Trash2 size={13} /></button>
                                     </div>
                                 </div>
-                                <div className="flex justify-between items-center text-xs pt-4 border-t border-gray-50">
-                                    <div className="text-gray-400 font-semibold px-2 py-0.5 bg-gray-50 rounded italic text-[10px]">{k.status}</div>
+
+                                <div className="space-y-3 flex-1 mb-6">
+                                    <div className="flex items-center gap-2 text-gray-500 font-medium text-[11px]">
+                                        <Smartphone size={13} className="text-gray-300" />
+                                        {k.contact_number || 'No contact saved'}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3 pt-2">
+                                        <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-100/50">
+                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Cash Balance</span>
+                                            <span className={`text-sm font-black ${(balances[k.id]?.cash || 0) < 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
+                                                ₹{formatIndianRupees(Math.abs(balances[k.id]?.cash || 0))}
+                                            </span>
+                                        </div>
+                                        <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-100/50">
+                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Metal Dual</span>
+                                            <span className="text-sm font-black text-indigo-600">
+                                                {(balances[k.id]?.metal || 0).toFixed(3)}g
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-auto flex gap-2">
                                     <button
                                         onClick={() => { setSelectedKarigarId(k.id); setActiveTab('SETTLEMENT'); }}
-                                        className="text-indigo-600 font-bold hover:underline flex items-center gap-1 text-[10px]"
+                                        className="flex-1 bg-white border border-gray-200 text-indigo-600 px-4 py-2.5 rounded-xl hover:bg-indigo-50 hover:border-indigo-100 transition-all text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 group"
                                     >
-                                        Audit <ChevronRight size={14} />
+                                        Open Audit <ArrowUpRight className="w-3.5 h-3.5 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-transform" />
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const msg = `Namaste ${k.name}, This is Nexora Digital. Your current balance is ₹${formatIndianRupees(Math.abs(balances[k.id]?.cash || 0))} and Metal due is ${(balances[k.id]?.metal || 0).toFixed(3)}g.`;
+                                            window.open(`https://wa.me/${k.contact_number?.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`);
+                                        }}
+                                        className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100"
+                                        disabled={!k.contact_number}
+                                    >
+                                        <MessageSquare size={16} />
                                     </button>
                                 </div>
                             </div>
@@ -368,12 +423,92 @@ export function Karigars({ defaultTab = 'MASTER' }: { defaultTab?: TabType }) {
                                         </div>
                                     </button>
                                     <button
-                                        onClick={() => window.print()}
+                                        onClick={() => {
+                                            const karigar = karigars.find(k => k.id === selectedKarigarId);
+                                            const printContent = `
+                                                <html>
+                                                  <head>
+                                                    <title>Job Card - ${karigar?.name}</title>
+                                                    <style>
+                                                      @page { size: A4; margin: 15mm; }
+                                                      body { font-family: -apple-system, sans-serif; line-height: 1.5; color: #333; }
+                                                      .header { display: flex; justify-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+                                                      .biz-name { font-size: 20pt; font-weight: 900; }
+                                                      .card-title { font-size: 14pt; font-weight: 700; color: #666; }
+                                                      .meta { display: grid; grid-template-cols: 1fr 1fr; gap: 10px; margin-bottom: 30px; }
+                                                      .meta-item { padding: 10px; border: 1px solid #eee; border-radius: 8px; }
+                                                      .label { font-size: 8pt; font-weight: 900; color: #999; text-transform: uppercase; }
+                                                      .value { font-size: 12pt; font-weight: 700; }
+                                                      table { width: 100%; border-collapse: collapse; }
+                                                      th { text-align: left; padding: 10px; background: #f9f9f9; font-size: 9pt; text-transform: uppercase; border-bottom: 2px solid #333; }
+                                                      td { padding: 10px; border-bottom: 1px solid #eee; font-size: 10pt; }
+                                                      .amount { font-weight: 900; }
+                                                      .footer { margin-top: 50px; text-align: center; font-size: 8pt; color: #999; }
+                                                    </style>
+                                                  </head>
+                                                  <body>
+                                                    <div class="header">
+                                                      <div>
+                                                        <div class="biz-name">Nexora Digital</div>
+                                                        <div class="card-title">Artisan Job Audit Card</div>
+                                                      </div>
+                                                      <div style="text-align: right">
+                                                        <div>Date: ${new Date().toLocaleDateString()}</div>
+                                                      </div>
+                                                    </div>
+                                                    <div class="meta">
+                                                      <div class="meta-item"><div class="label">Artisan</div><div class="value">${karigar?.name}</div></div>
+                                                      <div class="meta-item"><div class="label">Contact</div><div class="value">${karigar?.contact_number || 'N/A'}</div></div>
+                                                      <div class="meta-item"><div class="label">Cash Balance</div><div class="value">₹${formatIndianRupees(balances[selectedKarigarId!]?.cash || 0)}</div></div>
+                                                      <div class="meta-item"><div class="label">Metal Dual</div><div class="value">${(balances[selectedKarigarId!]?.metal || 0).toFixed(3)}g</div></div>
+                                                    </div>
+                                                    <table>
+                                                      <thead>
+                                                        <tr>
+                                                          <th>Date</th>
+                                                          <th>Description</th>
+                                                          <th style="text-align:right">Metal (g)</th>
+                                                          <th style="text-align:right">Labor (₹)</th>
+                                                        </tr>
+                                                      </thead>
+                                                      <tbody>
+                                                        ${workHistory.map(h => `
+                                                          <tr>
+                                                            <td>${new Date(h.work_date).toLocaleDateString()}</td>
+                                                            <td>${h.description}</td>
+                                                            <td style="text-align:right">${h.metal_gm ? h.metal_gm.toFixed(3) + 'g' : '-'}</td>
+                                                            <td style="text-align:right">₹${formatIndianRupees(h.amount)}</td>
+                                                          </tr>
+                                                        `).join('')}
+                                                      </tbody>
+                                                    </table>
+                                                    <div class="footer">Digitally Generated via Nexora ERP</div>
+                                                  </body>
+                                                </html>
+                                            `;
+                                            const printFrame = document.createElement('iframe');
+                                            printFrame.style.display = 'none';
+                                            document.body.appendChild(printFrame);
+                                            const frameDoc = printFrame.contentWindow?.document || printFrame.contentDocument;
+                                            if (frameDoc) {
+                                                // @ts-ignore
+                                                frameDoc.open();
+                                                // @ts-ignore
+                                                frameDoc.write(printContent);
+                                                // @ts-ignore
+                                                frameDoc.close();
+                                                setTimeout(() => {
+                                                    printFrame.contentWindow?.focus();
+                                                    printFrame.contentWindow?.print();
+                                                    setTimeout(() => printFrame.remove(), 1000);
+                                                }, 500);
+                                            }
+                                        }}
                                         className="w-full flex items-center justify-between p-4 bg-gray-900 text-white rounded-xl font-bold text-xs hover:bg-black transition-all group mt-2"
                                     >
                                         <div className="flex items-center gap-3">
                                             <Printer className="w-4 h-4" />
-                                            Print Job Card
+                                            Print Monthly Audit
                                         </div>
                                     </button>
                                 </div>

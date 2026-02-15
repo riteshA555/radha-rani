@@ -168,23 +168,35 @@ export const deleteKarigar = async (id: string) => {
     if (!user) throw new Error('Not authenticated');
 
     // Check for work records first to prevent FK error
-    const { count, error: countError } = await supabase
+    const { count: workCount, error: workError } = await supabase
         .from('karigar_work_records')
         .select('*', { count: 'exact', head: true })
         .eq('karigar_id', id)
-        .eq('user_id', user.id)
+        .eq('user_id', user.id);
 
-    if (countError) throw countError
-    if (count && count > 0) throw new Error("Cannot delete Karigar with existing work records. Deactivate instead.")
+    if (workError) throw workError;
+
+    // Check for payments as well
+    const { count: paymentCount, error: paymentError } = await supabase
+        .from('karigar_payments')
+        .select('*', { count: 'exact', head: true })
+        .eq('karigar_id', id)
+        .eq('user_id', user.id);
+
+    if (paymentError) throw paymentError;
+
+    if ((workCount && workCount > 0) || (paymentCount && paymentCount > 0)) {
+        throw new Error("Cannot delete Karigar with existing history. Deactivate them instead to preserve records.");
+    }
 
     const { error } = await supabase
         .from('karigars')
         .delete()
         .eq('id', id)
-        .eq('user_id', user.id)
+        .eq('user_id', user.id);
 
-    if (error) throw error
-    cacheStore.invalidate(KARIGARS_CACHE_KEY)
+    if (error) throw error;
+    cacheStore.invalidate(KARIGARS_CACHE_KEY);
 }
 
 export const getKarigarBalances = async () => {
